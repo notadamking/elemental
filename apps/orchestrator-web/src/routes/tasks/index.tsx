@@ -36,7 +36,7 @@ import {
   X,
 } from 'lucide-react';
 import { useTasksByStatus, useStartTask, useCompleteTask, useUpdateTask, useBulkDeleteTasks } from '../../api/hooks/useTasks';
-import { useAgents } from '../../api/hooks/useAgents';
+import { useAllEntities } from '../../api/hooks/useAllElements';
 import {
   TaskRow,
   TaskDetailPanel,
@@ -48,7 +48,7 @@ import {
   KanbanBoard,
 } from '../../components/task';
 import { Pagination } from '../../components/shared/Pagination';
-import type { Task, Agent } from '../../api/types';
+import type { Task } from '../../api/types';
 import type {
   ViewMode,
   SortField,
@@ -169,15 +169,16 @@ export function TasksPage() {
     refetch,
   } = useTasksByStatus();
 
-  const { data: agentsData } = useAgents();
-  const agents = agentsData?.agents ?? [];
+  const { data: entities } = useAllEntities();
 
-  // Create agent lookup map
-  const agentMap = useMemo(() => {
-    const map = new Map<string, Agent>();
-    agents.forEach((a) => map.set(a.id, a));
+  // Create entity name lookup map
+  const entityNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (entities) {
+      entities.forEach((e) => map.set(e.id, e.name));
+    }
     return map;
-  }, [agents]);
+  }, [entities]);
 
   // Mutations
   const startTaskMutation = useStartTask();
@@ -320,8 +321,8 @@ export function TasksPage() {
       return [{ key: 'all', label: 'All Tasks', tasks: paginatedTasks }];
     }
     // For grouped view, paginate within each group
-    return groupTasks(paginatedTasks, groupBy, agents);
-  }, [paginatedTasks, groupBy, agents, viewMode]);
+    return groupTasks(paginatedTasks, groupBy, entityNameMap);
+  }, [paginatedTasks, groupBy, entityNameMap, viewMode]);
 
   const setTab = (tab: TabValue) => {
     setSelectedTaskIds(new Set());
@@ -653,7 +654,7 @@ export function TasksPage() {
           filters={filters}
           onFilterChange={setFilters}
           onClearFilters={handleClearFilters}
-          agents={agents}
+          entityNameMap={entityNameMap}
         />
       )}
 
@@ -855,7 +856,7 @@ export function TasksPage() {
         <>
           <TaskListView
             groups={paginatedGroupedTasks}
-            agentMap={agentMap}
+            entityNameMap={entityNameMap}
             onStart={handleStartTask}
             onComplete={handleCompleteTask}
             onSelectTask={handleSelectTask}
@@ -885,7 +886,7 @@ export function TasksPage() {
       ) : (
         <KanbanBoard
           tasks={allTasks}
-          agentMap={agentMap}
+          entityNameMap={entityNameMap}
           selectedTaskId={selectedTaskId ?? null}
           onTaskClick={handleSelectTask}
           onUpdateTask={handleUpdateTask}
@@ -983,7 +984,7 @@ function SortableHeader({
 
 interface TaskListViewProps {
   groups: TaskGroup[];
-  agentMap: Map<string, Agent>;
+  entityNameMap: Map<string, string>;
   onStart: (taskId: string) => void;
   onComplete: (taskId: string) => void;
   onSelectTask: (taskId: string) => void;
@@ -1004,7 +1005,7 @@ interface TaskListViewProps {
 
 function TaskListView({
   groups,
-  agentMap,
+  entityNameMap,
   onStart,
   onComplete,
   onSelectTask,
@@ -1096,7 +1097,7 @@ function TaskListView({
               <GroupSection
                 key={group.key}
                 group={group}
-                agentMap={agentMap}
+                entityNameMap={entityNameMap}
                 onStart={onStart}
                 onComplete={onComplete}
                 onSelectTask={onSelectTask}
@@ -1119,7 +1120,7 @@ function TaskListView({
 
 interface GroupSectionProps {
   group: TaskGroup;
-  agentMap: Map<string, Agent>;
+  entityNameMap: Map<string, string>;
   onStart: (taskId: string) => void;
   onComplete: (taskId: string) => void;
   onSelectTask: (taskId: string) => void;
@@ -1135,7 +1136,7 @@ interface GroupSectionProps {
 
 function GroupSection({
   group,
-  agentMap,
+  entityNameMap,
   onStart,
   onComplete,
   onSelectTask,
@@ -1179,7 +1180,7 @@ function GroupSection({
             <TaskRow
               key={task.id}
               task={task}
-              assignedAgent={task.assignee ? agentMap.get(task.assignee) : undefined}
+              assigneeName={task.assignee ? entityNameMap.get(task.assignee) : undefined}
               onStart={() => onStart(task.id)}
               onComplete={() => onComplete(task.id)}
               onClick={() => onSelectTask(task.id)}

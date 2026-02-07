@@ -26,7 +26,7 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import { useMergeRequest } from '../../api/hooks/useMergeRequests';
-import { useAgents } from '../../api/hooks/useAgents';
+import { useAllEntities } from '../../api/hooks/useAllElements';
 import { MergeStatusBadge, TaskStatusBadge, TaskPriorityBadge } from '../task';
 import { TestResultsDisplay } from './TestResultsDisplay';
 import { getMergeStatusColor } from '../../api/hooks/useMergeRequests';
@@ -43,11 +43,10 @@ export function MergeRequestDetailPanel({
   onBack,
 }: MergeRequestDetailPanelProps) {
   const { data: task, isLoading, error } = useMergeRequest(taskId);
-  const { data: agentsData } = useAgents();
+  const { data: entities } = useAllEntities();
 
-  const agents = agentsData?.agents ?? [];
-  const assignedAgent = task?.assignee
-    ? agents.find((a) => a.id === task.assignee)
+  const assigneeName = task?.assignee && entities
+    ? entities.find((e) => e.id === task.assignee)?.name
     : undefined;
 
   if (isLoading) {
@@ -185,7 +184,7 @@ export function MergeRequestDetailPanel({
             <div className="flex items-center gap-2 text-sm">
               <Bot className="w-4 h-4 text-purple-500" />
               <span className="text-[var(--color-text)]">
-                {assignedAgent?.name || task.assignee || 'Unassigned'}
+                {assigneeName || task.assignee || 'Unassigned'}
               </span>
             </div>
 

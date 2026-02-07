@@ -6,12 +6,12 @@
  */
 
 import { GitBranch, GitMerge, AlertTriangle, Bot, User, Clock, Calendar, MoreHorizontal, Play, CheckCircle2 } from 'lucide-react';
-import type { Task, Agent } from '../../api/types';
+import type { Task } from '../../api/types';
 import { TaskStatusBadge, TaskPriorityBadge, TaskTypeBadge } from '@elemental/ui/domain';
 
 interface TaskCardProps {
   task: Task;
-  assignedAgent?: Agent;
+  assigneeName?: string;
   onStart?: () => void;
   onComplete?: () => void;
   onClick?: () => void;
@@ -21,7 +21,7 @@ interface TaskCardProps {
 
 export function TaskCard({
   task,
-  assignedAgent,
+  assigneeName,
   onStart,
   onComplete,
   onClick,
@@ -88,10 +88,10 @@ export function TaskCard({
       </div>
 
       {/* Assignee */}
-      {(assignedAgent || task.assignee) && (
+      {task.assignee && (
         <div className="flex items-center gap-2 mb-2 text-xs text-[var(--color-text-secondary)]">
           <User className="w-3.5 h-3.5" />
-          <span>{assignedAgent?.name || task.assignee}</span>
+          <span>{assigneeName || task.assignee}</span>
         </div>
       )}
 

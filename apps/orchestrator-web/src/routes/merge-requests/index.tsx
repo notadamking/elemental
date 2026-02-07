@@ -25,13 +25,12 @@ import {
   useMergeRequestCounts,
   type MergeRequestFilterStatus,
 } from '../../api/hooks/useMergeRequests';
-import { useAgents } from '../../api/hooks/useAgents';
+import { useAllEntities } from '../../api/hooks/useAllElements';
 import {
   MergeRequestCard,
   MergeRequestDetailPanel,
   MergeRequestFilterBar,
 } from '../../components/merge-request';
-import type { Agent } from '../../api/types';
 
 export function MergeRequestsPage() {
   const search = useSearch({ from: '/merge-requests' }) as {
@@ -59,14 +58,16 @@ export function MergeRequestsPage() {
   });
 
   const { counts } = useMergeRequestCounts();
-  const { data: agentsData } = useAgents();
+  const { data: entities } = useAllEntities();
 
-  // Create agent lookup map
-  const agentMap = useMemo(() => {
-    const map = new Map<string, Agent>();
-    (agentsData?.agents ?? []).forEach((a) => map.set(a.id, a));
+  // Create entity name lookup map
+  const entityNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (entities) {
+      entities.forEach((e) => map.set(e.id, e.name));
+    }
     return map;
-  }, [agentsData?.agents]);
+  }, [entities]);
 
   // Filter by search query
   const filteredRequests = useMemo(() => {
@@ -77,10 +78,10 @@ export function MergeRequestsPage() {
     return mergeRequests.filter((task) => {
       const title = task.title.toLowerCase();
       const branch = task.metadata?.orchestrator?.branch?.toLowerCase() || '';
-      const agentName = agentMap.get(task.assignee || '')?.name?.toLowerCase() || '';
-      return title.includes(query) || branch.includes(query) || agentName.includes(query);
+      const assigneeName = entityNameMap.get(task.assignee || '')?.toLowerCase() || '';
+      return title.includes(query) || branch.includes(query) || assigneeName.includes(query);
     });
-  }, [mergeRequests, searchQuery, agentMap]);
+  }, [mergeRequests, searchQuery, entityNameMap]);
 
   // Keyboard navigation
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -287,7 +288,7 @@ export function MergeRequestsPage() {
             >
               <MergeRequestCard
                 task={task}
-                assignedAgent={task.assignee ? agentMap.get(task.assignee) : undefined}
+                assigneeName={task.assignee ? entityNameMap.get(task.assignee) : undefined}
                 onClick={() => handleSelectTask(task.id)}
                 isSelected={task.id === selectedTaskId}
               />

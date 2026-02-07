@@ -46,6 +46,7 @@ import {
   type UpdateTaskInput,
 } from '../../api/hooks/useTasks';
 import { useAgents } from '../../api/hooks/useAgents';
+import { useAllEntities } from '../../api/hooks/useAllElements';
 import { TaskStatusBadge, TaskPriorityBadge, TaskTypeBadge, MergeStatusBadge } from './index';
 import { TaskDependencySection } from './TaskDependencySection';
 import { MarkdownContent } from '../shared/MarkdownContent';
@@ -86,6 +87,7 @@ const COMPLEXITY_OPTIONS: { value: number; label: string }[] = [
 export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetailPanelProps) {
   const { data, isLoading, error } = useTask(taskId);
   const { data: agentsData } = useAgents('worker');
+  const { data: entities } = useAllEntities();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const startTask = useStartTask();
@@ -96,6 +98,10 @@ export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetai
 
   const task = data?.task;
   const workers: Agent[] = agentsData?.agents ?? [];
+  const entityNameMap = new Map<string, string>();
+  if (entities) {
+    entities.forEach((e) => entityNameMap.set(e.id, e.name));
+  }
   const orchestratorMeta = task?.metadata?.orchestrator;
   const description = task?.description;
 
@@ -281,6 +287,7 @@ export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetai
           <MetadataField label="Assigned Agent" icon={<Bot className="w-3 h-3" />}>
             <AssigneeDropdown
               value={task.assignee}
+              entityNameMap={entityNameMap}
               workers={workers}
               onSave={(assignee) => handleUpdate({ assignee: assignee ?? null })}
               isUpdating={updateTask.isPending && editingField === 'assignee'}
@@ -707,11 +714,13 @@ function PriorityDropdown({
 // Assignee Dropdown
 function AssigneeDropdown({
   value,
+  entityNameMap,
   workers,
   onSave,
   isUpdating,
 }: {
   value?: string;
+  entityNameMap: Map<string, string>;
   workers: Agent[];
   onSave: (value: string | null) => void;
   isUpdating: boolean;
@@ -719,7 +728,7 @@ function AssigneeDropdown({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const currentAgent = value ? workers.find((w) => w.id === value) : undefined;
+  const currentName = value ? entityNameMap.get(value) : undefined;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -740,8 +749,8 @@ function AssigneeDropdown({
         data-testid="task-assignee-dropdown"
       >
         <Bot className="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
-        <span className={currentAgent ? 'text-[var(--color-text)]' : 'text-[var(--color-text-tertiary)] italic'}>
-          {currentAgent?.name || 'Unassigned'}
+        <span className={currentName ? 'text-[var(--color-text)]' : 'text-[var(--color-text-tertiary)] italic'}>
+          {currentName || 'Unassigned'}
         </span>
         {isUpdating && <Loader2 className="w-3 h-3 animate-spin" />}
       </button>

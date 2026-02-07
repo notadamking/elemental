@@ -12,20 +12,18 @@ import { useState } from 'react';
 import { Filter, ChevronDown, XCircle, X } from 'lucide-react';
 import type { FilterConfig } from '../../lib/task-constants';
 import { STATUS_OPTIONS, PRIORITY_OPTIONS } from '../../lib/task-constants';
-import type { Agent } from '../../api/types';
-
 interface FilterBarProps {
   filters: FilterConfig;
   onFilterChange: (filters: FilterConfig) => void;
   onClearFilters: () => void;
-  agents: Agent[];
+  entityNameMap: Map<string, string>;
 }
 
 export function FilterBar({
   filters,
   onFilterChange,
   onClearFilters,
-  agents,
+  entityNameMap,
 }: FilterBarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const hasActiveFilters = filters.status.length > 0 || filters.priority.length > 0 || filters.assignee !== '';
@@ -44,9 +42,6 @@ export function FilterBar({
       : [...filters.priority, priority];
     onFilterChange({ ...filters, priority: newPriority });
   };
-
-  // Filter to only show worker agents
-  const workerAgents = agents.filter(a => a.metadata?.agent?.agentRole === 'worker');
 
   return (
     <div className="border-b border-[var(--color-border)] bg-[var(--color-surface-elevated)]" data-testid="filter-bar">
@@ -134,9 +129,9 @@ export function FilterBar({
               data-testid="filter-assignee"
             >
               <option value="">All assignees</option>
-              {workerAgents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name || agent.id}
+              {Array.from(entityNameMap.entries()).map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name || id}
                 </option>
               ))}
             </select>
@@ -185,7 +180,7 @@ export function FilterBar({
           })}
           {filters.assignee && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-[var(--color-surface)] text-[var(--color-text)]">
-              Assignee: {workerAgents.find(a => a.id === filters.assignee)?.name || filters.assignee}
+              Assignee: {entityNameMap.get(filters.assignee) || filters.assignee}
               <button
                 onClick={() => onFilterChange({ ...filters, assignee: '' })}
                 className="hover:opacity-70"

@@ -42,7 +42,7 @@ import {
   Clock,
   User,
 } from 'lucide-react';
-import type { Task, Agent, MergeStatus } from '../../api/types';
+import type { Task, MergeStatus } from '../../api/types';
 import type { SortField, SortDirection } from '../../lib/task-constants';
 import { SORT_OPTIONS, PRIORITY_OPTIONS } from '../../lib/task-constants';
 
@@ -76,7 +76,7 @@ interface TaskUpdate {
 
 interface KanbanBoardProps {
   tasks: Task[];
-  agentMap: Map<string, Agent>;
+  entityNameMap: Map<string, string>;
   selectedTaskId: string | null;
   onTaskClick: (taskId: string) => void;
   onUpdateTask: (taskId: string, updates: TaskUpdate) => void;
@@ -273,16 +273,16 @@ function getUniqueTags(tasks: Task[]): string[] {
 
 interface TaskCardProps {
   task: Task;
-  agentMap: Map<string, Agent>;
+  entityNameMap: Map<string, string>;
   isSelected: boolean;
   onClick: () => void;
   isDragging?: boolean;
 }
 
-function TaskCard({ task, agentMap, isSelected, onClick, isDragging = false }: TaskCardProps) {
+function TaskCard({ task, entityNameMap, isSelected, onClick, isDragging = false }: TaskCardProps) {
   const priorityBorder = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS[3];
   const typeColor = TASK_TYPE_COLORS[task.taskType] || '';
-  const assignedAgent = task.assignee ? agentMap.get(task.assignee) : null;
+  const assigneeName = task.assignee ? entityNameMap.get(task.assignee) : undefined;
   const branch = task.metadata?.orchestrator?.branch;
   const mergeStatus = task.metadata?.orchestrator?.mergeStatus;
 
@@ -309,10 +309,10 @@ function TaskCard({ task, agentMap, isSelected, onClick, isDragging = false }: T
         <span className="px-1.5 py-0.5 text-xs bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)] rounded capitalize">
           {task.taskType}
         </span>
-        {assignedAgent && (
+        {assigneeName && (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded truncate max-w-24">
             <User className="w-3 h-3 flex-shrink-0" />
-            <span className="truncate">{assignedAgent.name}</span>
+            <span className="truncate">{assigneeName}</span>
           </span>
         )}
         {branch && (
@@ -348,7 +348,7 @@ function MergeStatusBadge({ status }: { status: MergeStatus }) {
 
 function SortableTaskCard({
   task,
-  agentMap,
+  entityNameMap,
   isSelected,
   onClick,
 }: TaskCardProps) {
@@ -370,7 +370,7 @@ function SortableTaskCard({
     <div ref={setNodeRef} style={style} className="h-full" {...attributes} {...listeners}>
       <TaskCard
         task={task}
-        agentMap={agentMap}
+        entityNameMap={entityNameMap}
         isSelected={isSelected}
         onClick={onClick}
         isDragging={isDragging}
@@ -390,7 +390,7 @@ interface FilterSortDropdownProps {
   preferences: ColumnPreferences;
   pageSort: ColumnSort;
   onUpdate: (updates: Partial<ColumnPreferences>) => void;
-  agentMap: Map<string, Agent>;
+  entityNameMap: Map<string, string>;
 }
 
 function FilterSortDropdown({
@@ -400,7 +400,7 @@ function FilterSortDropdown({
   preferences,
   pageSort,
   onUpdate,
-  agentMap,
+  entityNameMap,
 }: FilterSortDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -579,7 +579,7 @@ function FilterSortDropdown({
                   <option value="">All assignees</option>
                   {availableAssignees.map((assignee) => (
                     <option key={assignee} value={assignee}>
-                      {agentMap.get(assignee)?.name || assignee}
+                      {entityNameMap.get(assignee) || assignee}
                     </option>
                   ))}
                 </select>
@@ -627,7 +627,7 @@ interface VirtualizedKanbanColumnProps {
   color: string;
   icon: React.ReactNode;
   tasks: Task[];
-  agentMap: Map<string, Agent>;
+  entityNameMap: Map<string, string>;
   selectedTaskId: string | null;
   onTaskClick: (taskId: string) => void;
   isDragActive: boolean;
@@ -644,7 +644,7 @@ function VirtualizedKanbanColumn({
   color,
   icon,
   tasks,
-  agentMap,
+  entityNameMap,
   selectedTaskId,
   onTaskClick,
   isDragActive,
@@ -747,7 +747,7 @@ function VirtualizedKanbanColumn({
             preferences={preferences}
             pageSort={pageSort}
             onUpdate={onUpdatePreferences}
-            agentMap={agentMap}
+            entityNameMap={entityNameMap}
           />
         </div>
       </div>
@@ -790,7 +790,7 @@ function VirtualizedKanbanColumn({
                   >
                     <SortableTaskCard
                       task={task}
-                      agentMap={agentMap}
+                      entityNameMap={entityNameMap}
                       isSelected={task.id === selectedTaskId}
                       onClick={() => onTaskClick(task.id)}
                     />
@@ -811,7 +811,7 @@ function VirtualizedKanbanColumn({
 
 export function KanbanBoard({
   tasks,
-  agentMap,
+  entityNameMap,
   selectedTaskId,
   onTaskClick,
   onUpdateTask,
@@ -1026,7 +1026,7 @@ export function KanbanBoard({
               color={column.color}
               icon={<Icon className={`w-4 h-4 ${column.iconColor}`} />}
               tasks={columnTasks}
-              agentMap={agentMap}
+              entityNameMap={entityNameMap}
               selectedTaskId={selectedTaskId}
               onTaskClick={onTaskClick}
               isDragActive={isDragActive}
@@ -1044,7 +1044,7 @@ export function KanbanBoard({
         {activeTask && (
           <TaskCard
             task={activeTask}
-            agentMap={agentMap}
+            entityNameMap={entityNameMap}
             isSelected={false}
             onClick={() => {}}
           />

@@ -6,13 +6,13 @@
  */
 
 import { GitBranch, GitMerge, AlertTriangle, Bot, User, Play, CheckCircle2 } from 'lucide-react';
-import type { Task, Agent } from '../../api/types';
+import type { Task } from '../../api/types';
 import { TaskStatusBadge, TaskPriorityBadge, TaskTypeBadge } from '@elemental/ui/domain';
 import { TaskActionsDropdown } from './TaskActionsDropdown';
 
 interface TaskRowProps {
   task: Task;
-  assignedAgent?: Agent;
+  assigneeName?: string;
   onStart?: () => void;
   onComplete?: () => void;
   onClick?: () => void;
@@ -28,7 +28,7 @@ interface TaskRowProps {
 
 export function TaskRow({
   task,
-  assignedAgent,
+  assigneeName,
   onStart,
   onComplete,
   onClick,
@@ -116,10 +116,10 @@ export function TaskRow({
 
       {/* Assignee */}
       <td className="px-4 py-3">
-        {assignedAgent || task.assignee ? (
+        {task.assignee ? (
           <div className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
             <User className="w-4 h-4" />
-            <span className="truncate max-w-[120px]">{assignedAgent?.name || task.assignee}</span>
+            <span className="truncate max-w-[120px]">{assigneeName || task.assignee}</span>
           </div>
         ) : (
           <span className="text-sm text-[var(--color-text-tertiary)]">Unassigned</span>

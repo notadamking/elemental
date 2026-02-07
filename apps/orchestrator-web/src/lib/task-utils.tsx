@@ -5,7 +5,7 @@
  * and localStorage persistence. Adapted from the standard web app with agent support.
  */
 
-import type { Task, Agent } from '../api/types';
+import type { Task } from '../api/types';
 import type {
   ViewMode,
   SortField,
@@ -185,7 +185,7 @@ export function taskSortCompareFn(
  * Group tasks by the specified field
  * Uses agents instead of entities for assignee lookup
  */
-export function groupTasks(tasks: Task[], groupBy: GroupByField, agents: Agent[]): TaskGroup[] {
+export function groupTasks(tasks: Task[], groupBy: GroupByField, entityNameMap: Map<string, string>): TaskGroup[] {
   if (groupBy === 'none') {
     return [{ key: 'all', label: 'All Tasks', tasks }];
   }
@@ -265,12 +265,12 @@ export function groupTasks(tasks: Task[], groupBy: GroupByField, agents: Agent[]
     const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
       if (a === 'unassigned') return -1;
       if (b === 'unassigned') return 1;
-      const nameA = agents.find(e => e.id === a)?.name || a;
-      const nameB = agents.find(e => e.id === b)?.name || b;
+      const nameA = entityNameMap.get(a) || a;
+      const nameB = entityNameMap.get(b) || b;
       return nameA.localeCompare(nameB);
     });
     for (const key of sortedKeys) {
-      const agentName = key === 'unassigned' ? 'Unassigned' : (agents.find(e => e.id === key)?.name || key);
+      const agentName = key === 'unassigned' ? 'Unassigned' : (entityNameMap.get(key) || key);
       result.push({
         key,
         label: agentName,

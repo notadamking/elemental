@@ -9,20 +9,20 @@
  */
 
 import { GitBranch, Bot, ExternalLink, CheckCircle2, XCircle, Clock } from 'lucide-react';
-import type { Task, Agent } from '../../api/types';
+import type { Task } from '../../api/types';
 import { MergeStatusBadge } from '../task';
 import { getMergeStatusColor } from '../../api/hooks/useMergeRequests';
 
 interface MergeRequestCardProps {
   task: Task;
-  assignedAgent?: Agent;
+  assigneeName?: string;
   onClick?: () => void;
   isSelected?: boolean;
 }
 
 export function MergeRequestCard({
   task,
-  assignedAgent,
+  assigneeName,
   onClick,
   isSelected,
 }: MergeRequestCardProps) {
@@ -104,7 +104,7 @@ export function MergeRequestCard({
         {/* Agent */}
         <div className="flex items-center gap-1.5 text-[var(--color-text-secondary)]">
           <Bot className="w-3.5 h-3.5 text-purple-500" />
-          <span>{assignedAgent?.name || task.assignee || 'Unassigned'}</span>
+          <span>{assigneeName || task.assignee || 'Unassigned'}</span>
         </div>
 
         {/* Test Summary */}
