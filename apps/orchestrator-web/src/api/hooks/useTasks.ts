@@ -91,7 +91,7 @@ export function useTasksByStatus() {
 
   // Group tasks by status
   const backlog = tasks.filter(t => t.status === 'backlog');
-  const unassigned = tasks.filter(t => !t.assignee && t.status !== 'closed' && t.status !== 'tombstone' && t.status !== 'backlog');
+  const unassigned = tasks.filter(t => !t.assignee && (t.status === 'open' || t.status === 'blocked' || t.status === 'deferred'));
   const assigned = tasks.filter(t => t.assignee && t.status === 'open');
   const inProgress = tasks.filter(t => t.status === 'in_progress');
   const blocked = tasks.filter(t => t.status === 'blocked');
@@ -130,7 +130,7 @@ export function useTaskCounts() {
 
   const counts = {
     all: allTasks.length,
-    unassigned: allTasks.filter(t => !t.assignee && t.status !== 'closed' && t.status !== 'tombstone').length,
+    unassigned: allTasks.filter(t => !t.assignee && (t.status === 'open' || t.status === 'blocked' || t.status === 'deferred')).length,
     assigned: allTasks.filter(t => t.assignee && t.status === 'open').length,
     inProgress: allTasks.filter(t => t.status === 'in_progress').length,
     blocked: allTasks.filter(t => t.status === 'blocked').length,
