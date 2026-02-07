@@ -383,6 +383,18 @@ export class MergeStewardServiceImpl implements MergeStewardService {
         };
       }
 
+      // Early exit: Skip if task is already closed and merged
+      // This prevents re-processing of already-merged tasks
+      if (task.status === TaskStatus.CLOSED && orchestratorMeta.mergeStatus === 'merged') {
+        console.log(`[merge-steward] Task ${taskId} is already closed and merged, skipping`);
+        return {
+          taskId,
+          status: 'merged',
+          merged: true,
+          processedAt,
+        };
+      }
+
       // 2. Run tests (unless skipped)
       let testResult: TestResult | undefined;
       if (!options.skipTests) {
@@ -728,6 +740,17 @@ export class MergeStewardServiceImpl implements MergeStewardService {
       originalTask.metadata as Record<string, unknown>
     );
 
+    // Check if a fix task already exists for this original task and fix type
+    // This prevents creating duplicate fix tasks when tests fail repeatedly
+    const existingFixTasks = await this.findExistingFixTasks(originalTaskId, options.type);
+    if (existingFixTasks.length > 0) {
+      // Return the existing fix task ID instead of creating a duplicate
+      console.log(
+        `[merge-steward] Fix task already exists for ${originalTaskId} (type: ${options.type}): ${existingFixTasks[0].id}`
+      );
+      return existingFixTasks[0].id;
+    }
+
     // Determine title based on fix type
     let title: string;
     switch (options.type) {
@@ -912,6 +935,36 @@ export class MergeStewardServiceImpl implements MergeStewardService {
   // ----------------------------------------
   // Private Helpers
   // ----------------------------------------
+
+  /**
+   * Finds existing fix tasks for a given original task and fix type.
+   * This prevents creating duplicate fix tasks when tests fail repeatedly.
+   */
+  private async findExistingFixTasks(
+    originalTaskId: ElementId,
+    fixType: 'test_failure' | 'merge_conflict' | 'general'
+  ): Promise<Task[]> {
+    // Query for tasks that were created as fix tasks for this original task
+    const allTasks = await this.api.list<Task>({
+      type: 'task' as const,
+      // Only consider non-closed fix tasks (still relevant)
+      status: [TaskStatus.OPEN, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW] as unknown as TaskStatus,
+    });
+
+    // Filter for tasks that:
+    // 1. Have metadata.originalTaskId matching our original task
+    // 2. Have metadata.fixType matching the requested fix type
+    // 3. Have the 'fix' tag
+    return allTasks.filter((task) => {
+      const meta = task.metadata as Record<string, unknown> | undefined;
+      const tags = task.tags ?? [];
+      return (
+        meta?.originalTaskId === originalTaskId &&
+        meta?.fixType === fixType &&
+        tags.includes('fix')
+      );
+    });
+  }
 
   private async getTargetBranch(): Promise<string> {
     if (this.targetBranch) {
