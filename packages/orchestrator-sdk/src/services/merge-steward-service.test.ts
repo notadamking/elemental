@@ -595,6 +595,29 @@ describe('MergeStewardService', () => {
       expect(result.status).toBe('failed');
       expect(result.error).toContain('no branch');
     });
+
+    it('should skip already merged and closed tasks', async () => {
+      // This test ensures the fix for the infinite retry loop:
+      // Tasks that are CLOSED with mergeStatus 'merged' should not be reprocessed
+      const closedMergedTask = createMockTask({
+        status: TaskStatus.CLOSED,
+        metadata: {
+          orchestrator: {
+            branch: 'agent/worker/task-branch',
+            mergeStatus: 'merged',
+          },
+        },
+      });
+      (api.get as MockInstance).mockResolvedValue(closedMergedTask);
+
+      const result = await service.processTask(closedMergedTask.id);
+
+      // Should return success without running tests or attempting merge
+      expect(result.merged).toBe(true);
+      expect(result.status).toBe('merged');
+      // Should not have run tests
+      expect(api.update).not.toHaveBeenCalled();
+    });
   });
 
   // ----------------------------------------

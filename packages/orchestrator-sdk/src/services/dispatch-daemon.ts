@@ -810,9 +810,13 @@ export class DispatchDaemonImpl implements DispatchDaemon {
         const stewardSession = this.sessionManager.getActiveSession(stewardId);
         if (stewardSession) continue;
 
-        // Find REVIEW tasks assigned to this steward
+        // Find REVIEW tasks assigned to this steward that still need processing.
+        // Only recover tasks with 'pending' or 'testing' mergeStatus - tasks with
+        // 'test_failed', 'conflict', 'failed', or 'merged' have already been processed
+        // and should NOT be re-spawned (prevents infinite retry loops on pre-existing failures).
         const stewardTasks = await this.taskAssignment.getAgentTasks(stewardId, {
           taskStatus: [TaskStatus.REVIEW],
+          mergeStatus: ['pending', 'testing'],
         });
         if (stewardTasks.length === 0) continue;
 

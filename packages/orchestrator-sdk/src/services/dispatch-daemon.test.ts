@@ -948,6 +948,39 @@ describe('recoverOrphanedAssignments - merge steward recovery', () => {
       })
     );
   });
+
+  test('skips steward tasks with terminal mergeStatus (test_failed/failed/conflict)', async () => {
+    // This test ensures the fix for the infinite retry loop:
+    // Tasks with mergeStatus test_failed, failed, or conflict should NOT be recovered
+    // because they have already been processed and the issue reported
+    const steward = await createTestSteward('terminal-status-steward');
+    const stewardId = steward.id as unknown as EntityId;
+
+    // Create a task with test_failed status (already processed, failure reported)
+    const task = await createTask({
+      title: 'Task with test_failed status',
+      createdBy: systemEntity,
+      status: TaskStatus.REVIEW,
+      assignee: stewardId,
+    });
+    const saved = await api.create(task as unknown as Record<string, unknown> & { createdBy: EntityId }) as Task;
+
+    await api.update(saved.id, {
+      metadata: updateOrchestratorTaskMeta(undefined, {
+        assignedAgent: stewardId,
+        mergeStatus: 'test_failed', // Already processed, failure reported
+        sessionId: 'steward-session-terminal',
+        branch: 'agent/worker/task-branch',
+      }),
+    });
+
+    const result = await daemon.recoverOrphanedAssignments();
+
+    // Should NOT recover this task - it's in a terminal state
+    expect(result.processed).toBe(0);
+    expect(sessionManager.resumeSession).not.toHaveBeenCalled();
+    expect(sessionManager.startSession).not.toHaveBeenCalled();
+  });
 });
 
 describe('reconcileClosedUnmergedTasks', () => {
