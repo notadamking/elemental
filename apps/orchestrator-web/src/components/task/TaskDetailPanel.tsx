@@ -47,7 +47,7 @@ import {
   type AttachedDocument,
   type UpdateTaskInput,
 } from '../../api/hooks/useTasks';
-import { useAgents } from '../../api/hooks/useAgents';
+import { useAgents, useOperators, type Operator } from '../../api/hooks/useAgents';
 import { useAllEntities } from '../../api/hooks/useAllElements';
 import { TaskStatusBadge, TaskPriorityBadge, TaskTypeBadge, MergeStatusBadge } from './index';
 import { TaskDependencySection } from './TaskDependencySection';
@@ -89,6 +89,7 @@ const COMPLEXITY_OPTIONS: { value: number; label: string }[] = [
 export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetailPanelProps) {
   const { data, isLoading, error } = useTask(taskId);
   const { data: agentsData } = useAgents('worker');
+  const { data: operatorsData } = useOperators();
   const { data: entities } = useAllEntities();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
@@ -102,6 +103,7 @@ export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetai
 
   const task = data?.task;
   const workers: Agent[] = agentsData?.agents ?? [];
+  const operators: Operator[] = operatorsData?.items ?? [];
   const entityNameMap = new Map<string, string>();
   if (entities) {
     entities.forEach((e) => entityNameMap.set(e.id, e.name));
@@ -316,11 +318,12 @@ export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetai
           </MetadataField>
 
           {/* Assignee */}
-          <MetadataField label="Assigned Agent" icon={<Bot className="w-3 h-3" />}>
+          <MetadataField label="Assigned To" icon={<User className="w-3 h-3" />}>
             <AssigneeDropdown
               value={task.assignee}
               entityNameMap={entityNameMap}
               workers={workers}
+              operators={operators}
               onSave={(assignee) => handleUpdate({ assignee: assignee ?? null })}
               isUpdating={updateTask.isPending && editingField === 'assignee'}
             />
@@ -748,12 +751,14 @@ function AssigneeDropdown({
   value,
   entityNameMap,
   workers,
+  operators,
   onSave,
   isUpdating,
 }: {
   value?: string;
   entityNameMap: Map<string, string>;
   workers: Agent[];
+  operators: Operator[];
   onSave: (value: string | null) => void;
   isUpdating: boolean;
 }) {
@@ -761,6 +766,8 @@ function AssigneeDropdown({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const currentName = value ? entityNameMap.get(value) : undefined;
+  // Check if current assignee is an operator
+  const isOperator = value ? operators.some(op => op.id === value) : false;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -780,14 +787,20 @@ function AssigneeDropdown({
         disabled={isUpdating}
         data-testid="task-assignee-dropdown"
       >
-        <Bot className="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
+        {isOperator ? (
+          <User className="w-3.5 h-3.5 text-blue-500" />
+        ) : value ? (
+          <Bot className="w-3.5 h-3.5 text-purple-500" />
+        ) : (
+          <User className="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
+        )}
         <span className={currentName ? 'text-[var(--color-text)]' : 'text-[var(--color-text-tertiary)] italic'}>
           {currentName || 'Unassigned'}
         </span>
         {isUpdating && <Loader2 className="w-3 h-3 animate-spin" />}
       </button>
       {isOpen && (
-        <div className="absolute z-10 mt-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md shadow-lg py-1 min-w-[180px] max-h-[200px] overflow-y-auto">
+        <div className="absolute z-10 mt-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md shadow-lg py-1 min-w-[180px] max-h-[280px] overflow-y-auto">
           {/* Unassigned option */}
           <button
             onClick={() => {
@@ -802,7 +815,38 @@ function AssigneeDropdown({
             <span className="text-[var(--color-text-tertiary)] italic">Unassigned</span>
             {!value && <Check className="w-3 h-3 text-[var(--color-primary)] ml-auto" />}
           </button>
+
+          {/* Operators section */}
+          {operators.length > 0 && (
+            <>
+              <div className="border-t border-[var(--color-border)] my-1" />
+              <div className="px-3 py-1 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+                Operators
+              </div>
+              {operators.map((operator) => (
+                <button
+                  key={operator.id}
+                  onClick={() => {
+                    if (operator.id !== value) onSave(operator.id);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-[var(--color-surface-hover)] flex items-center gap-2 ${
+                    operator.id === value ? 'bg-[var(--color-surface-elevated)]' : ''
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5 text-blue-500" />
+                  <span className="text-[var(--color-text)]">{operator.name}</span>
+                  {operator.id === value && <Check className="w-3 h-3 text-[var(--color-primary)] ml-auto" />}
+                </button>
+              ))}
+            </>
+          )}
+
+          {/* Workers section */}
           <div className="border-t border-[var(--color-border)] my-1" />
+          <div className="px-3 py-1 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+            Worker Agents
+          </div>
           {workers.length === 0 ? (
             <div className="px-3 py-2 text-xs text-[var(--color-text-tertiary)]">
               No worker agents available

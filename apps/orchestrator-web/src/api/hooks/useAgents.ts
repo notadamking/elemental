@@ -328,3 +328,31 @@ export function useDeleteAgent() {
     },
   });
 }
+
+// ============================================================================
+// Operator (Human Entity) Hooks
+// ============================================================================
+
+/**
+ * Operator entity as returned by the entities API
+ */
+export interface Operator {
+  id: string;
+  name: string;
+  entityType: 'human';
+}
+
+interface OperatorsResponse {
+  items: Operator[];
+}
+
+/**
+ * Hook to fetch all operators (human entities) for task assignment
+ * Operators are human users who can be assigned tasks
+ */
+export function useOperators() {
+  return useQuery<OperatorsResponse, Error>({
+    queryKey: ['operators'],
+    queryFn: () => fetchApi<OperatorsResponse>('/entities?entityType=human&limit=100'),
+  });
+}
