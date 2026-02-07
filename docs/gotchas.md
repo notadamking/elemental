@@ -160,6 +160,7 @@ Common pitfalls and their solutions, organized by severity and category.
 - Built-in prompts are loaded from `packages/orchestrator-sdk/src/prompts/`
 - Project-level prompt overrides go in `.elemental/prompts/`
 - **Handoff notes are in the description Document**, not in metadata fields. `handoffTask()` appends `[AGENT HANDOFF NOTE]: {message}` to the task's `descriptionRef` Document. The `handoffHistory` array in metadata tracks handoff audit history.
+- **PTY message timing is critical** — when sending messages to interactive PTY sessions, the carriage return (`\r`) must be sent as a separate write with a delay (1500ms) after the message content. Sending it immediately or appending to the message content may cause the Enter key to be processed before the message is fully received.
 - **Agent names must be unique** — `registerDirector`, `registerWorker`, `registerSteward` throw if an agent with the same name already exists
 - **Tasks cannot be double-assigned** — `assignToAgent` throws if the task is already assigned to a different agent
 - **`DispatchDaemonConfig.projectRoot`** enables project-level prompt overrides for triage sessions (defaults to `process.cwd()`)
