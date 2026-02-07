@@ -77,6 +77,7 @@ export function WorkspacesPage() {
     startDrag,
     updateDragTarget,
     endDrag,
+    cancelDrag,
     rotateLayout,
     swapGridSections,
     swapPanes,
@@ -324,6 +325,7 @@ export function WorkspacesPage() {
             onStartDrag={startDrag}
             onUpdateDragTarget={updateDragTarget}
             onEndDrag={endDrag}
+            onCancelDrag={cancelDrag}
             onSwapSections={swapGridSections}
             onSwapPanes={swapPanes}
             onSwap2x2Rows={swap2x2Rows}
