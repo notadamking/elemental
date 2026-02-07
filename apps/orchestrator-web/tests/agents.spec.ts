@@ -285,14 +285,18 @@ test.describe('TB-O22: Steward Configuration UI', () => {
       await page.goto('/agents');
       await page.getByTestId('agents-create').click();
 
-      // Submit button should be disabled when name is empty
       const submitButton = page.getByTestId('submit-create-agent');
+      const nameInput = page.getByTestId('agent-name');
+
+      // Name field is auto-filled with a suggested name, so button starts enabled
+      await expect(submitButton).toBeEnabled();
+
+      // Clear the name field - submit button should become disabled
+      await nameInput.clear();
       await expect(submitButton).toBeDisabled();
 
-      // Fill in name
-      await page.getByTestId('agent-name').fill('Test Agent');
-
-      // Submit button should now be enabled
+      // Fill in name again - submit button should be enabled
+      await nameInput.fill('Test Agent');
       await expect(submitButton).toBeEnabled();
     });
 
