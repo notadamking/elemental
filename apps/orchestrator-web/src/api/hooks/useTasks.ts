@@ -90,10 +90,13 @@ export function useTasksByStatus() {
   const tasks = data?.tasks ?? [];
 
   // Group tasks by status
-  // Note: 'review' status tasks go to awaitingMerge, not assigned/unassigned
+  // Note: 'assigned' includes all tasks with an assignee (including in_progress and review)
+  // while in_progress and awaitingMerge are more specific status-based views
   const backlog = tasks.filter(t => t.status === 'backlog');
   const unassigned = tasks.filter(t => !t.assignee && (t.status === 'open' || t.status === 'blocked' || t.status === 'deferred'));
-  const assigned = tasks.filter(t => t.assignee && (t.status === 'open' || t.status === 'blocked' || t.status === 'deferred'));
+  // Assigned includes all non-backlog tasks with an assignee (regardless of status)
+  // This includes open, blocked, deferred, in_progress, and review tasks
+  const assigned = tasks.filter(t => t.assignee && t.status !== 'backlog' && t.status !== 'closed' && t.status !== 'tombstone');
   const inProgress = tasks.filter(t => t.status === 'in_progress');
   const blocked = tasks.filter(t => t.status === 'blocked');
   const done = tasks.filter(t => t.status === 'closed');
@@ -136,7 +139,7 @@ export function useTaskCounts() {
   const counts = {
     all: allTasks.length,
     unassigned: allTasks.filter(t => !t.assignee && (t.status === 'open' || t.status === 'blocked' || t.status === 'deferred')).length,
-    assigned: allTasks.filter(t => t.assignee && (t.status === 'open' || t.status === 'blocked' || t.status === 'deferred')).length,
+    assigned: allTasks.filter(t => t.assignee && t.status !== 'backlog' && t.status !== 'closed' && t.status !== 'tombstone').length,
     inProgress: allTasks.filter(t => t.status === 'in_progress').length,
     blocked: allTasks.filter(t => t.status === 'blocked').length,
     done: allTasks.filter(t => t.status === 'closed').length,
