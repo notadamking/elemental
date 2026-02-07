@@ -178,6 +178,15 @@ importers:
       '@axe-core/playwright':
         specifier: ^4.11.0
         version: 4.11.0(playwright-core@1.58.0)
+      '@elemental/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@elemental/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      '@elemental/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@playwright/test':
         specifier: ^1.58.0
         version: 1.58.0
