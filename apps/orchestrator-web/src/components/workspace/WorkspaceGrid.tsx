@@ -362,6 +362,13 @@ export function WorkspaceGrid({
 }: WorkspaceGridProps) {
   const [maximizedPane, setMaximizedPane] = useState<PaneId | null>(null);
 
+  // If a pane is maximized, only show that pane
+  const visiblePanes = maximizedPane
+    ? panes.filter(p => p.id === maximizedPane)
+    : panes;
+
+  const isMaximized = maximizedPane !== null;
+
   // For single/tabbed mode, track which pane is selected (uses activePane or first pane)
   const selectedPaneId = activePane || panes[0]?.id || null;
 
@@ -435,21 +442,39 @@ export function WorkspaceGrid({
     onUpdateDragTarget(targetPosition);
   }, [onUpdateDragTarget]);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent, targetIndex: number) => {
     e.preventDefault();
+
+    // Check if this is a workspace pane drag (not a file drop, etc.)
+    const draggedPaneId = e.dataTransfer.getData('application/x-workspace-pane');
+    if (!draggedPaneId) {
+      onEndDrag();
+      return;
+    }
+
+    // Get the target pane at this index
+    const targetPane = visiblePanes[targetIndex];
+    if (!targetPane || targetPane.id === draggedPaneId) {
+      onEndDrag();
+      return;
+    }
+
+    // Swap the panes
+    if (onSwapPanes) {
+      handleSwapPanes(draggedPaneId, targetPane.id);
+    }
+
     onEndDrag();
-  }, [onEndDrag]);
+  }, [onEndDrag, visiblePanes, onSwapPanes, handleSwapPanes]);
+
+  // Create a drop handler for a specific pane index
+  const createDropHandler = useCallback((targetIndex: number) => {
+    return (e: React.DragEvent) => handleDrop(e, targetIndex);
+  }, [handleDrop]);
 
   const handleDragEnd = useCallback(() => {
     onEndDrag();
   }, [onEndDrag]);
-
-  // If a pane is maximized, only show that pane
-  const visiblePanes = maximizedPane
-    ? panes.filter(p => p.id === maximizedPane)
-    : panes;
-
-  const isMaximized = maximizedPane !== null;
 
   // Get layout configuration
   const layoutConfig = useMemo(
@@ -486,7 +511,7 @@ export function WorkspaceGrid({
         onStatusChange={(status) => onPaneStatusChange(pane.id, status)}
         onDragStart={(e) => handleDragStart(e, pane.id)}
         onDragOver={(e) => handleDragOver(e, index)}
-        onDrop={handleDrop}
+        onDrop={createDropHandler(index)}
         onDragEnd={handleDragEnd}
       />
     );
@@ -613,7 +638,7 @@ export function WorkspaceGrid({
                   onStatusChange={(status) => onPaneStatusChange(pane.id, status)}
                   onDragStart={(e) => handleDragStart(e, pane.id)}
                   onDragOver={(e) => handleDragOver(e, index)}
-                  onDrop={handleDrop}
+                  onDrop={createDropHandler(index)}
                   onDragEnd={handleDragEnd}
                 />
               </div>
