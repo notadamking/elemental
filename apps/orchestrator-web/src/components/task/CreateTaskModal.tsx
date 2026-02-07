@@ -10,7 +10,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Plus, ChevronLeft } from 'lucide-react';
 import { useCreateTask } from '../../api/hooks/useTasks';
-import { useAgents } from '../../api/hooks/useAgents';
+import { useAgents, useOperators, type Operator } from '../../api/hooks/useAgents';
 import { useCurrentUser } from '../../contexts';
 import { TagInput } from '../ui/TagInput';
 import type { Priority, Complexity, TaskTypeValue, Agent } from '../../api/types';
@@ -58,10 +58,13 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess, defaultToBacklog =
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const createTask = useCreateTask();
   const { data: agentsData } = useAgents('worker');
+  const { data: operatorsData } = useOperators();
   const { currentUser } = useCurrentUser();
 
   // Get available worker agents for assignment
   const workers: Agent[] = agentsData?.agents ?? [];
+  // Get available operators (human entities) for assignment
+  const operators: Operator[] = operatorsData?.items ?? [];
 
   // Focus title input when modal opens
   useEffect(() => {
@@ -176,6 +179,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess, defaultToBacklog =
             assignee={assignee}
             setAssignee={setAssignee}
             workers={workers}
+            operators={operators}
             tags={tags}
             setTags={setTags}
             addToBacklog={addToBacklog}
@@ -238,6 +242,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess, defaultToBacklog =
               assignee={assignee}
               setAssignee={setAssignee}
               workers={workers}
+              operators={operators}
               tags={tags}
               setTags={setTags}
               addToBacklog={addToBacklog}
@@ -296,6 +301,7 @@ interface FormFieldsProps {
   assignee: string;
   setAssignee: (value: string) => void;
   workers: Agent[];
+  operators: Operator[];
   tags: string[];
   setTags: (value: string[]) => void;
   addToBacklog: boolean;
@@ -317,6 +323,7 @@ function FormFields({
   assignee,
   setAssignee,
   workers,
+  operators,
   tags,
   setTags,
   addToBacklog,
@@ -441,7 +448,7 @@ function FormFields({
             htmlFor="task-assignee"
             className="block text-sm font-medium text-[var(--color-text)] mb-1"
           >
-            Assign to Agent
+            Assign to
           </label>
           <select
             id="task-assignee"
@@ -451,11 +458,24 @@ function FormFields({
             data-testid="create-task-assignee"
           >
             <option value="">Unassigned</option>
-            {workers.map((agent) => (
-              <option key={agent.id} value={agent.id}>
-                {agent.name}
-              </option>
-            ))}
+            {operators.length > 0 && (
+              <optgroup label="Operators">
+                {operators.map((operator) => (
+                  <option key={operator.id} value={operator.id}>
+                    {operator.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {workers.length > 0 && (
+              <optgroup label="Worker Agents">
+                {workers.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
       </div>
