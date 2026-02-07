@@ -40,6 +40,7 @@ export interface WorkspaceGridProps {
   onStartDrag: (paneId: PaneId) => void;
   onUpdateDragTarget: (targetPosition: number | null) => void;
   onEndDrag: () => void;
+  onCancelDrag: () => void;
   onSwapSections?: () => void;
   onSwapPanes?: (paneId1: PaneId, paneId2: PaneId) => void;
   onSwap2x2Rows?: () => void;
@@ -357,11 +358,15 @@ export function WorkspaceGrid({
   onPaneStatusChange,
   onStartDrag,
   onUpdateDragTarget,
-  onEndDrag,
+  onEndDrag: _onEndDrag,
+  onCancelDrag,
   onSwapSections,
   onSwapPanes,
   onSwap2x2Rows,
 }: WorkspaceGridProps) {
+  // Note: onEndDrag is kept in interface for backward compatibility but not used.
+  // We use onCancelDrag instead to avoid triggering reorderPanes after swaps.
+  void _onEndDrag;
   const [maximizedPane, setMaximizedPane] = useState<PaneId | null>(null);
 
   // If a pane is maximized, only show that pane
@@ -465,24 +470,26 @@ export function WorkspaceGrid({
       }
     }
     if (!draggedPaneId) {
-      onEndDrag();
+      onCancelDrag();
       return;
     }
 
     // Get the target pane at this index
     const targetPane = visiblePanes[targetIndex];
     if (!targetPane || targetPane.id === draggedPaneId) {
-      onEndDrag();
+      onCancelDrag();
       return;
     }
 
-    // Swap the panes
+    // Swap the panes - use handleSwapPanes which also triggers refresh
+    // Then use onCancelDrag to clear drag state WITHOUT triggering reorderPanes
+    // (onEndDrag would call reorderPanes which would incorrectly move panes again)
     if (onSwapPanes) {
       handleSwapPanes(draggedPaneId, targetPane.id);
     }
 
-    onEndDrag();
-  }, [onEndDrag, visiblePanes, onSwapPanes, handleSwapPanes]);
+    onCancelDrag();
+  }, [onCancelDrag, visiblePanes, onSwapPanes, handleSwapPanes]);
 
   // Create a drop handler for a specific pane index
   const createDropHandler = useCallback((targetIndex: number) => {
@@ -490,8 +497,10 @@ export function WorkspaceGrid({
   }, [handleDrop]);
 
   const handleDragEnd = useCallback(() => {
-    onEndDrag();
-  }, [onEndDrag]);
+    // When drag ends without a valid drop, just cancel the drag state
+    // (the drop handler will handle successful swaps)
+    onCancelDrag();
+  }, [onCancelDrag]);
 
   // Get layout configuration
   const layoutConfig = useMemo(
