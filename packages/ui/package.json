@@ -8,53 +8,78 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./components": {
       "types": "./dist/components/index.d.ts",
-      "import": "./dist/components/index.js"
+      "bun": "./src/components/index.ts",
+      "import": "./dist/components/index.js",
+      "default": "./dist/components/index.js"
     },
     "./layout": {
       "types": "./dist/layout/index.d.ts",
-      "import": "./dist/layout/index.js"
+      "bun": "./src/layout/index.ts",
+      "import": "./dist/layout/index.js",
+      "default": "./dist/layout/index.js"
     },
     "./domain": {
       "types": "./dist/domain/index.d.ts",
-      "import": "./dist/domain/index.js"
+      "bun": "./src/domain/index.ts",
+      "import": "./dist/domain/index.js",
+      "default": "./dist/domain/index.js"
     },
     "./hooks": {
       "types": "./dist/hooks/index.d.ts",
-      "import": "./dist/hooks/index.js"
+      "bun": "./src/hooks/index.ts",
+      "import": "./dist/hooks/index.js",
+      "default": "./dist/hooks/index.js"
     },
     "./visualizations": {
       "types": "./dist/visualizations/index.d.ts",
-      "import": "./dist/visualizations/index.js"
+      "bun": "./src/visualizations/index.ts",
+      "import": "./dist/visualizations/index.js",
+      "default": "./dist/visualizations/index.js"
     },
     "./api": {
       "types": "./dist/api/index.d.ts",
-      "import": "./dist/api/index.js"
+      "bun": "./src/api/index.ts",
+      "import": "./dist/api/index.js",
+      "default": "./dist/api/index.js"
     },
     "./contexts": {
       "types": "./dist/contexts/index.d.ts",
-      "import": "./dist/contexts/index.js"
+      "bun": "./src/contexts/index.ts",
+      "import": "./dist/contexts/index.js",
+      "default": "./dist/contexts/index.js"
     },
     "./plans": {
       "types": "./dist/plans/index.d.ts",
-      "import": "./dist/plans/index.js"
+      "bun": "./src/plans/index.ts",
+      "import": "./dist/plans/index.js",
+      "default": "./dist/plans/index.js"
     },
     "./settings": {
       "types": "./dist/settings/index.d.ts",
-      "import": "./dist/settings/index.js"
+      "bun": "./src/settings/index.ts",
+      "import": "./dist/settings/index.js",
+      "default": "./dist/settings/index.js"
     },
     "./workflows": {
       "types": "./dist/workflows/index.d.ts",
-      "import": "./dist/workflows/index.js"
+      "bun": "./src/workflows/index.ts",
+      "import": "./dist/workflows/index.js",
+      "default": "./dist/workflows/index.js"
     },
     "./documents": {
       "types": "./dist/documents/index.d.ts",
-      "import": "./dist/documents/index.js"
+      "bun": "./src/documents/index.ts",
+      "import": "./dist/documents/index.js",
+      "default": "./dist/documents/index.js"
     },
-    "./styles/tokens.css": "./src/styles/tokens.css"
+    "./styles/tokens.css": "./src/styles/tokens.css",
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsc",

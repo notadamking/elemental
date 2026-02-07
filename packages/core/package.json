@@ -8,24 +8,35 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./types": {
       "types": "./dist/types/index.d.ts",
-      "import": "./dist/types/index.js"
+      "bun": "./src/types/index.ts",
+      "import": "./dist/types/index.js",
+      "default": "./dist/types/index.js"
     },
     "./errors": {
       "types": "./dist/errors/index.d.ts",
-      "import": "./dist/errors/index.js"
+      "bun": "./src/errors/index.ts",
+      "import": "./dist/errors/index.js",
+      "default": "./dist/errors/index.js"
     },
     "./id": {
       "types": "./dist/id/index.d.ts",
-      "import": "./dist/id/index.js"
+      "bun": "./src/id/index.ts",
+      "import": "./dist/id/index.js",
+      "default": "./dist/id/index.js"
     },
     "./utils": {
       "types": "./dist/utils/index.d.ts",
-      "import": "./dist/utils/index.js"
-    }
+      "bun": "./src/utils/index.ts",
+      "import": "./dist/utils/index.js",
+      "default": "./dist/utils/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsc",
