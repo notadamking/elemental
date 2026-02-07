@@ -9,6 +9,7 @@ import { Sidebar } from './Sidebar';
 import { MobileDrawer } from './MobileDrawer';
 import { DirectorPanel } from './DirectorPanel';
 import { UserSelector } from './UserSelector';
+import { DaemonToggle } from './DaemonToggle';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { NotificationCenter } from '../notification';
 import { CommandPalette, useCommandPalette, QuickFileOpen, useQuickFileOpen, FileContentSearch, useFileContentSearchShortcut } from '../command';
@@ -488,6 +489,8 @@ export function AppShell() {
             )}
             {/* User selector for switching human entities */}
             {!isMobile && <UserSelector />}
+            {/* Daemon toggle for dispatch daemon control */}
+            {!isMobile && <DaemonToggle />}
             <NotificationCenter
               notifications={notifications}
               unreadCount={unreadCount}
