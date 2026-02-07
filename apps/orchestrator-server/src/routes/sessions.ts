@@ -390,6 +390,60 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
     }
   });
 
+  // POST /api/sessions/stop-all
+  app.post('/api/sessions/stop-all', async (c) => {
+    try {
+      const body = (await c.req.json().catch(() => ({}))) as {
+        graceful?: boolean;
+        reason?: string;
+      };
+
+      // Get all running sessions
+      const runningSessions = sessionManager.listSessions({
+        status: ['starting', 'running']
+      });
+
+      if (runningSessions.length === 0) {
+        return c.json({ success: true, stoppedCount: 0, message: 'No running sessions' });
+      }
+
+      // Stop each session
+      const results: { sessionId: string; agentId: string; success: boolean; error?: string }[] = [];
+
+      for (const session of runningSessions) {
+        try {
+          await sessionManager.stopSession(session.id, {
+            graceful: body.graceful,
+            reason: body.reason || 'Stopped by user via Stop All',
+          });
+          sessionInitialPrompts.delete(session.id);
+          sessionsWithEventSaver.delete(session.id);
+          results.push({ sessionId: session.id, agentId: session.agentId, success: true });
+        } catch (error) {
+          results.push({
+            sessionId: session.id,
+            agentId: session.agentId,
+            success: false,
+            error: String(error)
+          });
+        }
+      }
+
+      const stoppedCount = results.filter(r => r.success).length;
+      const failedCount = results.filter(r => !r.success).length;
+
+      return c.json({
+        success: failedCount === 0,
+        stoppedCount,
+        failedCount,
+        results
+      });
+    } catch (error) {
+      console.error('[orchestrator] Failed to stop all sessions:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
   // POST /api/agents/:id/interrupt
   app.post('/api/agents/:id/interrupt', async (c) => {
     try {

@@ -10,6 +10,7 @@ import { MobileDrawer } from './MobileDrawer';
 import { DirectorPanel } from './DirectorPanel';
 import { UserSelector } from './UserSelector';
 import { DaemonToggle } from './DaemonToggle';
+import { StopAllAgentsButton } from './StopAllAgentsButton';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { NotificationCenter } from '../notification';
 import { CommandPalette, useCommandPalette, QuickFileOpen, useQuickFileOpen, FileContentSearch, useFileContentSearchShortcut } from '../command';
@@ -491,6 +492,8 @@ export function AppShell() {
             {!isMobile && <UserSelector />}
             {/* Daemon toggle for dispatch daemon control */}
             {!isMobile && <DaemonToggle />}
+            {/* Stop all running agents button */}
+            {!isMobile && <StopAllAgentsButton />}
             <NotificationCenter
               notifications={notifications}
               unreadCount={unreadCount}

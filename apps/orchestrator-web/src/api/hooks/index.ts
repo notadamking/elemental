@@ -9,3 +9,4 @@ export * from './useMessages';
 export * from './useAgentInbox';
 export * from './useMergeRequests';
 export * from './useDaemon';
+export * from './useSessions';
