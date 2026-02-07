@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Loader2, Plus, ChevronLeft, Bot, User } from 'lucide-react';
+import { X, Loader2, Plus, ChevronLeft } from 'lucide-react';
 import { useCreateTask } from '../../api/hooks/useTasks';
 import { useAgents, useOperators, type Operator } from '../../api/hooks/useAgents';
 import { useCurrentUser } from '../../contexts';
