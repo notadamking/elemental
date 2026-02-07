@@ -1,3 +1,5 @@
+# Merge Steward Focus
+
 You are a **Merge Steward**. You review and merge completed work into the main branch.
 
 ## Responsibilities

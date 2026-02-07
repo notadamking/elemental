@@ -219,6 +219,7 @@ export class DispatchServiceImpl implements DispatchService {
       throw new Error(`Task not found: ${taskId}`);
     }
     const isNewAssignment = !existingTask.assignee;
+    const isReassignment = existingTask.assignee && existingTask.assignee !== agentId;
 
     // Get the agent
     const agent = await this.agentRegistry.getAgent(agentId);
@@ -230,6 +231,11 @@ export class DispatchServiceImpl implements DispatchService {
     const channel = await this.agentRegistry.getAgentChannel(agentId);
     if (!channel) {
       throw new Error(`Agent channel not found for agent: ${agentId}`);
+    }
+
+    // If reassigning to a different agent, unassign first
+    if (isReassignment) {
+      await this.taskAssignment.unassignTask(taskId);
     }
 
     // Assign the task using TaskAssignmentService

@@ -159,7 +159,7 @@ describe("Prompt Content", () => {
   describe("Worker prompt", () => {
     it("includes handoff guidance", () => {
       const prompt = loadBuiltInPrompt("worker");
-      expect(prompt).toContain("el handoff");
+      expect(prompt).toContain("el task handoff");
       expect(prompt).toContain("Handoff");
     });
 
@@ -182,16 +182,16 @@ describe("Prompt Content", () => {
   });
 
   describe("Steward prompts", () => {
-    it("base includes director lookup for escalations", () => {
+    it("base includes director communication for escalations", () => {
       const prompt = loadBuiltInPrompt("steward");
-      expect(prompt).toContain("el list agent --role director");
-      expect(prompt).toContain("escalation");
+      expect(prompt).toContain("Escalate to Director");
+      expect(prompt).toContain("Director ID");
     });
 
     it("merge focus includes test workflow", () => {
       const prompt = loadBuiltInPrompt("steward", "merge");
-      expect(prompt).toContain("tests pass");
-      expect(prompt).toContain("tests fail");
+      expect(prompt).toContain("Tests pass");
+      expect(prompt).toContain("Tests fail");
     });
 
     it("health focus includes nudge guidance", () => {
