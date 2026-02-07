@@ -1,7 +1,13 @@
 /**
  * FileEditorPage - File editor with Monaco
  *
- * Displays files in a Monaco editor with a file tree sidebar.
+ * Displays files in a Monaco editor with a VSCode-style sidebar.
+ * Features:
+ * - Activity bar with File Explorer and Search icons
+ * - File tree sidebar for browsing workspace files and documents
+ * - Search sidebar panel for full-text search across files
+ * - Monaco editor with syntax highlighting
+ *
  * Supports two modes:
  * 1. Local workspace mode: Browse and view files from a local directory
  *    using the File System Access API
@@ -11,6 +17,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Editor, { type Monaco, type OnMount } from '@monaco-editor/react';
+import type * as monacoEditor from 'monaco-editor';
 import {
   FileCode,
   Loader2,
@@ -21,9 +28,12 @@ import {
   HardDrive,
   Database,
   Braces,
+  Files,
+  Search,
 } from 'lucide-react';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { EditorFileTree, type FileTreeNodeData, type FileSource } from '../../components/editor/EditorFileTree';
+import { EditorSearchPanel, type EditorSearchPanelRef } from '../../components/editor/EditorSearchPanel';
 import { useAllDocuments } from '../../api/hooks/useAllElements';
 import { useWorkspace } from '../../contexts';
 import type { Document } from '../../api/hooks/useAllElements';
@@ -45,6 +55,9 @@ interface OpenFile {
   language: string;
   source: FileSource;
 }
+
+/** Active sidebar panel */
+type SidebarPanel = 'files' | 'search';
 
 // ============================================================================
 // Hook to fetch document content
@@ -251,6 +264,52 @@ function SourceToggle({ source, onSourceChange, isWorkspaceOpen, workspaceName }
 }
 
 // ============================================================================
+// Activity Bar Component
+// ============================================================================
+
+interface ActivityBarProps {
+  activePanel: SidebarPanel;
+  onPanelChange: (panel: SidebarPanel) => void;
+}
+
+function ActivityBar({ activePanel, onPanelChange }: ActivityBarProps) {
+  const items: { id: SidebarPanel; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
+    { id: 'files', icon: Files, label: 'Explorer' },
+    { id: 'search', icon: Search, label: 'Search' },
+  ];
+
+  return (
+    <div
+      className="w-12 flex-shrink-0 bg-[var(--color-surface-hover)] border-r border-[var(--color-border)] flex flex-col items-center py-2 gap-1"
+      data-testid="editor-activity-bar"
+    >
+      {items.map((item) => {
+        const Icon = item.icon;
+        const isActive = activePanel === item.id;
+        return (
+          <button
+            key={item.id}
+            onClick={() => onPanelChange(item.id)}
+            className={`
+              w-10 h-10 flex items-center justify-center rounded-md transition-colors
+              ${isActive
+                ? 'bg-[var(--color-surface)] text-[var(--color-text)] shadow-sm'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)]'
+              }
+            `}
+            title={item.label}
+            data-testid={`activity-bar-${item.id}`}
+            aria-pressed={isActive}
+          >
+            <Icon className="w-5 h-5" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================================
 // Main component
 // ============================================================================
 
@@ -261,7 +320,10 @@ export function FileEditorPage() {
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [isMonacoReady, setIsMonacoReady] = useState(false);
+  const [activePanel, setActivePanel] = useState<SidebarPanel>('files');
   const monacoRef = useRef<Monaco | null>(null);
+  const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
+  const searchPanelRef = useRef<EditorSearchPanelRef>(null);
 
   // Workspace state from context
   const {
@@ -332,12 +394,107 @@ export function FileEditorPage() {
     [fileSource, readFile]
   );
 
+  // Handle search result selection - open file and navigate to line
+  const handleSearchResultSelect = useCallback(
+    async (path: string, line: number, column: number) => {
+      // Find the file in workspace entries
+      const findEntry = (entries: typeof workspaceEntries, targetPath: string): (typeof workspaceEntries)[0] | null => {
+        for (const entry of entries) {
+          if (entry.path === targetPath) {
+            return entry;
+          }
+          if (entry.children) {
+            const found = findEntry(entry.children, targetPath);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      const entry = findEntry(workspaceEntries, path);
+
+      if (entry && entry.type === 'file') {
+        // Check if this file is already open
+        if (openFile?.path === path) {
+          // Just navigate to the line
+          if (editorRef.current) {
+            editorRef.current.revealLineInCenter(line);
+            editorRef.current.setPosition({ lineNumber: line, column });
+            editorRef.current.focus();
+          }
+          return;
+        }
+
+        // Load the file first
+        setSelectedId(entry.id);
+        setFileError(null);
+        setIsLoadingFile(true);
+
+        try {
+          const result = await readFile(entry);
+          setOpenFile({
+            id: entry.id,
+            name: result.name,
+            path: result.path,
+            content: result.content,
+            language: result.language || 'plaintext',
+            source: 'workspace',
+          });
+
+          // Navigate to line after a short delay to ensure editor is ready
+          setTimeout(() => {
+            if (editorRef.current) {
+              editorRef.current.revealLineInCenter(line);
+              editorRef.current.setPosition({ lineNumber: line, column });
+              editorRef.current.focus();
+            }
+          }, 100);
+        } catch (error) {
+          setFileError(error instanceof Error ? error.message : 'Failed to read file');
+          setOpenFile(null);
+        } finally {
+          setIsLoadingFile(false);
+        }
+      }
+    },
+    [workspaceEntries, openFile, readFile]
+  );
+
   // Handle source change
   const handleSourceChange = useCallback((source: FileSource) => {
     setFileSource(source);
     setSelectedId(null);
     setOpenFile(null);
     setFileError(null);
+  }, []);
+
+  // Handle panel change
+  const handlePanelChange = useCallback((panel: SidebarPanel) => {
+    setActivePanel(panel);
+    // Focus search input when switching to search panel
+    if (panel === 'search') {
+      setTimeout(() => {
+        searchPanelRef.current?.focus();
+      }, 50);
+    }
+  }, []);
+
+  // Handle keyboard shortcut Cmd/Ctrl+Shift+F
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+Shift+F or Ctrl+Shift+F to focus search panel
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        // Switch to search panel and focus input
+        setActivePanel('search');
+        setTimeout(() => {
+          searchPanelRef.current?.focus();
+        }, 50);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   // Determine loading state
@@ -360,8 +517,9 @@ export function FileEditorPage() {
   }, [openFile, fileSource, isWorkspaceOpen, workspaceName]);
 
   // Handle Monaco editor mount - configure once
-  const handleEditorDidMount: OnMount = useCallback((_editor, monaco) => {
+  const handleEditorDidMount: OnMount = useCallback((editor, monaco) => {
     monacoRef.current = monaco;
+    editorRef.current = editor;
     if (!isMonacoReady) {
       configureMonaco(monaco);
       setIsMonacoReady(true);
@@ -384,107 +542,136 @@ export function FileEditorPage() {
 
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]" data-testid="editor-main-content">
-        {/* File tree sidebar */}
+        {/* Activity Bar */}
+        <ActivityBar
+          activePanel={activePanel}
+          onPanelChange={handlePanelChange}
+        />
+
+        {/* Sidebar Panel */}
         <div className="w-64 flex-shrink-0 border-r border-[var(--color-border)] flex flex-col overflow-hidden" data-testid="editor-sidebar">
-          {/* Sidebar header with source toggle */}
-          <div className="px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface-hover)] space-y-2">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
-                Files
-              </h2>
-              <SourceToggle
-                source={fileSource}
-                onSourceChange={handleSourceChange}
-                isWorkspaceOpen={isWorkspaceOpen}
-                workspaceName={workspaceName}
-              />
-            </div>
+          {/* Files Panel */}
+          {activePanel === 'files' && (
+            <>
+              {/* Sidebar header with source toggle */}
+              <div className="px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface-hover)] space-y-2">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+                    Explorer
+                  </h2>
+                  <SourceToggle
+                    source={fileSource}
+                    onSourceChange={handleSourceChange}
+                    isWorkspaceOpen={isWorkspaceOpen}
+                    workspaceName={workspaceName}
+                  />
+                </div>
 
-            {/* Workspace controls */}
-            {fileSource === 'workspace' && isSupported && (
-              <div className="flex items-center gap-1">
-                {isWorkspaceOpen ? (
-                  <>
-                    <button
-                      onClick={refreshTree}
-                      disabled={workspaceLoading}
-                      className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] rounded transition-colors disabled:opacity-50"
-                      title="Refresh"
-                    >
-                      <RefreshCw className={`w-3 h-3 ${workspaceLoading ? 'animate-spin' : ''}`} />
-                    </button>
-                    <button
-                      onClick={closeWorkspace}
-                      className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-surface)] rounded transition-colors"
-                      title="Close workspace"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                    <span className="flex-1 text-xs text-[var(--color-text-muted)] truncate ml-1">
-                      {workspaceName}
-                    </span>
-                  </>
-                ) : (
-                  <button
-                    onClick={openWorkspace}
-                    className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-surface)] rounded transition-colors"
-                  >
-                    <FolderInput className="w-3 h-3" />
-                    Open Folder
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* File tree */}
-          <div className="flex-1 flex flex-col overflow-hidden" data-testid="editor-file-tree-container">
-            {isTreeLoading ? (
-              <div className="flex items-center justify-center py-8" data-testid="editor-loading-tree">
-                <Loader2 className="w-5 h-5 animate-spin text-[var(--color-text-muted)]" />
-              </div>
-            ) : hasTreeError ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center" data-testid="editor-error-tree">
-                <AlertCircle className="w-5 h-5 text-[var(--color-danger)] mb-2" />
-                <p className="text-xs text-[var(--color-text-secondary)]">
-                  {fileSource === 'workspace' ? workspaceError : 'Failed to load documents'}
-                </p>
-              </div>
-            ) : isTreeEmpty ? (
-              <div className="text-center py-8" data-testid="editor-empty-tree">
-                {fileSource === 'workspace' && !isWorkspaceOpen ? (
-                  <div className="space-y-2">
-                    <FolderInput className="w-6 h-6 text-[var(--color-text-muted)] mx-auto" />
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      {isSupported
-                        ? 'Open a folder to browse files'
-                        : 'File System Access API not supported'}
-                    </p>
-                    {isSupported && (
+                {/* Workspace controls */}
+                {fileSource === 'workspace' && isSupported && (
+                  <div className="flex items-center gap-1">
+                    {isWorkspaceOpen ? (
+                      <>
+                        <button
+                          onClick={refreshTree}
+                          disabled={workspaceLoading}
+                          className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] rounded transition-colors disabled:opacity-50"
+                          title="Refresh"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${workspaceLoading ? 'animate-spin' : ''}`} />
+                        </button>
+                        <button
+                          onClick={closeWorkspace}
+                          className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-surface)] rounded transition-colors"
+                          title="Close workspace"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                        <span className="flex-1 text-xs text-[var(--color-text-muted)] truncate ml-1">
+                          {workspaceName}
+                        </span>
+                      </>
+                    ) : (
                       <button
                         onClick={openWorkspace}
-                        className="px-3 py-1.5 text-xs font-medium text-white bg-[var(--color-primary)] rounded hover:bg-[var(--color-primary-hover)] transition-colors"
+                        className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-surface)] rounded transition-colors"
                       >
+                        <FolderInput className="w-3 h-3" />
                         Open Folder
                       </button>
                     )}
                   </div>
-                ) : (
-                  <p className="text-xs text-[var(--color-text-muted)]">
-                    {fileSource === 'workspace' ? 'No files found' : 'No documents available'}
-                  </p>
                 )}
               </div>
-            ) : (
-              <EditorFileTree
-                workspaceEntries={workspaceEntries}
-                documents={documents}
-                source={fileSource}
-                selectedId={selectedId}
-                onSelectFile={handleSelectFile}
+
+              {/* File tree */}
+              <div className="flex-1 flex flex-col overflow-hidden" data-testid="editor-file-tree-container">
+                {isTreeLoading ? (
+                  <div className="flex items-center justify-center py-8" data-testid="editor-loading-tree">
+                    <Loader2 className="w-5 h-5 animate-spin text-[var(--color-text-muted)]" />
+                  </div>
+                ) : hasTreeError ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center" data-testid="editor-error-tree">
+                    <AlertCircle className="w-5 h-5 text-[var(--color-danger)] mb-2" />
+                    <p className="text-xs text-[var(--color-text-secondary)]">
+                      {fileSource === 'workspace' ? workspaceError : 'Failed to load documents'}
+                    </p>
+                  </div>
+                ) : isTreeEmpty ? (
+                  <div className="text-center py-8" data-testid="editor-empty-tree">
+                    {fileSource === 'workspace' && !isWorkspaceOpen ? (
+                      <div className="space-y-2">
+                        <FolderInput className="w-6 h-6 text-[var(--color-text-muted)] mx-auto" />
+                        <p className="text-xs text-[var(--color-text-muted)]">
+                          {isSupported
+                            ? 'Open a folder to browse files'
+                            : 'File System Access API not supported'}
+                        </p>
+                        {isSupported && (
+                          <button
+                            onClick={openWorkspace}
+                            className="px-3 py-1.5 text-xs font-medium text-white bg-[var(--color-primary)] rounded hover:bg-[var(--color-primary-hover)] transition-colors"
+                          >
+                            Open Folder
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[var(--color-text-muted)]">
+                        {fileSource === 'workspace' ? 'No files found' : 'No documents available'}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <EditorFileTree
+                    workspaceEntries={workspaceEntries}
+                    documents={documents}
+                    source={fileSource}
+                    selectedId={selectedId}
+                    onSelectFile={handleSelectFile}
+                  />
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Search Panel */}
+          {activePanel === 'search' && (
+            <>
+              {/* Search header */}
+              <div className="px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface-hover)]">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+                  Search
+                </h2>
+              </div>
+
+              {/* Search panel content */}
+              <EditorSearchPanel
+                ref={searchPanelRef}
+                onSelectResult={handleSearchResultSelect}
               />
-            )}
-          </div>
+            </>
+          )}
         </div>
 
         {/* Editor panel */}

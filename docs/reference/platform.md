@@ -504,7 +504,7 @@ app.route('/', createMyFeatureRoutes(services));
 | `/inbox` | `InboxPage` | Inbox messages |
 | `/messages` | `MessagesPage` | Channel messages |
 | `/documents` | `DocumentsPage` | Document library |
-| `/editor` | `FileEditorPage` | Read-only file editor with Monaco |
+| `/editor` | `FileEditorPage` | Read-only file editor with Monaco, VSCode-style activity bar with file tree and search panel |
 
 ### Document Library Drag-and-Drop
 
@@ -567,6 +567,7 @@ The orchestrator-web app supports global keyboard shortcuts for navigation and a
 | `Cmd+K` | Open Command Palette |
 | `Cmd+B` | Toggle Sidebar |
 | `Cmd+D` | Toggle Director Panel |
+| `Cmd+Shift+F` | Search in files (opens modal, or focuses Editor search panel) |
 | `C T` | Create Task |
 | `C A` | Create Agent |
 
