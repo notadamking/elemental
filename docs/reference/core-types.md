@@ -264,6 +264,8 @@ type PlanStatus = 'draft' | 'active' | 'completed' | 'cancelled';
 
 Contains tasks via `parent-child` dependencies. **Tasks in a plan are NOT blocked by plan status.**
 
+**Auto-Completion:** Plans automatically transition to `completed` status when all their tasks reach `closed` status. This is triggered by any task status change to closed (CLI, API, or merge workflow).
+
 ### Workflow
 
 **File:** `types/workflow.ts`

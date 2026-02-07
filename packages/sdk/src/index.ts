@@ -75,6 +75,7 @@ export * from './services/dependency.js';
 export * from './services/priority-service.js';
 export * from './services/id-length-cache.js';
 export * from './services/blocked-cache.js';
+export * from './services/plan-auto-complete.js';
 
 // HTTP handlers for browser sync
 export * from './http/index.js';

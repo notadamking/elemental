@@ -27,6 +27,7 @@ import type {
 } from '@elemental/core';
 import { createTimestamp, TaskStatus, createTask } from '@elemental/core';
 import type { ElementalAPI } from '@elemental/sdk';
+import { checkPlanAutoComplete } from '@elemental/sdk';
 
 import type {
   OrchestratorTaskMeta,
@@ -906,7 +907,14 @@ export class MergeStewardServiceImpl implements MergeStewardService {
       taskUpdates.closedAt = createTimestamp();
     }
 
-    return this.api.update<Task>(taskId, taskUpdates);
+    const updatedTask = await this.api.update<Task>(taskId, taskUpdates);
+
+    // Check if parent plan should be auto-completed when task is closed
+    if (status === 'merged') {
+      await checkPlanAutoComplete(this.api, taskId);
+    }
+
+    return updatedTask;
   }
 
   // ----------------------------------------

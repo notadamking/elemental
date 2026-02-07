@@ -19,6 +19,7 @@ import type { Element, ElementId, EntityId } from '@elemental/core';
 import type { ElementalAPI, TaskFilter } from '../../api/types.js';
 import type { PlanProgress } from '@elemental/core';
 import { OPERATOR_ENTITY_ID } from './init.js';
+import { checkPlanAutoComplete } from '../../services/plan-auto-complete.js';
 
 // ============================================================================
 // Constants
@@ -883,12 +884,22 @@ async function updateHandler(
       expectedUpdatedAt: element.updatedAt,
     });
 
+    // Check if parent plan should be auto-completed when status changes to closed
+    let planAutoCompleteResult: { completed: boolean; planId?: ElementId } = { completed: false };
+    if (element.type === 'task' && updates.status === TaskStatus.CLOSED) {
+      planAutoCompleteResult = await checkPlanAutoComplete(api, id as ElementId);
+    }
+
     // Format output based on mode
     const mode = getOutputMode(options);
     const formatter = getFormatter(mode);
 
     if (mode === 'json') {
-      return success(updated);
+      return success({
+        ...updated,
+        planAutoCompleted: planAutoCompleteResult.completed,
+        planId: planAutoCompleteResult.planId,
+      });
     }
 
     if (mode === 'quiet') {
@@ -896,8 +907,12 @@ async function updateHandler(
     }
 
     // Human-readable output
+    let message = `Updated ${element.type} ${id}`;
+    if (planAutoCompleteResult.completed) {
+      message += `\nPlan ${planAutoCompleteResult.planId} auto-completed (all tasks are now closed)`;
+    }
     const output = formatter.element(updated as unknown as Record<string, unknown>);
-    return success(updated, `Updated ${element.type} ${id}\n\n${output}`);
+    return success(updated, `${message}\n\n${output}`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return failure(`Failed to update element: ${message}`, ExitCode.GENERAL_ERROR);

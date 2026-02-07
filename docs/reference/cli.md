@@ -248,7 +248,7 @@ el embeddings search "authentication flow"
 | `el plan list`                    | List plans                        |
 | `el plan show <id>`               | Show plan details                 |
 | `el plan activate <id>`           | Activate plan (enables dispatch)  |
-| `el plan complete <id>`           | Mark completed                    |
+| `el plan complete <id>`           | Mark completed (manual)           |
 | `el plan cancel <id>`             | Cancel plan                       |
 | `el plan add-task <id> <task>`    | Add task to plan                  |
 | `el plan remove-task <id> <task>` | Remove task                       |
@@ -274,6 +274,16 @@ el plan activate <plan-id>
 ```
 
 **Important:** Always use plans when creating tasks with dependencies to avoid race conditions with the dispatch daemon.
+
+### Plan Auto-Completion
+
+Plans are automatically marked as `completed` when all tasks within them are closed. This happens:
+- When a task is closed via `el close <task-id>`
+- When a task status is updated to `closed` via `el update <task-id> --status closed`
+- When a task's merge request is successfully merged (for orchestrated tasks)
+- When tasks are updated via the API endpoints
+
+No manual `el plan complete` command is needed in most cases. The plan completion is reported in CLI output and API responses.
 
 ## Workflow Commands
 

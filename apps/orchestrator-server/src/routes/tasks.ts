@@ -10,7 +10,7 @@ import { createTask, TaskStatus, ElementType, Priority, Complexity } from '@elem
 import type { OrchestratorTaskMeta } from '@elemental/orchestrator-sdk';
 import type { Services } from '../services.js';
 import { formatTaskResponse } from '../formatters.js';
-import type { ElementalAPI } from '@elemental/sdk';
+import { checkPlanAutoComplete, type ElementalAPI } from '@elemental/sdk';
 
 /**
  * Hydrate the description from descriptionRef if it exists
@@ -232,7 +232,18 @@ export function createTaskRoutes(services: Services) {
       }
 
       const updatedTask = await api.update(taskId, updates) as unknown as Task;
-      return c.json({ task: formatTaskResponse(updatedTask) });
+
+      // Check if parent plan should be auto-completed when status changes to closed
+      let planAutoCompleted: { completed: boolean; planId?: ElementId } = { completed: false };
+      if (updates.status === TaskStatus.CLOSED) {
+        planAutoCompleted = await checkPlanAutoComplete(api, taskId);
+      }
+
+      return c.json({
+        task: formatTaskResponse(updatedTask),
+        planAutoCompleted: planAutoCompleted.completed,
+        planId: planAutoCompleted.planId,
+      });
     } catch (error) {
       console.error('[orchestrator] Failed to update task:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);

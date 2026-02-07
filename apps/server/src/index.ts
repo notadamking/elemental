@@ -29,6 +29,7 @@ import {
   getManagementChain,
   validateManager,
   detectReportingCycle,
+  TaskStatus,
 } from '@elemental/core';
 import type {
   Element,
@@ -61,7 +62,7 @@ import type {
 // Storage layer
 import { createStorage, initializeSchema } from '@elemental/storage';
 // SDK - API and services
-import { createElementalAPI, createSyncService, createInboxService } from '@elemental/sdk';
+import { createElementalAPI, createSyncService, createInboxService, checkPlanAutoComplete } from '@elemental/sdk';
 import type { ElementalAPI, SyncService, InboxService } from '@elemental/sdk';
 // Shared routes for collaborate features
 import {
@@ -548,7 +549,8 @@ app.patch('/api/tasks/bulk', async (c) => {
     }
 
     // Update each task
-    const results: { id: string; success: boolean; error?: string }[] = [];
+    const results: { id: string; success: boolean; error?: string; planAutoCompleted?: boolean; planId?: ElementId }[] = [];
+    const plansAutoCompleted: { planId: ElementId }[] = [];
 
     for (const id of ids) {
       try {
@@ -559,7 +561,22 @@ app.patch('/api/tasks/bulk', async (c) => {
         }
 
         await api.update(id as ElementId, updates);
-        results.push({ id, success: true });
+
+        // Check if parent plan should be auto-completed when status changes to closed
+        let planResult: { completed: boolean; planId?: ElementId } = { completed: false };
+        if (updates.status === TaskStatus.CLOSED) {
+          planResult = await checkPlanAutoComplete(api, id as ElementId);
+          if (planResult.completed && planResult.planId) {
+            plansAutoCompleted.push({ planId: planResult.planId });
+          }
+        }
+
+        results.push({
+          id,
+          success: true,
+          planAutoCompleted: planResult.completed,
+          planId: planResult.planId,
+        });
       } catch (error) {
         results.push({ id, success: false, error: (error as Error).message });
       }
@@ -572,6 +589,7 @@ app.patch('/api/tasks/bulk', async (c) => {
       updated: successCount,
       failed: failureCount,
       results,
+      plansAutoCompleted,
     });
   } catch (error) {
     console.error('[elemental] Failed to bulk update tasks:', error);
@@ -689,7 +707,17 @@ app.patch('/api/tasks/:id', async (c) => {
     // Update the task
     const updated = await api.update(id, updates);
 
-    return c.json(updated);
+    // Check if parent plan should be auto-completed when status changes to closed
+    let planAutoCompleted: { completed: boolean; planId?: ElementId } = { completed: false };
+    if (updates.status === TaskStatus.CLOSED) {
+      planAutoCompleted = await checkPlanAutoComplete(api, id);
+    }
+
+    return c.json({
+      ...updated,
+      planAutoCompleted: planAutoCompleted.completed,
+      planId: planAutoCompleted.planId,
+    });
   } catch (error) {
     if ((error as { code?: string }).code === 'NOT_FOUND') {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);

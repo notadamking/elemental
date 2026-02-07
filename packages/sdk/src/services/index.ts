@@ -8,3 +8,4 @@ export * from './id-length-cache.js';
 export * from './inbox.js';
 export * from './search-utils.js';
 export * from './embeddings/index.js';
+export * from './plan-auto-complete.js';

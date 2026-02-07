@@ -34,6 +34,7 @@ import type { ElementId, EntityId } from '@elemental/core';
 import { existsSync as fileExists, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { ElementalAPI, TaskFilter, BlockedTask } from '../../api/types.js';
+import { checkPlanAutoComplete } from '../../services/plan-auto-complete.js';
 
 // ============================================================================
 // Constants
@@ -533,18 +534,31 @@ async function closeHandler(
       expectedUpdatedAt: task.updatedAt,
     });
 
+    // Check if parent plan should be auto-completed
+    const planAutoCompleteResult = await checkPlanAutoComplete(api, id as ElementId);
+
     // Format output based on mode
     const mode = getOutputMode(options);
 
     if (mode === 'json') {
-      return success(updated);
+      return success({
+        task: updated,
+        planAutoCompleted: planAutoCompleteResult.completed,
+        planId: planAutoCompleteResult.planId,
+      });
     }
 
     if (mode === 'quiet') {
       return success(updated.id);
     }
 
-    return success(updated, `Closed task ${id}`);
+    // Build message with plan auto-completion info
+    let message = `Closed task ${id}`;
+    if (planAutoCompleteResult.completed) {
+      message += `\nPlan ${planAutoCompleteResult.planId} auto-completed (all tasks are now closed)`;
+    }
+
+    return success(updated, message);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return failure(`Failed to close task: ${message}`, ExitCode.GENERAL_ERROR);
