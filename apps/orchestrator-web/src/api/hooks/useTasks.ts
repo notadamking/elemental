@@ -90,13 +90,18 @@ export function useTasksByStatus() {
   const tasks = data?.tasks ?? [];
 
   // Group tasks by status
+  // Note: 'review' status tasks go to awaitingMerge, not assigned/unassigned
   const backlog = tasks.filter(t => t.status === 'backlog');
   const unassigned = tasks.filter(t => !t.assignee && (t.status === 'open' || t.status === 'blocked' || t.status === 'deferred'));
-  const assigned = tasks.filter(t => t.assignee && t.status === 'open');
+  const assigned = tasks.filter(t => t.assignee && (t.status === 'open' || t.status === 'blocked' || t.status === 'deferred'));
   const inProgress = tasks.filter(t => t.status === 'in_progress');
   const blocked = tasks.filter(t => t.status === 'blocked');
   const done = tasks.filter(t => t.status === 'closed');
+  // Include tasks with 'review' status OR closed tasks with a pending merge status
   const awaitingMerge = tasks.filter(t => {
+    // Tasks with 'review' status are always awaiting merge
+    if (t.status === 'review') return true;
+    // Closed tasks with a non-merged status are also awaiting merge
     const meta = t.metadata?.orchestrator;
     return t.status === 'closed' && meta?.mergeStatus && meta.mergeStatus !== 'merged';
   });
@@ -131,11 +136,14 @@ export function useTaskCounts() {
   const counts = {
     all: allTasks.length,
     unassigned: allTasks.filter(t => !t.assignee && (t.status === 'open' || t.status === 'blocked' || t.status === 'deferred')).length,
-    assigned: allTasks.filter(t => t.assignee && t.status === 'open').length,
+    assigned: allTasks.filter(t => t.assignee && (t.status === 'open' || t.status === 'blocked' || t.status === 'deferred')).length,
     inProgress: allTasks.filter(t => t.status === 'in_progress').length,
     blocked: allTasks.filter(t => t.status === 'blocked').length,
     done: allTasks.filter(t => t.status === 'closed').length,
     awaitingMerge: allTasks.filter(t => {
+      // Tasks with 'review' status are always awaiting merge
+      if (t.status === 'review') return true;
+      // Closed tasks with a non-merged status are also awaiting merge
       const meta = t.metadata?.orchestrator;
       return t.status === 'closed' && meta?.mergeStatus && meta.mergeStatus !== 'merged';
     }).length,
