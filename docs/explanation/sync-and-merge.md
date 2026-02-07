@@ -315,25 +315,30 @@ When Git reports a conflict in JSONL files:
 
 ## MergeStewardService
 
-The `MergeStewardService` automates conflict handling:
+The `MergeStewardService` automates branch merging for completed tasks. All merge operations run in a temporary worktree to avoid corrupting the main repository's HEAD.
 
 ```typescript
 import { createMergeStewardService } from '@elemental/orchestrator-sdk';
 
-const mergeSteward = createMergeStewardService(api, storage);
+const mergeSteward = createMergeStewardService(
+  api, taskAssignmentService, dispatchService, agentRegistry,
+  { workspaceRoot: '/project' },
+  worktreeManager
+);
 
-// Process a batch of pending conflicts
-const report = await mergeSteward.processBatch({ limit: 100 });
+// Process all pending merge tasks
+const report = await mergeSteward.processAllPending();
 
-console.log(`Resolved: ${report.autoResolved}`);
-console.log(`Escalated: ${report.escalated}`);
-console.log(`Errors: ${report.errors}`);
+console.log(`Merged: ${report.mergedCount}`);
+console.log(`Conflicts: ${report.conflictCount}`);
+console.log(`Test failures: ${report.testFailedCount}`);
+console.log(`Errors: ${report.errorCount}`);
 ```
 
 The steward:
-- Auto-resolves clear LWW cases
-- Escalates complex conflicts to Director
-- Creates fix tasks for manual resolution
+- Runs tests on completed task branches
+- Merges branches in a temporary worktree (main repo HEAD untouched)
+- Creates fix tasks for test failures or merge conflicts
 - Logs all decisions for audit
 
 ## Best Practices

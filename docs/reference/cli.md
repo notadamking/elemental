@@ -764,6 +764,19 @@ el show el-a1b2c3d4e5f6
 el show a1b2
 ```
 
+## Task Status Values
+
+| Status        | Description                                  |
+| ------------- | -------------------------------------------- |
+| `open`        | Available for work                           |
+| `in_progress` | Currently being worked on                    |
+| `blocked`     | Waiting on a dependency                      |
+| `deferred`    | Deliberately postponed                       |
+| `backlog`     | Not ready for work, needs triage             |
+| `review`      | Work complete, awaiting merge/review         |
+| `closed`      | Completed and merged                         |
+| `tombstone`   | Soft-deleted                                 |
+
 ## Priority Values
 
 | Value | Level    |
