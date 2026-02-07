@@ -6,6 +6,7 @@
 
 import { Hono } from 'hono';
 import type { Services } from '../services.js';
+import { saveDaemonState } from '../daemon-state.js';
 
 /**
  * Whether the daemon was started by the server (vs CLI or manual).
@@ -77,6 +78,9 @@ export function createDaemonRoutes(services: Services) {
 
       dispatchDaemon.start();
 
+      // Persist state so daemon restarts after server restart
+      saveDaemonState(true, 'user');
+
       return c.json({
         success: true,
         isRunning: dispatchDaemon.isRunning(),
@@ -108,6 +112,9 @@ export function createDaemonRoutes(services: Services) {
       const wasServerManaged = serverManaged;
 
       dispatchDaemon.stop();
+
+      // Persist state so daemon stays stopped after server restart
+      saveDaemonState(false, 'user');
 
       // Reset server-managed flag when stopped
       serverManaged = false;

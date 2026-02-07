@@ -35,6 +35,7 @@ import {
 } from '@elemental/shared-routes';
 import { notifyClientsOfNewSession } from './websocket.js';
 import { startServer } from './server.js';
+import { shouldDaemonAutoStart, saveDaemonState } from './daemon-state.js';
 
 // Main entry point - async to allow service initialization
 async function main() {
@@ -81,16 +82,23 @@ async function main() {
 
   startServer(app, services);
 
-  // Auto-start dispatch daemon unless disabled via environment variable
-  const daemonAutoStart = process.env.DAEMON_AUTO_START !== 'false';
-  if (daemonAutoStart && services.dispatchDaemon) {
+  // Auto-start dispatch daemon based on persisted state and environment variable
+  // Priority: DAEMON_AUTO_START=false disables auto-start entirely
+  // Otherwise, check persisted state (remembers if user stopped it via UI/API)
+  const envDisabled = process.env.DAEMON_AUTO_START === 'false';
+  const persistedShouldRun = shouldDaemonAutoStart();
+
+  if (!services.dispatchDaemon) {
+    console.log('[orchestrator] Dispatch daemon not available (no git repository)');
+  } else if (envDisabled) {
+    console.log('[orchestrator] Dispatch daemon auto-start disabled (DAEMON_AUTO_START=false)');
+  } else if (!persistedShouldRun) {
+    console.log('[orchestrator] Dispatch daemon not started (was stopped by user, state persisted)');
+  } else {
     services.dispatchDaemon.start();
+    saveDaemonState(true, 'server-startup');
     markDaemonAsServerManaged();
     console.log('[orchestrator] Dispatch daemon auto-started');
-  } else if (!services.dispatchDaemon) {
-    console.log('[orchestrator] Dispatch daemon not available (no git repository)');
-  } else {
-    console.log('[orchestrator] Dispatch daemon auto-start disabled (DAEMON_AUTO_START=false)');
   }
 }
 
