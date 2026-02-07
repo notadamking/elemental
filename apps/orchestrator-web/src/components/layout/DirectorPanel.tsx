@@ -14,9 +14,10 @@ import {
   RotateCcw,
   AlertCircle,
   CirclePause,
+  ListFilter,
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
-import { XTerminal, type TerminalStatus } from '../terminal';
+import { XTerminal, type TerminalStatus, type XTerminalHandle } from '../terminal';
 import { useDirector, useStartAgentSession, useStopAgentSession } from '../../api/hooks/useAgents';
 
 // Panel width constraints
@@ -34,6 +35,7 @@ interface DirectorPanelProps {
 
 export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProps) {
   const [terminalStatus, setTerminalStatus] = useState<TerminalStatus>('disconnected');
+  const terminalRef = useRef<XTerminalHandle>(null);
   const { director, hasActiveSession, isLoading, error } = useDirector();
   const startSession = useStartAgentSession();
   const stopSession = useStopAgentSession();
@@ -157,6 +159,16 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
     setTerminalStatus(newStatus);
   }, []);
 
+  const handleSiftBacklog = useCallback(() => {
+    if (!terminalRef.current) return;
+    // Send the command text first
+    terminalRef.current.sendInput('/sift-backlog');
+    // Send carriage return after a small delay to ensure it registers as the submit action
+    setTimeout(() => {
+      terminalRef.current?.sendInput('\r');
+    }, 200);
+  }, []);
+
   if (collapsed) {
     return (
       <aside
@@ -260,6 +272,16 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
                       )}
                     </button>
                   </Tooltip>
+                  <Tooltip content="Sift Backlog" side="bottom">
+                    <button
+                      onClick={handleSiftBacklog}
+                      className="p-1.5 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150"
+                      aria-label="Sift Backlog"
+                      data-testid="director-sift-backlog"
+                    >
+                      <ListFilter className="w-4 h-4" />
+                    </button>
+                  </Tooltip>
                 </>
               )}
             </>
@@ -315,6 +337,7 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
             ) : (
               <>
                 <XTerminal
+                  ref={terminalRef}
                   agentId={director?.id}
                   onStatusChange={handleTerminalStatusChange}
                   theme="dark"
