@@ -25,7 +25,7 @@ export { initCommand, OPERATOR_ENTITY_ID, OPERATOR_ENTITY_NAME } from './command
 export { resetCommand } from './commands/reset.js';
 export { configCommand } from './commands/config.js';
 export { helpCommand, versionCommand, getCommandHelp } from './commands/help.js';
-export { createCommand, listCommand, showCommand, createHandler, listHandler, showHandler, updateHandler, deleteHandler } from './commands/crud.js';
+export { showCommand, createHandler, listHandler, showHandler, updateHandler, deleteHandler } from './commands/crud.js';
 export { depCommand, depAddCommand, depRemoveCommand, depListCommand, depTreeCommand } from './commands/dep.js';
 export {
   readyCommand, blockedCommand, backlogCommand, closeCommand,

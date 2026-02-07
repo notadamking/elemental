@@ -42,7 +42,7 @@ const COMMAND_CATEGORIES: Record<string, string[]> = {
   'Knowledge': ['document', 'library', 'embeddings'],
   'Organization': ['entity', 'team'],
   'Sync': ['sync', 'export', 'import', 'status'],
-  'System': ['init', 'config', 'identity', 'whoami'],
+  'System': ['init', 'reset', 'config', 'identity', 'whoami'],
   'Admin': ['stats', 'doctor', 'migrate', 'gc', 'history'],
   'Shell': ['completion', 'alias', 'install', 'help', 'version'],
 };

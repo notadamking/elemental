@@ -29,7 +29,7 @@ Workers understand this means: assess your state, either resume work or initiate
 
 ```bash
 # Check worker status
-el agent list --role worker --session-status running
+el agent list --role worker --status running
 
 # Send nudge (use Steward ID from session context)
 el message send --from <Steward ID> --to <worker-id> --type nudge --content "No output detected. Please continue or handoff."
