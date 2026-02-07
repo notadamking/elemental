@@ -460,5 +460,40 @@ export function createChannelRoutes(services: CollaborateServices) {
     }
   });
 
+  // DELETE /api/channels/:id - Delete a channel
+  app.delete('/api/channels/:id', async (c) => {
+    try {
+      const id = c.req.param('id') as ElementId;
+      const url = new URL(c.req.url);
+      const actor = url.searchParams.get('actor');
+
+      // Validate actor
+      if (!actor) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'actor query parameter is required' } }, 400);
+      }
+
+      // Verify channel exists
+      const channel = await api.get(id);
+      if (!channel) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } }, 404);
+      }
+      if (channel.type !== 'channel') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } }, 404);
+      }
+
+      // Delete the channel
+      await api.delete(id, { actor: actor as EntityId, reason: 'Channel deleted by user' });
+
+      return c.json({ success: true });
+    } catch (error) {
+      const err = error as { code?: string; message?: string };
+      if (err.code === 'NOT_FOUND') {
+        return c.json({ error: { code: 'NOT_FOUND', message: err.message || 'Channel not found' } }, 404);
+      }
+      console.error('[elemental] Failed to delete channel:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete channel' } }, 500);
+    }
+  });
+
   return app;
 }
