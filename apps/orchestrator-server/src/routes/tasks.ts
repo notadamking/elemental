@@ -107,6 +107,7 @@ export function createTaskRoutes(services: Services) {
       const body = (await c.req.json()) as {
         title: string;
         description?: string;
+        status?: string;
         priority?: number | 'critical' | 'high' | 'medium' | 'low';
         complexity?: number | 'trivial' | 'simple' | 'medium' | 'complex' | 'very_complex';
         taskType?: 'bug' | 'feature' | 'task' | 'chore';
@@ -156,8 +157,27 @@ export function createTaskRoutes(services: Services) {
 
       const createdBy = (body.createdBy ?? 'el-0000') as EntityId;
 
+      // Map status string to TaskStatus enum
+      let status: TaskStatus | undefined;
+      if (body.status) {
+        const statusMap: Record<string, TaskStatus> = {
+          backlog: TaskStatus.BACKLOG,
+          open: TaskStatus.OPEN,
+          in_progress: TaskStatus.IN_PROGRESS,
+          blocked: TaskStatus.BLOCKED,
+          review: TaskStatus.REVIEW,
+          deferred: TaskStatus.DEFERRED,
+          closed: TaskStatus.CLOSED,
+        };
+        status = statusMap[body.status];
+        if (!status) {
+          return c.json({ error: { code: 'INVALID_INPUT', message: `Invalid status: ${body.status}` } }, 400);
+        }
+      }
+
       const taskData = await createTask({
         title: body.title,
+        status,
         priority,
         complexity,
         taskType: body.taskType,
