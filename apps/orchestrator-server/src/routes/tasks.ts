@@ -74,7 +74,7 @@ export function createTaskRoutes(services: Services) {
         return c.json({ tasks: filtered.map((t) => formatTaskResponse(t)) });
       }
 
-      const allElements = await api.list({ type: ElementType.TASK });
+      const allElements = await api.list({ type: ElementType.TASK, limit: 10000 });
       const tasks = allElements.filter((e): e is Task => e.type === ElementType.TASK);
       // Filter out tombstoned (deleted) tasks
       let filtered = tasks.filter((t) => t.status !== TaskStatus.TOMBSTONE);
