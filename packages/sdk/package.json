@@ -12,31 +12,38 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./api": {
       "types": "./dist/api/index.d.ts",
-      "import": "./dist/api/index.js"
+      "import": "./dist/api/index.js",
+      "default": "./dist/api/index.js"
     },
     "./services": {
       "types": "./dist/services/index.d.ts",
-      "import": "./dist/services/index.js"
+      "import": "./dist/services/index.js",
+      "default": "./dist/services/index.js"
     },
     "./sync": {
       "types": "./dist/sync/index.d.ts",
-      "import": "./dist/sync/index.js"
+      "import": "./dist/sync/index.js",
+      "default": "./dist/sync/index.js"
     },
     "./cli": {
       "types": "./dist/cli/index.d.ts",
-      "import": "./dist/cli/index.js"
+      "import": "./dist/cli/index.js",
+      "default": "./dist/cli/index.js"
     },
     "./config": {
       "types": "./dist/config/index.d.ts",
-      "import": "./dist/config/index.js"
+      "import": "./dist/config/index.js",
+      "default": "./dist/config/index.js"
     },
     "./http": {
       "types": "./dist/http/index.d.ts",
-      "import": "./dist/http/index.js"
+      "import": "./dist/http/index.js",
+      "default": "./dist/http/index.js"
     }
   },
   "scripts": {

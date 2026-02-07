@@ -8,19 +8,23 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./bun": {
       "types": "./dist/bun-backend.d.ts",
-      "import": "./dist/bun-backend.js"
+      "import": "./dist/bun-backend.js",
+      "default": "./dist/bun-backend.js"
     },
     "./node": {
       "types": "./dist/node-backend.d.ts",
-      "import": "./dist/node-backend.js"
+      "import": "./dist/node-backend.js",
+      "default": "./dist/node-backend.js"
     },
     "./browser": {
       "types": "./dist/browser-backend.d.ts",
-      "import": "./dist/browser-backend.js"
+      "import": "./dist/browser-backend.js",
+      "default": "./dist/browser-backend.js"
     }
   },
   "scripts": {
