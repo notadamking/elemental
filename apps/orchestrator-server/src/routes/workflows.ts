@@ -20,7 +20,7 @@ import {
   type EntityId,
   type Task,
   type Dependency,
-  pourWorkflow,
+  createWorkflowFromPlaybook,
   getTaskIdsInWorkflow,
   getDependenciesInWorkflow,
   DependencyType,
@@ -624,9 +624,9 @@ export function createWorkflowRoutes(services: Services) {
       const systemEntity = await api.lookupEntityByName('system');
       const createdBy = (systemEntity?.id ?? 'system') as EntityId;
 
-      // Use pourWorkflow from @elemental/core to instantiate
+      // Use createWorkflowFromPlaybook from @elemental/core to instantiate
       // workflow, tasks, and dependencies from playbook
-      const pourResult = await pourWorkflow({
+      const pourResult = await createWorkflowFromPlaybook({
         playbook,
         variables: providedVariables ?? {},
         createdBy,

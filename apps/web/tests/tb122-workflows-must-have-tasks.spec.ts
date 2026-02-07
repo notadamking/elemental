@@ -60,7 +60,7 @@ test.describe('TB122: Workflows Must Have Task Children', () => {
       expect(tasks[0].title).toBe(taskTitle);
 
       // Cleanup - use delete with force
-      await page.request.delete(`/api/workflows/${created.id}/delete?force=true`);
+      await page.request.delete(`/api/workflows/${created.id}?force=true`);
     });
 
     test('POST /api/workflows with initialTaskId adds existing task to workflow', async ({ page }) => {
@@ -97,7 +97,7 @@ test.describe('TB122: Workflows Must Have Task Children', () => {
       expect(tasks[0].id).toBe(task.id);
 
       // Cleanup - delete workflow with force (will clean up task too)
-      await page.request.delete(`/api/workflows/${created.id}/delete?force=true`);
+      await page.request.delete(`/api/workflows/${created.id}?force=true`);
     });
 
     test('POST /api/workflows with invalid initialTaskId returns error', async ({ page }) => {
@@ -116,12 +116,12 @@ test.describe('TB122: Workflows Must Have Task Children', () => {
   });
 
   // ============================================================================
-  // API Tests - POST /api/workflows/create Validation
+  // API Tests - POST /api/workflows/instantiate Validation
   // ============================================================================
 
   test.describe('API - Create Workflow Validation', () => {
-    test('POST /api/workflows/create with empty steps returns validation error', async ({ page }) => {
-      const response = await page.request.post('/api/workflows/create', {
+    test('POST /api/workflows/instantiate with empty steps returns validation error', async ({ page }) => {
+      const response = await page.request.post('/api/workflows/instantiate', {
         data: {
           playbook: {
             name: 'empty-playbook',
@@ -140,10 +140,10 @@ test.describe('TB122: Workflows Must Have Task Children', () => {
       expect(body.error.message).toContain('no steps defined');
     });
 
-    test('POST /api/workflows/create with valid playbook creates workflow with tasks', async ({ page }) => {
+    test('POST /api/workflows/instantiate with valid playbook creates workflow with tasks', async ({ page }) => {
       const workflowTitle = `Create Test ${Date.now()}`;
 
-      const response = await page.request.post('/api/workflows/create', {
+      const response = await page.request.post('/api/workflows/instantiate', {
         data: {
           playbook: {
             name: 'test-playbook',
@@ -168,7 +168,7 @@ test.describe('TB122: Workflows Must Have Task Children', () => {
       expect(result.tasks.length).toBe(2);
 
       // Cleanup
-      await page.request.delete(`/api/workflows/${result.workflow.id}/delete?force=true`);
+      await page.request.delete(`/api/workflows/${result.workflow.id}?force=true`);
     });
   });
 
@@ -196,7 +196,7 @@ test.describe('TB122: Workflows Must Have Task Children', () => {
 
     test.afterEach(async ({ page }) => {
       // Cleanup - delete the workflow
-      await page.request.delete(`/api/workflows/${workflowId}/delete?force=true`);
+      await page.request.delete(`/api/workflows/${workflowId}?force=true`);
     });
 
     test('DELETE /api/tasks/:id returns error when deleting last task in workflow', async ({ page }) => {
@@ -221,7 +221,7 @@ test.describe('TB122: Workflows Must Have Task Children', () => {
 
     test('can delete task when workflow has multiple tasks', async ({ page }) => {
       // Create workflow with two tasks via create
-      const response = await page.request.post('/api/workflows/create', {
+      const response = await page.request.post('/api/workflows/instantiate', {
         data: {
           playbook: {
             name: 'two-step-playbook',
@@ -262,7 +262,7 @@ test.describe('TB122: Workflows Must Have Task Children', () => {
       expect(canDeleteSecondBody.canDelete).toBe(false);
 
       // Cleanup
-      await page.request.delete(`/api/workflows/${multiWorkflowId}/delete?force=true`);
+      await page.request.delete(`/api/workflows/${multiWorkflowId}?force=true`);
     });
   });
 
@@ -314,7 +314,7 @@ test.describe('TB122: Workflows Must Have Task Children', () => {
       const workflows = await workflowsResponse.json();
       const createdWorkflow = workflows.find((w: { title: string }) => w.title === workflowTitle);
       if (createdWorkflow) {
-        await page.request.delete(`/api/workflows/${createdWorkflow.id}/delete?force=true`);
+        await page.request.delete(`/api/workflows/${createdWorkflow.id}?force=true`);
       }
     });
   });
@@ -339,7 +339,7 @@ test.describe('TB122: Workflows Must Have Task Children', () => {
 
     test.afterEach(async ({ page }) => {
       // Cleanup
-      await page.request.delete(`/api/workflows/${workflowId}/delete?force=true`);
+      await page.request.delete(`/api/workflows/${workflowId}?force=true`);
     });
 
     test('shows last-task warning when workflow has only one task', async ({ page }) => {
@@ -359,7 +359,7 @@ test.describe('TB122: Workflows Must Have Task Children', () => {
 
     test('does not show warning when workflow has multiple tasks', async ({ page }) => {
       // Create a workflow with two tasks
-      const multiResponse = await page.request.post('/api/workflows/create', {
+      const multiResponse = await page.request.post('/api/workflows/instantiate', {
         data: {
           playbook: {
             name: 'two-step-playbook',
@@ -389,7 +389,7 @@ test.describe('TB122: Workflows Must Have Task Children', () => {
       await expect(page.getByTestId('last-task-warning')).not.toBeVisible();
 
       // Cleanup
-      await page.request.delete(`/api/workflows/${multiWorkflowId}/delete?force=true`);
+      await page.request.delete(`/api/workflows/${multiWorkflowId}?force=true`);
     });
   });
 });

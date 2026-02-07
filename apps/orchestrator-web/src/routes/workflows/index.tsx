@@ -378,7 +378,7 @@ export function WorkflowsPage() {
                 <PlaybookCard
                   key={playbook.id}
                   playbook={playbook}
-                  onPour={handleCreateFromPlaybook}
+                  onCreate={handleCreateFromPlaybook}
                   onEdit={handleEditPlaybook}
                 />
               ))}

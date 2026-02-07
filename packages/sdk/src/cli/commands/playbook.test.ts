@@ -335,10 +335,10 @@ describe('playbook validate command with create-time validation', () => {
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect((result.data as { valid: boolean }).valid).toBe(true);
 
-    const pourValidation = (result.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
-    expect(pourValidation.performed).toBe(true);
-    expect(pourValidation.valid).toBe(true);
-    expect(pourValidation.resolvedVariables).toEqual({ env: 'production' });
+    const createValidation = (result.data as Record<string, unknown>).createValidation as Record<string, unknown>;
+    expect(createValidation.performed).toBe(true);
+    expect(createValidation.valid).toBe(true);
+    expect(createValidation.resolvedVariables).toEqual({ env: 'production' });
   });
 
   test('parses boolean and number variables correctly', async () => {
@@ -362,8 +362,8 @@ describe('playbook validate command with create-time validation', () => {
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect((result.data as { valid: boolean }).valid).toBe(true);
 
-    const pourValidation = (result.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
-    expect(pourValidation.resolvedVariables).toEqual({ debug: true, count: 42 });
+    const createValidation = (result.data as Record<string, unknown>).createValidation as Record<string, unknown>;
+    expect(createValidation.resolvedVariables).toEqual({ debug: true, count: 42 });
   });
 
   test('uses default values for optional variables', async () => {
@@ -386,8 +386,8 @@ describe('playbook validate command with create-time validation', () => {
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect((result.data as { valid: boolean }).valid).toBe(true);
 
-    const pourValidation = (result.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
-    expect(pourValidation.resolvedVariables).toEqual({ version: '1.0.0' });
+    const createValidation = (result.data as Record<string, unknown>).createValidation as Record<string, unknown>;
+    expect(createValidation.resolvedVariables).toEqual({ version: '1.0.0' });
   });
 
   test('reports skipped steps from conditions', async () => {
@@ -411,9 +411,9 @@ describe('playbook validate command with create-time validation', () => {
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect((result.data as { valid: boolean }).valid).toBe(true);
 
-    const pourValidation = (result.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
-    expect(pourValidation.includedSteps).toEqual(['always']);
-    expect(pourValidation.skippedSteps).toEqual(['optional']);
+    const createValidation = (result.data as Record<string, unknown>).createValidation as Record<string, unknown>;
+    expect(createValidation.includedSteps).toEqual(['always']);
+    expect(createValidation.skippedSteps).toEqual(['optional']);
   });
 
   test('detects type mismatches', async () => {
@@ -492,8 +492,8 @@ describe('playbook validate command with create-time validation', () => {
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect((result.data as { valid: boolean }).valid).toBe(true);
 
-    const pourValidation = (result.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
-    expect(pourValidation.resolvedVariables).toEqual({ project: 'myapp', env: 'production' });
+    const createValidation = (result.data as Record<string, unknown>).createValidation as Record<string, unknown>;
+    expect(createValidation.resolvedVariables).toEqual({ project: 'myapp', env: 'production' });
   });
 });
 
@@ -809,12 +809,12 @@ describe('playbook lifecycle E2E', () => {
     expect((validateCreateSuccessResult.data as { valid: boolean }).valid).toBe(true);
 
     // Verify create-time validation shows correct resolved values
-    const pourValidation = (validateCreateSuccessResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
-    expect(pourValidation.resolvedVariables).toEqual({
+    const createValidation = (validateCreateSuccessResult.data as Record<string, unknown>).createValidation as Record<string, unknown>;
+    expect(createValidation.resolvedVariables).toEqual({
       env: 'production',
       version: '1.0.0',
     });
-    expect((pourValidation.includedSteps as string[])).toHaveLength(3);
+    expect((createValidation.includedSteps as string[])).toHaveLength(3);
   });
 
   test('playbook inheritance lifecycle: create parent → create child → validate child', async () => {
@@ -876,13 +876,13 @@ describe('playbook lifecycle E2E', () => {
     expect((validateWithVarResult.data as { valid: boolean }).valid).toBe(true);
 
     // 6. Verify inheritance resolution in validation
-    const pourValidation = (validateWithVarResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
-    expect(pourValidation.resolvedVariables).toEqual({
+    const createValidation = (validateWithVarResult.data as Record<string, unknown>).createValidation as Record<string, unknown>;
+    expect(createValidation.resolvedVariables).toEqual({
       environment: 'staging',
       region: 'us-west-2',
     });
     // Should show 4 steps: 2 from parent + 2 from child
-    expect((pourValidation.includedSteps as string[])).toHaveLength(4);
+    expect((createValidation.includedSteps as string[])).toHaveLength(4);
   });
 
   test('conditional steps lifecycle: create → validate with conditions', async () => {
@@ -907,9 +907,9 @@ describe('playbook lifecycle E2E', () => {
       createTestOptions({ create: true })
     );
     expect(validateDefaultResult.exitCode).toBe(ExitCode.SUCCESS);
-    const pourValidation1 = (validateDefaultResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
-    expect((pourValidation1.skippedSteps as string[])).toContain('integration_tests');
-    expect((pourValidation1.includedSteps as string[])).toHaveLength(3);
+    const createValidation1 = (validateDefaultResult.data as Record<string, unknown>).createValidation as Record<string, unknown>;
+    expect((createValidation1.skippedSteps as string[])).toContain('integration_tests');
+    expect((createValidation1.includedSteps as string[])).toHaveLength(3);
 
     // Validate with runIntegration=true - all steps should be included
     const validateWithIntegrationResult = await playbookCommand.subcommands!.validate.handler(
@@ -917,9 +917,9 @@ describe('playbook lifecycle E2E', () => {
       createTestOptions({ var: 'runIntegration=true' })
     );
     expect(validateWithIntegrationResult.exitCode).toBe(ExitCode.SUCCESS);
-    const pourValidation2 = (validateWithIntegrationResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
-    expect((pourValidation2.skippedSteps as string[])).toHaveLength(0);
-    expect((pourValidation2.includedSteps as string[])).toHaveLength(4);
+    const createValidation2 = (validateWithIntegrationResult.data as Record<string, unknown>).createValidation as Record<string, unknown>;
+    expect((createValidation2.skippedSteps as string[])).toHaveLength(0);
+    expect((createValidation2.includedSteps as string[])).toHaveLength(4);
   });
 
   test('multiple variables and complex validation lifecycle', async () => {
@@ -955,8 +955,8 @@ describe('playbook lifecycle E2E', () => {
     );
     expect(validateGoodResult.exitCode).toBe(ExitCode.SUCCESS);
     expect((validateGoodResult.data as { valid: boolean }).valid).toBe(true);
-    const pourValidation = (validateGoodResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
-    expect(pourValidation.resolvedVariables).toEqual({
+    const createValidation = (validateGoodResult.data as Record<string, unknown>).createValidation as Record<string, unknown>;
+    expect(createValidation.resolvedVariables).toEqual({
       service: 'api',
       version: '1.0.0',
       environment: 'production',
@@ -1039,8 +1039,8 @@ describe('playbook lifecycle E2E', () => {
     );
     expect(createValidateResult.exitCode).toBe(ExitCode.SUCCESS);
     expect((createValidateResult.data as { valid: boolean }).valid).toBe(true);
-    const pourValidation = (createValidateResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
-    expect((pourValidation.includedSteps as string[])).toHaveLength(5);
-    expect((pourValidation.skippedSteps as string[])).toHaveLength(0);
+    const createValidation = (createValidateResult.data as Record<string, unknown>).createValidation as Record<string, unknown>;
+    expect((createValidation.includedSteps as string[])).toHaveLength(5);
+    expect((createValidation.skippedSteps as string[])).toHaveLength(0);
   });
 });

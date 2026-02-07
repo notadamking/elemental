@@ -243,7 +243,7 @@ test.describe('TB26: Playbook Browser', () => {
     await expect(page.getByTestId('create-submit-button')).toBeDisabled();
   });
 
-  test('pouring from playbook creates workflow with playbook steps', async ({ page }) => {
+  test('creating workflow from playbook creates workflow with playbook steps', async ({ page }) => {
     // Check if playbooks exist first
     const listResponse = await page.request.get('/api/playbooks');
     const playbooks = await listResponse.json();

@@ -668,8 +668,8 @@ async function workflowDeleteHandler(
 
     const actor = resolveActor(options);
 
-    // Use burnWorkflow API to delete workflow and all its tasks
-    const result = await api.burnWorkflow(id as ElementId, { actor });
+    // Use deleteWorkflow API to delete workflow and all its tasks
+    const result = await api.deleteWorkflow(id as ElementId, { actor });
 
     return success(
       result,

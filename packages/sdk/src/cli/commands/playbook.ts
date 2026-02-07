@@ -485,7 +485,7 @@ async function playbookValidateHandler(
 
     // Add create-time validation details if performed
     if (shouldDoCreateValidation && createValidationResult) {
-      jsonResult.pourValidation = {
+      jsonResult.createValidation = {
         performed: true,
         valid: createValidationResult.valid,
         ...(createValidationResult.valid && {

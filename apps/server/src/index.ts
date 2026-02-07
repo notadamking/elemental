@@ -15,7 +15,7 @@ import {
   createTask,
   createDocument,
   createMessage,
-  pourWorkflow,
+  createWorkflowFromPlaybook,
   createWorkflow,
   discoverPlaybookFiles,
   loadPlaybookFromFile,
@@ -42,7 +42,7 @@ import type {
   Message,
   WorkflowStatus,
   CreateWorkflowInput,
-  PourWorkflowInput,
+  CreateWorkflowFromPlaybookInput,
   Playbook,
   DiscoveredPlaybook,
   CreateLibraryInput,
@@ -2672,7 +2672,7 @@ app.post('/api/workflows/instantiate', async (c) => {
     }
 
     // Build instantiation input
-    const pourInput: PourWorkflowInput = {
+    const createInput: CreateWorkflowFromPlaybookInput = {
       playbook: body.playbook as Playbook,
       variables: body.variables || {},
       createdBy: body.createdBy as EntityId,
@@ -2683,7 +2683,7 @@ app.post('/api/workflows/instantiate', async (c) => {
     };
 
     // Instantiate the workflow from playbook
-    const result = await pourWorkflow(pourInput);
+    const result = await createWorkflowFromPlaybook(createInput);
 
     // TB122: Verify at least one task was created (steps may have been filtered by conditions)
     if (result.tasks.length === 0) {
@@ -2805,7 +2805,7 @@ app.delete('/api/workflows/:id', async (c) => {
     }
 
     // Delete the workflow and its tasks
-    const result = await api.burnWorkflow(id);
+    const result = await api.deleteWorkflow(id);
 
     return c.json(result);
   } catch (error) {

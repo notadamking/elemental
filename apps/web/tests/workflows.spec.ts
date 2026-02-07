@@ -151,7 +151,7 @@ test.describe('TB25: Workflow List + Create', () => {
     expect(created.initialTask.id).toBeDefined();
 
     // Cleanup
-    await page.request.delete(`/api/workflows/${created.id}/delete?force=true`);
+    await page.request.delete(`/api/workflows/${created.id}?force=true`);
   });
 
   test('POST /api/workflows validates required fields', async ({ page }) => {
@@ -168,7 +168,7 @@ test.describe('TB25: Workflow List + Create', () => {
     expect(response2.status()).toBe(400);
   });
 
-  test('POST /api/workflows/create creates workflow from playbook', async ({ page }) => {
+  test('POST /api/workflows/instantiate creates workflow from playbook', async ({ page }) => {
     const playbook = {
       name: 'Test Playbook',
       version: '1.0.0',
@@ -179,7 +179,7 @@ test.describe('TB25: Workflow List + Create', () => {
       ],
     };
 
-    const response = await page.request.post('/api/workflows/create', {
+    const response = await page.request.post('/api/workflows/instantiate', {
       data: {
         playbook,
         createdBy: 'test-user',
@@ -197,15 +197,15 @@ test.describe('TB25: Workflow List + Create', () => {
     expect(result.tasks.length).toBe(2);
   });
 
-  test('POST /api/workflows/create validates required fields', async ({ page }) => {
+  test('POST /api/workflows/instantiate validates required fields', async ({ page }) => {
     // Missing playbook
-    const response1 = await page.request.post('/api/workflows/create', {
+    const response1 = await page.request.post('/api/workflows/instantiate', {
       data: { createdBy: 'test-user' },
     });
     expect(response1.status()).toBe(400);
 
     // Missing createdBy
-    const response2 = await page.request.post('/api/workflows/create', {
+    const response2 = await page.request.post('/api/workflows/instantiate', {
       data: { playbook: { name: 'Test', version: '1.0.0', variables: [], steps: [] } },
     });
     expect(response2.status()).toBe(400);
@@ -236,7 +236,7 @@ test.describe('TB25: Workflow List + Create', () => {
     expect(updated.status).toBe('running');
 
     // Cleanup
-    await page.request.delete(`/api/workflows/${workflow.id}/delete?force=true`);
+    await page.request.delete(`/api/workflows/${workflow.id}?force=true`);
   });
 
   test('PATCH /api/workflows/:id validates status values', async ({ page }) => {
@@ -483,7 +483,7 @@ test.describe('TB25: Workflow List + Create', () => {
 
     // Cleanup
     if (created) {
-      await page.request.delete(`/api/workflows/${created.id}/delete?force=true`);
+      await page.request.delete(`/api/workflows/${created.id}?force=true`);
     }
   });
 });
@@ -497,9 +497,9 @@ test.describe('TB48: Edit Workflow', () => {
   // API Endpoint Tests - Delete
   // ============================================================================
 
-  test('DELETE /api/workflows/:id/delete deletes ephemeral workflow', async ({ page }) => {
+  test('DELETE /api/workflows/:id deletes ephemeral workflow', async ({ page }) => {
     // First create an ephemeral workflow
-    const createResponse = await page.request.post('/api/workflows/create', {
+    const createResponse = await page.request.post('/api/workflows/instantiate', {
       data: {
         playbook: {
           name: 'Test Delete Playbook',
@@ -517,7 +517,7 @@ test.describe('TB48: Edit Workflow', () => {
     const workflow = createResult.workflow;
 
     // Delete the workflow
-    const deleteResponse = await page.request.delete(`/api/workflows/${workflow.id}/delete`);
+    const deleteResponse = await page.request.delete(`/api/workflows/${workflow.id}`);
     expect(deleteResponse.ok()).toBe(true);
     const result = await deleteResponse.json();
     expect(result.workflowId).toBe(workflow.id);
@@ -527,9 +527,9 @@ test.describe('TB48: Edit Workflow', () => {
     expect(getResponse.status()).toBe(404);
   });
 
-  test('DELETE /api/workflows/:id/delete returns 400 for durable workflow without force', async ({ page }) => {
+  test('DELETE /api/workflows/:id returns 400 for durable workflow without force', async ({ page }) => {
     // First create a durable workflow
-    const createResponse = await page.request.post('/api/workflows/create', {
+    const createResponse = await page.request.post('/api/workflows/instantiate', {
       data: {
         playbook: {
           name: 'Test Durable Playbook',
@@ -547,15 +547,15 @@ test.describe('TB48: Edit Workflow', () => {
     const workflow = createResult.workflow;
 
     // Try to delete without force - should fail
-    const deleteResponse = await page.request.delete(`/api/workflows/${workflow.id}/delete`);
+    const deleteResponse = await page.request.delete(`/api/workflows/${workflow.id}`);
     expect(deleteResponse.status()).toBe(400);
     const body = await deleteResponse.json();
     expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  test('DELETE /api/workflows/:id/delete with force=true works for durable workflow', async ({ page }) => {
+  test('DELETE /api/workflows/:id with force=true works for durable workflow', async ({ page }) => {
     // First create a durable workflow
-    const createResponse = await page.request.post('/api/workflows/create', {
+    const createResponse = await page.request.post('/api/workflows/instantiate', {
       data: {
         playbook: {
           name: 'Test Force Delete Playbook',
@@ -573,12 +573,12 @@ test.describe('TB48: Edit Workflow', () => {
     const workflow = createResult.workflow;
 
     // Delete with force flag
-    const deleteResponse = await page.request.delete(`/api/workflows/${workflow.id}/delete?force=true`);
+    const deleteResponse = await page.request.delete(`/api/workflows/${workflow.id}?force=true`);
     expect(deleteResponse.ok()).toBe(true);
   });
 
-  test('DELETE /api/workflows/:id/delete returns 404 for non-existent workflow', async ({ page }) => {
-    const response = await page.request.delete('/api/workflows/el-invalid999/delete');
+  test('DELETE /api/workflows/:id returns 404 for non-existent workflow', async ({ page }) => {
+    const response = await page.request.delete('/api/workflows/el-invalid999');
     expect(response.status()).toBe(404);
   });
 
@@ -588,7 +588,7 @@ test.describe('TB48: Edit Workflow', () => {
 
   test('POST /api/workflows/:id/promote promotes ephemeral to durable', async ({ page }) => {
     // First create an ephemeral workflow
-    const createResponse = await page.request.post('/api/workflows/create', {
+    const createResponse = await page.request.post('/api/workflows/instantiate', {
       data: {
         playbook: {
           name: 'Test Promote Playbook',
@@ -615,7 +615,7 @@ test.describe('TB48: Edit Workflow', () => {
 
   test('POST /api/workflows/:id/promote returns 400 for already durable workflow', async ({ page }) => {
     // First create a durable workflow
-    const createResponse = await page.request.post('/api/workflows/create', {
+    const createResponse = await page.request.post('/api/workflows/instantiate', {
       data: {
         playbook: {
           name: 'Test Already Durable Playbook',
@@ -697,7 +697,7 @@ test.describe('TB48: Edit Workflow', () => {
 
   test('editing title and saving updates the workflow', async ({ page }) => {
     // Create a workflow to edit
-    const createResponse = await page.request.post('/api/workflows/create', {
+    const createResponse = await page.request.post('/api/workflows/instantiate', {
       data: {
         playbook: {
           name: 'Test Edit Title Playbook',
@@ -739,7 +739,7 @@ test.describe('TB48: Edit Workflow', () => {
 
   test('pending workflow shows Start and Cancel buttons', async ({ page }) => {
     // Create a pending workflow
-    const createResponse = await page.request.post('/api/workflows/create', {
+    const createResponse = await page.request.post('/api/workflows/instantiate', {
       data: {
         playbook: {
           name: 'Test Status Workflow',
@@ -769,7 +769,7 @@ test.describe('TB48: Edit Workflow', () => {
 
   test('clicking Start changes workflow status to running', async ({ page }) => {
     // Create a pending workflow
-    const createResponse = await page.request.post('/api/workflows/create', {
+    const createResponse = await page.request.post('/api/workflows/instantiate', {
       data: {
         playbook: {
           name: 'Test Start Workflow',
@@ -806,7 +806,7 @@ test.describe('TB48: Edit Workflow', () => {
 
   test('ephemeral workflow shows Promote and Delete buttons', async ({ page }) => {
     // Create an ephemeral workflow
-    const createResponse = await page.request.post('/api/workflows/create', {
+    const createResponse = await page.request.post('/api/workflows/instantiate', {
       data: {
         playbook: {
           name: 'Test Ephemeral Buttons',
@@ -839,7 +839,7 @@ test.describe('TB48: Edit Workflow', () => {
 
   test('clicking Promote button makes workflow durable', async ({ page }) => {
     // Create an ephemeral workflow
-    const createResponse = await page.request.post('/api/workflows/create', {
+    const createResponse = await page.request.post('/api/workflows/instantiate', {
       data: {
         playbook: {
           name: 'Test Promote UI',
@@ -872,7 +872,7 @@ test.describe('TB48: Edit Workflow', () => {
 
   test('clicking Delete button shows confirmation', async ({ page }) => {
     // Create an ephemeral workflow
-    const createResponse = await page.request.post('/api/workflows/create', {
+    const createResponse = await page.request.post('/api/workflows/instantiate', {
       data: {
         playbook: {
           name: 'Test Delete Confirm',
@@ -905,7 +905,7 @@ test.describe('TB48: Edit Workflow', () => {
 
   test('confirming Delete deletes the workflow', async ({ page }) => {
     // Create an ephemeral workflow
-    const createResponse = await page.request.post('/api/workflows/create', {
+    const createResponse = await page.request.post('/api/workflows/instantiate', {
       data: {
         playbook: {
           name: 'Test Delete Workflow',
@@ -942,7 +942,7 @@ test.describe('TB48: Edit Workflow', () => {
 
   test('durable workflow does not show Promote/Delete buttons', async ({ page }) => {
     // Create a durable workflow
-    const createResponse = await page.request.post('/api/workflows/create', {
+    const createResponse = await page.request.post('/api/workflows/instantiate', {
       data: {
         playbook: {
           name: 'Test Durable No Buttons',

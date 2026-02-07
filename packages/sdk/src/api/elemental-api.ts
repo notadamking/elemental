@@ -116,8 +116,8 @@ import type {
   BulkReassignOptions,
   BulkTagOptions,
   BulkOperationResult,
-  BurnWorkflowOptions,
-  BurnWorkflowResult,
+  DeleteWorkflowOptions,
+  DeleteWorkflowResult,
   GarbageCollectionOptions,
   GarbageCollectionResult,
   TaskGarbageCollectionOptions,
@@ -3888,10 +3888,10 @@ export class ElementalAPIImpl implements ElementalAPI {
   // Workflow Operations
   // --------------------------------------------------------------------------
 
-  async burnWorkflow(
+  async deleteWorkflow(
     workflowId: ElementId,
-    options?: BurnWorkflowOptions
-  ): Promise<BurnWorkflowResult> {
+    options?: DeleteWorkflowOptions
+  ): Promise<DeleteWorkflowResult> {
     // Get the workflow
     const workflow = await this.get<Workflow>(workflowId);
     if (!workflow) {
@@ -4014,10 +4014,10 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     // Actually delete
     for (const workflow of toDelete) {
-      const burnResult = await this.burnWorkflow(workflow.id);
+      const deleteResult = await this.deleteWorkflow(workflow.id);
       result.workflowsDeleted++;
-      result.tasksDeleted += burnResult.tasksDeleted;
-      result.dependenciesDeleted += burnResult.dependenciesDeleted;
+      result.tasksDeleted += deleteResult.tasksDeleted;
+      result.dependenciesDeleted += deleteResult.dependenciesDeleted;
       result.deletedWorkflowIds.push(workflow.id);
     }
 

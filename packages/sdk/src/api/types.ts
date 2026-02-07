@@ -418,7 +418,7 @@ export interface BulkOperationResult {
 /**
  * Options for deleting a workflow
  */
-export interface BurnWorkflowOptions {
+export interface DeleteWorkflowOptions {
   /** Actor performing the delete operation */
   actor?: EntityId;
 }
@@ -426,7 +426,7 @@ export interface BurnWorkflowOptions {
 /**
  * Result of deleting a workflow
  */
-export interface BurnWorkflowResult {
+export interface DeleteWorkflowResult {
   /** ID of the workflow that was deleted */
   workflowId: ElementId;
   /** Number of tasks that were deleted */
@@ -1434,7 +1434,7 @@ export interface ElementalAPI {
    * @returns Result with counts of deleted elements
    * @throws NotFoundError if workflow doesn't exist
    */
-  burnWorkflow(workflowId: ElementId, options?: BurnWorkflowOptions): Promise<BurnWorkflowResult>;
+  deleteWorkflow(workflowId: ElementId, options?: DeleteWorkflowOptions): Promise<DeleteWorkflowResult>;
 
   /**
    * Run garbage collection on ephemeral workflows.
