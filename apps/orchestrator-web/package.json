@@ -20,6 +20,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@elemental/ui": "workspace:*",
     "@monaco-editor/react": "^4.7.0",
+    "monaco-editor": "^0.52.0",
     "@radix-ui/react-collapsible": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",

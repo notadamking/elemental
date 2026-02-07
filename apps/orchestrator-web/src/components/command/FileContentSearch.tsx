@@ -574,6 +574,10 @@ export function useFileContentSearchShortcut() {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd+Shift+F or Ctrl+Shift+F to open
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+        // Don't open the modal if we're on the Editor page - it has its own search panel
+        if (window.location.pathname === '/editor') {
+          return;
+        }
         e.preventDefault();
         setOpen((prev) => !prev);
       }
