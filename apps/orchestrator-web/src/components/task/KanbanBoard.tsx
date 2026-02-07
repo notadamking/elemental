@@ -861,6 +861,9 @@ export function KanbanBoard({
 
       if (task.status === 'backlog') {
         groups.backlog.push(task);
+      } else if (task.status === 'review') {
+        // Tasks with 'review' status go to awaiting_merge
+        groups.awaiting_merge.push(task);
       } else if (task.status === 'closed') {
         // Check if awaiting merge
         if (mergeStatus && mergeStatus !== 'merged') {
