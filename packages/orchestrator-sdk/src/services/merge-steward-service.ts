@@ -26,7 +26,7 @@ import type {
   Timestamp,
 } from '@elemental/core';
 import { createTimestamp, TaskStatus, createTask } from '@elemental/core';
-import type { ElementalAPI } from '@elemental/sdk';
+import type { ElementalAPI, TaskFilter } from '@elemental/sdk';
 
 import type {
   OrchestratorTaskMeta,
@@ -948,8 +948,8 @@ export class MergeStewardServiceImpl implements MergeStewardService {
     const allTasks = await this.api.list<Task>({
       type: 'task' as const,
       // Only consider non-closed fix tasks (still relevant)
-      status: [TaskStatus.OPEN, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW] as unknown as TaskStatus,
-    });
+      status: [TaskStatus.OPEN, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW],
+    } as TaskFilter);
 
     // Filter for tasks that:
     // 1. Have metadata.originalTaskId matching our original task
