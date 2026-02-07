@@ -209,6 +209,8 @@ el create task --title "..." --blocks <other-task-id> --plan "Existing Plan Name
 
 # Communication
 el inbox <Worker ID>
+el inbox <Worker ID> --full             # Show complete message content
+el show inbox-abc123                    # View specific inbox item
 el msg send --from <Worker ID> --to <Director ID> --content "..."
 
 # Git workflow (use commitlint-style prefixes)
