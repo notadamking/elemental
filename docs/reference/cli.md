@@ -298,14 +298,40 @@ el workflow gc --days 14
 
 ## Inbox Commands
 
-| Command                 | Description             |
-| ----------------------- | ----------------------- |
-| `el inbox <agent-id>`   | List unread inbox items |
-| `el inbox read <id>`    | Mark as read            |
-| `el inbox read-all`     | Mark all as read        |
-| `el inbox unread <id>`  | Mark as unread          |
-| `el inbox archive <id>` | Archive item            |
-| `el inbox count`        | Count unread            |
+| Command                 | Description                          |
+| ----------------------- | ------------------------------------ |
+| `el inbox <agent-id>`   | List inbox items with message preview |
+| `el inbox read <id>`    | Mark as read                         |
+| `el inbox read-all`     | Mark all as read                     |
+| `el inbox unread <id>`  | Mark as unread                       |
+| `el inbox archive <id>` | Archive item                         |
+| `el inbox count`        | Count unread                         |
+| `el show <inbox-id>`    | Show inbox item with full content    |
+
+#### inbox list
+
+List inbox items with message content preview.
+
+| Option                   | Description                                          |
+| ------------------------ | ---------------------------------------------------- |
+| `-a, --all`              | Include read and archived items (default: unread only) |
+| `-s, --status <status>`  | Filter by status: unread, read, or archived          |
+| `-n, --limit <n>`        | Maximum number of items to return                    |
+| `-F, --full`             | Show complete message content instead of truncated   |
+
+```bash
+# List unread inbox items with message preview
+el inbox alice
+
+# Show full message content
+el inbox alice --full
+
+# Include all items (read, archived)
+el inbox alice --all
+
+# Show single inbox item with full content
+el show inbox-abc123
+```
 
 ## Channel Commands
 

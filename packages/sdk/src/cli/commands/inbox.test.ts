@@ -15,6 +15,7 @@ import {
   inboxArchiveCommand,
   inboxCountCommand,
 } from './inbox.js';
+import { showCommand } from './crud.js';
 import type { GlobalOptions } from '../types.js';
 import { ExitCode } from '../types.js';
 import { createStorage, initializeSchema } from '@elemental/storage';
@@ -252,6 +253,29 @@ describe('inbox list command', () => {
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(typeof result.data).toBe('string');
     expect(result.data).toContain('inbox-');
+  });
+
+  test('includes message content in results', async () => {
+    const options = createTestOptions({ json: true });
+    const result = await inboxCommand.handler!([testEntityName], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(Array.isArray(result.data)).toBe(true);
+    const items = result.data as Array<InboxItem & { content?: string }>;
+    expect(items.length).toBeGreaterThan(0);
+    // Content should be hydrated from the message
+    expect(items[0].content).toBeDefined();
+    expect(typeof items[0].content).toBe('string');
+  });
+
+  test('--full flag shows complete content', async () => {
+    const options = createTestOptions({ full: true } as GlobalOptions & { full: boolean });
+    const result = await inboxCommand.handler!([testEntityName], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.message).toBeDefined();
+    // The table output should contain content
+    expect(result.message).toContain('CONTENT');
   });
 });
 
@@ -656,5 +680,50 @@ describe('inbox E2E scenarios', () => {
     result = await inboxCommand.handler!([testEntityName], createTestOptions());
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(result.message).toBeDefined();
+  });
+});
+
+// ============================================================================
+// Show Inbox Item Tests
+// ============================================================================
+
+describe('show inbox item command', () => {
+  test('shows inbox item with message content', async () => {
+    const options = createTestOptions({ json: true });
+    const result = await showCommand.handler!([testInboxItemId], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.data).toBeDefined();
+    const data = result.data as { id: string; messageContent: string | null; recipientId: string };
+    expect(data.id).toBe(testInboxItemId);
+    expect(data.messageContent).toBeDefined();
+    expect(typeof data.messageContent).toBe('string');
+    expect(data.recipientId).toBeDefined();
+  });
+
+  test('fails with non-existent inbox item', async () => {
+    const options = createTestOptions();
+    const result = await showCommand.handler!(['inbox-nonexistent'], options);
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+    expect(result.error).toContain('not found');
+  });
+
+  test('outputs only ID in quiet mode', async () => {
+    const options = createTestOptions({ quiet: true });
+    const result = await showCommand.handler!([testInboxItemId], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.data).toBe(testInboxItemId);
+  });
+
+  test('human-readable output includes message content', async () => {
+    const options = createTestOptions();
+    const result = await showCommand.handler!([testInboxItemId], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.message).toBeDefined();
+    // The output should include the inbox item ID
+    expect(result.message).toContain(testInboxItemId);
   });
 });

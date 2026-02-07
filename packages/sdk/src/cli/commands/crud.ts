@@ -12,13 +12,14 @@ import { join } from 'node:path';
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
 import { getFormatter, getOutputMode, getStatusIcon, formatEventsTable, type EventData } from '../formatter.js';
-import { createStorage, initializeSchema } from '@elemental/storage';
+import { createStorage, initializeSchema, type StorageBackend } from '@elemental/storage';
 import { createElementalAPI } from '../../api/elemental-api.js';
-import { createTask, createDocument, ContentType, TaskStatus, TaskTypeValue, PlanStatus, type CreateTaskInput, type Priority, type Complexity, type Plan, type DocumentId } from '@elemental/core';
+import { createTask, createDocument, ContentType, TaskStatus, TaskTypeValue, PlanStatus, type CreateTaskInput, type Priority, type Complexity, type Plan, type DocumentId, type HydratedMessage } from '@elemental/core';
 import type { Element, ElementId, EntityId } from '@elemental/core';
 import type { ElementalAPI, TaskFilter } from '../../api/types.js';
 import type { PlanProgress } from '@elemental/core';
 import { OPERATOR_ENTITY_ID } from './init.js';
+import { createInboxService } from '../../services/inbox.js';
 
 // ============================================================================
 // Constants
@@ -76,13 +77,14 @@ function resolveActor(options: GlobalOptions): EntityId {
  * @param createDb - If true, create the database if it doesn't exist. Default is false.
  *                   When false, returns an error if the database file doesn't exist.
  */
-function createAPI(options: GlobalOptions, createDb: boolean = false): { api: ElementalAPI; error?: string } {
+function createAPI(options: GlobalOptions, createDb: boolean = false): { api: ElementalAPI; backend: StorageBackend; error?: string } {
   // For read operations (createDb=false), require the database to exist
   // For write operations (createDb=true), allow creating a new database
   const dbPath = resolveDatabasePath(options, !createDb);
   if (!dbPath) {
     return {
       api: null as unknown as ElementalAPI,
+      backend: null as unknown as StorageBackend,
       error: 'No database found. Run "el init" to initialize a workspace, or specify --db path',
     };
   }
@@ -92,11 +94,12 @@ function createAPI(options: GlobalOptions, createDb: boolean = false): { api: El
     // The existence check is handled above in resolveDatabasePath when createDb is false
     const backend = createStorage({ path: dbPath, create: true });
     initializeSchema(backend);
-    return { api: createElementalAPI(backend) };
+    return { api: createElementalAPI(backend), backend };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return {
       api: null as unknown as ElementalAPI,
+      backend: null as unknown as StorageBackend,
       error: `Failed to open database: ${message}`,
     };
   }
@@ -586,12 +589,49 @@ async function showHandler(
     return failure('Usage: el show <id>', ExitCode.INVALID_ARGUMENTS);
   }
 
-  const { api, error } = createAPI(options);
+  const { api, backend, error } = createAPI(options);
   if (error) {
     return failure(error, ExitCode.GENERAL_ERROR);
   }
 
   try {
+    // Handle inbox item IDs (e.g., inbox-abc123)
+    if (id.startsWith('inbox-')) {
+      const inboxService = createInboxService(backend);
+      const inboxItem = inboxService.getInboxItem(id);
+
+      if (!inboxItem) {
+        return failure(`Inbox item not found: ${id}`, ExitCode.NOT_FOUND);
+      }
+
+      // Fetch the associated message with hydrated content
+      const message = await api.get<HydratedMessage>(inboxItem.messageId as unknown as ElementId, {
+        hydrate: { content: true }
+      });
+
+      // Build a combined result with inbox item info and message content
+      const result = {
+        ...inboxItem,
+        messageContent: message?.content ?? null,
+        messageSender: message?.sender ?? null,
+      };
+
+      const mode = getOutputMode(options);
+      const formatter = getFormatter(mode);
+
+      if (mode === 'json') {
+        return success(result);
+      }
+
+      if (mode === 'quiet') {
+        return success(inboxItem.id);
+      }
+
+      // Human-readable output
+      const output = formatter.element(result as unknown as Record<string, unknown>);
+      return success(result, output);
+    }
+
     // Get the element
     const element = await api.get<Element>(id as ElementId);
 
@@ -673,7 +713,7 @@ export const showCommand: Command = {
   help: `Display detailed information about an element.
 
 Arguments:
-  id    Element identifier (e.g., el-abc123)
+  id    Element identifier (e.g., el-abc123) or inbox item ID (e.g., inbox-abc123)
 
 Options:
   -e, --events            Include recent events/history
@@ -683,7 +723,8 @@ Examples:
   el show el-abc123
   el show el-abc123 --events
   el show el-abc123 --events --events-limit 20
-  el show el-abc123 --json`,
+  el show el-abc123 --json
+  el show inbox-abc123     # Show inbox item with message content`,
   options: showOptions,
   handler: showHandler as Command['handler'],
 };
