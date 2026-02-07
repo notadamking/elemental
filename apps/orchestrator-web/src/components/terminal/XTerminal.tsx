@@ -682,12 +682,26 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
     }
   }, [apiUrl]);
 
+  // Check if drag event contains files (not internal pane drag)
+  const isFileDrag = useCallback((e: React.DragEvent<HTMLDivElement>): boolean => {
+    const types = Array.from(e.dataTransfer.types);
+    // Internal pane drags have our custom MIME type
+    if (types.includes('application/x-workspace-pane')) {
+      return false;
+    }
+    // Files from file explorer will have 'Files' in types
+    // Internal pane drags also use 'text/plain' with pane ID
+    return types.includes('Files') && !types.includes('text/plain');
+  }, []);
+
   // Handle file drop
   const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
-    // Only handle file drags, not pane drags
-    const types = Array.from(e.dataTransfer.types);
-    const isFile = types.includes('Files') && !types.includes('text/plain');
-    if (!isFile) return;
+    // Only handle file drags, not pane drags - let pane drags bubble up
+    if (!isFileDrag(e)) {
+      // For pane drags, we need to NOT call stopPropagation so the event bubbles
+      // to the parent PaneWrapper which handles the swap
+      return;
+    }
 
     e.preventDefault();
     e.stopPropagation();
@@ -722,24 +736,18 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
         `\x1b[32m  ${paths.length} file(s) uploaded and path(s) inserted\x1b[0m`
       );
     }
-  }, [fileDropEnabled, interactive, uploadFile, sendToServer]);
-
-  // Check if drag event contains files (not internal pane drag)
-  const isFileDrag = useCallback((e: React.DragEvent<HTMLDivElement>): boolean => {
-    const types = Array.from(e.dataTransfer.types);
-    // Internal pane drags have our custom MIME type
-    if (types.includes('application/x-workspace-pane')) {
-      return false;
-    }
-    // Files from file explorer will have 'Files' in types
-    // Internal pane drags also use 'text/plain' with pane ID
-    return types.includes('Files') && !types.includes('text/plain');
-  }, []);
+  }, [fileDropEnabled, interactive, uploadFile, sendToServer, isFileDrag]);
 
   // Handle drag over
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    // Only handle file drags, not pane drags
-    if (!isFileDrag(e)) return;
+    // For pane drags, we need to call preventDefault() to allow the drop,
+    // but NOT stopPropagation() so the event bubbles to the parent PaneWrapper
+    if (!isFileDrag(e)) {
+      // This is a pane drag - allow it to be dropped by calling preventDefault
+      // The actual drop handling is done by the parent PaneWrapper
+      e.preventDefault();
+      return;
+    }
 
     e.preventDefault();
     e.stopPropagation();
@@ -750,8 +758,11 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 
   // Handle drag enter
   const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    // Only handle file drags, not pane drags
-    if (!isFileDrag(e)) return;
+    // For pane drags, call preventDefault to allow the drop, but let event bubble
+    if (!isFileDrag(e)) {
+      e.preventDefault();
+      return;
+    }
 
     e.preventDefault();
     e.stopPropagation();

@@ -454,7 +454,16 @@ export function WorkspaceGrid({
     e.preventDefault();
 
     // Check if this is a workspace pane drag (not a file drop, etc.)
-    const draggedPaneId = e.dataTransfer.getData('application/x-workspace-pane');
+    // Try custom MIME type first, fall back to text/plain for browser compatibility
+    let draggedPaneId = e.dataTransfer.getData('application/x-workspace-pane');
+    if (!draggedPaneId) {
+      // Fall back to text/plain - we set both in handleDragStart
+      const textData = e.dataTransfer.getData('text/plain');
+      // Verify it looks like a pane ID (starts with 'pane-')
+      if (textData && textData.startsWith('pane-')) {
+        draggedPaneId = textData;
+      }
+    }
     if (!draggedPaneId) {
       onEndDrag();
       return;

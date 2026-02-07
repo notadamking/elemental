@@ -902,8 +902,19 @@ export function StreamViewer({
     }
   }, [apiUrl]);
 
+  // Check if drag event is an internal pane drag (not a file drop)
+  const isPaneDrag = useCallback((e: React.DragEvent<HTMLDivElement>): boolean => {
+    const types = Array.from(e.dataTransfer.types);
+    // Internal pane drags have our custom MIME type
+    return types.includes('application/x-workspace-pane');
+  }, []);
+
   // Handle file drop
   const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
+    // Let pane drags bubble up to workspace grid handler
+    // Don't call stopPropagation so the event reaches the parent PaneWrapper
+    if (isPaneDrag(e)) return;
+
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
@@ -951,28 +962,44 @@ export function StreamViewer({
       // Automatically send the file paths as a message
       await sendInput(pathsText);
     }
-  }, [enableFileDrop, status, uploadFile, sendInput]);
+  }, [enableFileDrop, status, uploadFile, sendInput, isPaneDrag]);
 
   // Handle drag over
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    // For pane drags, we need to call preventDefault() to allow the drop,
+    // but NOT stopPropagation() so the event bubbles to the parent PaneWrapper
+    if (isPaneDrag(e)) {
+      e.preventDefault();
+      return;
+    }
+
     e.preventDefault();
     e.stopPropagation();
     if (enableFileDrop && status === 'connected') {
       setIsDragOver(true);
     }
-  }, [enableFileDrop, status]);
+  }, [enableFileDrop, status, isPaneDrag]);
 
   // Handle drag enter
   const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    // For pane drags, call preventDefault to allow the drop, but let event bubble
+    if (isPaneDrag(e)) {
+      e.preventDefault();
+      return;
+    }
+
     e.preventDefault();
     e.stopPropagation();
     if (enableFileDrop && status === 'connected') {
       setIsDragOver(true);
     }
-  }, [enableFileDrop, status]);
+  }, [enableFileDrop, status, isPaneDrag]);
 
   // Handle drag leave
   const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    // Let pane drags bubble up to workspace grid handler
+    if (isPaneDrag(e)) return;
+
     e.preventDefault();
     e.stopPropagation();
     // Only set to false if we're leaving the container (not entering a child)
@@ -988,7 +1015,7 @@ export function StreamViewer({
         setIsDragOver(false);
       }
     }
-  }, []);
+  }, [isPaneDrag]);
 
   return (
     <div
