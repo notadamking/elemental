@@ -521,6 +521,20 @@ When a task is completed:
    - **Approve:** Squash-merge branch in a temporary worktree, auto-push to remote, sync local target branch, delete task worktree and branch (local + remote)
    - **Request changes:** Create handoff with review comments, referencing original worktree
 
+### Merge Status Values
+
+Tasks in REVIEW status track their merge progress via `mergeStatus` in metadata:
+
+| Status | Meaning | Next Action |
+|--------|---------|-------------|
+| `pending` | Awaiting merge steward review | Steward runs tests |
+| `testing` | Tests running | Wait for results |
+| `merging` | Merge in progress | Wait for completion |
+| `merged` | Successfully merged to target branch | Task moves to CLOSED |
+| `test_failed` | Tests failed | Fix task created; original task stays in REVIEW |
+| `conflict` | Merge conflict detected | Fix task created; original task stays in REVIEW |
+| `failed` | Merge failed for other reason | Fix task created; original task stays in REVIEW |
+
 ### Merge Strategy
 
 The Merge Steward uses **squash merge** by default, combining all commits from the task branch into a single commit on the target branch. The squash commit message includes the task title and ID for traceability.

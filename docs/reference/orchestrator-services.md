@@ -563,7 +563,7 @@ await workerTaskService.requestHelp(workerId, taskId, message);
 
 ## WorktreeManager
 
-**File:** `services/worktree-manager.ts`
+**File:** `git/worktree-manager.ts`
 
 Manages Git worktree creation and cleanup for agent sessions.
 
@@ -576,8 +576,11 @@ import { createWorktreeManager } from '@elemental/orchestrator-sdk';
 
 const worktreeManager = createWorktreeManager(projectRoot);
 
-const worktreePath = await worktreeManager.createReadOnlyWorktree(agentName, purpose);
-// Returns path: .elemental/.worktrees/{agent-name}-{purpose}/
+const worktreeResult = await worktreeManager.createReadOnlyWorktree({
+  agentName: 'worker-alice',
+  purpose: 'triage',
+});
+// Returns CreateWorktreeResult with path: .elemental/.worktrees/{agent-name}-{purpose}/
 ```
 
 **Path pattern:** `.elemental/.worktrees/{agent-name}-{purpose}/`
@@ -684,12 +687,18 @@ await mergeSteward.updateMergeStatus(taskId, 'merged', {
 });
 ```
 
-### Auto-Cleanup Behavior
+### Cleanup Behavior
 
-After a successful merge:
+**After successful merge:**
 1. **Temp worktree removal:** The temporary merge worktree is always removed in a `finally` block
 2. **Task worktree removal:** Removes the task's worktree directory
 3. **Local branch deletion:** Deletes the local source branch
 4. **Remote branch deletion:** Pushes deletion to remote (`git push origin --delete`)
+
+**When tests fail or conflicts occur:**
+- The temp merge worktree is still cleaned up (via `finally` block)
+- The task's worktree and branch are NOT cleaned up (worker needs them to fix the issue)
+- `mergeStatus` is updated to `'test_failed'` or `'conflict'`
+- A fix task is created with `tags: ['fix']` and assigned to the original task's agent
 
 All cleanup operations are best-effort and log warnings on failure without blocking the merge result.

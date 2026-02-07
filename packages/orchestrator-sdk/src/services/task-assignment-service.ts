@@ -213,7 +213,7 @@ export interface TaskAssignmentService {
   /**
    * Marks a task as started by the assigned agent.
    *
-   * Sets the task status to 'active' and records the start time.
+   * Sets the task status to IN_PROGRESS and records the start time.
    *
    * @param taskId - The task to start
    * @param sessionId - Optional session ID to associate
@@ -224,8 +224,8 @@ export interface TaskAssignmentService {
   /**
    * Marks a task as completed by the assigned agent.
    *
-   * Sets the task status to 'closed' and records completion time.
-   * The task remains assigned for merge tracking.
+   * Sets the task status to REVIEW (awaiting merge) and records completion time.
+   * The merge steward will later set CLOSED after successfully merging the branch.
    * Optionally creates a merge request for the task branch (when a provider is configured).
    *
    * @param taskId - The task to complete
