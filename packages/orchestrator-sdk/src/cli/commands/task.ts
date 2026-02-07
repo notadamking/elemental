@@ -13,6 +13,8 @@ import type { Command, GlobalOptions, CommandResult, CommandOption } from '@elem
 import { success, failure, ExitCode, getOutputMode } from '@elemental/sdk/cli';
 import type { ElementId, Task } from '@elemental/core';
 import { TaskStatus } from '@elemental/core';
+import type { MergeStatus } from '../../types/task-meta.js';
+import { MergeStatusValues, isMergeStatus } from '../../types/task-meta.js';
 
 // ============================================================================
 // Shared Helpers
@@ -840,6 +842,97 @@ Examples:
 };
 
 // ============================================================================
+// Task Merge Status Command
+// ============================================================================
+
+async function taskMergeStatusHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [taskId, status] = args;
+
+  if (!taskId || !status) {
+    return failure(
+      `Usage: el task merge-status <task-id> <status>\n\nValid statuses: ${MergeStatusValues.join(', ')}`,
+      ExitCode.INVALID_ARGUMENTS
+    );
+  }
+
+  // Validate the status value
+  if (!isMergeStatus(status)) {
+    return failure(
+      `Invalid merge status: "${status}"\n\nValid statuses: ${MergeStatusValues.join(', ')}`,
+      ExitCode.INVALID_ARGUMENTS
+    );
+  }
+
+  const { api, error } = await createOrchestratorApi(options);
+  if (error || !api) {
+    return failure(error ?? 'Failed to create API', ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    await api.updateTaskOrchestratorMeta(taskId as ElementId, {
+      mergeStatus: status as MergeStatus,
+    });
+
+    const mode = getOutputMode(options);
+
+    if (mode === 'json') {
+      return success({
+        taskId,
+        mergeStatus: status,
+      });
+    }
+
+    if (mode === 'quiet') {
+      return success(taskId);
+    }
+
+    return success(
+      { taskId, mergeStatus: status },
+      `Updated task ${taskId} merge status to: ${status}`
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes('not found')) {
+      return failure(`Task not found: ${taskId}`, ExitCode.GENERAL_ERROR);
+    }
+    return failure(`Failed to update merge status: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+export const taskMergeStatusCommand: Command = {
+  name: 'merge-status',
+  description: 'Update the merge status of a task',
+  usage: 'el task merge-status <task-id> <status>',
+  help: `Update the merge status of a task.
+
+This command directly sets the mergeStatus field in a task's orchestrator metadata.
+Useful for fixing stuck tasks or manual intervention when the normal merge flow fails.
+
+Arguments:
+  task-id    Task identifier
+  status     Merge status (${MergeStatusValues.join(', ')})
+
+Statuses:
+  pending      Task completed, awaiting merge
+  testing      Steward is running tests on the branch
+  merging      Tests passed, merge in progress
+  merged       Successfully merged
+  conflict     Merge conflict detected
+  test_failed  Tests failed, needs attention
+  failed       Merge failed for other reason
+
+Examples:
+  el task merge-status el-abc123 merged
+  el task merge-status el-abc123 pending
+  el task merge-status el-abc123 conflict`,
+  options: [],
+  handler: taskMergeStatusHandler as Command['handler'],
+};
+
+// ============================================================================
 // Main Task Command
 // ============================================================================
 
@@ -853,6 +946,7 @@ Subcommands:
   handoff        Hand off a task to another agent
   complete       Complete a task and optionally create a merge request
   merge          Mark a task as merged and close it
+  merge-status   Update the merge status of a task
   reject         Mark a task merge as failed and reopen it
   sync           Sync a task branch with the main branch
 
@@ -860,12 +954,14 @@ Examples:
   el task handoff el-abc123 --message "Need help with frontend"
   el task complete el-abc123 --summary "Implemented feature"
   el task merge el-abc123
+  el task merge-status el-abc123 merged
   el task reject el-abc123 --reason "Tests failed"
   el task sync el-abc123`,
   subcommands: {
     handoff: taskHandoffCommand,
     complete: taskCompleteCommand,
     merge: taskMergeCommand,
+    'merge-status': taskMergeStatusCommand,
     reject: taskRejectCommand,
     sync: taskSyncCommand,
   },

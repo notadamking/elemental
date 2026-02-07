@@ -692,12 +692,14 @@ el dispatch smart el-task123 --branch feature/task
 
 ### Orchestrator Task Commands
 
-| Command                 | Description                            |
-| ----------------------- | -------------------------------------- |
-| `el task handoff <id>`  | Hand off task to another agent         |
-| `el task complete <id>` | Complete task and create merge request |
-| `el task merge <id>`    | Mark task as merged and close it       |
-| `el task reject <id>`   | Mark merge as failed and reopen task   |
+| Command                          | Description                            |
+| -------------------------------- | -------------------------------------- |
+| `el task handoff <id>`           | Hand off task to another agent         |
+| `el task complete <id>`          | Complete task and create merge request |
+| `el task merge <id>`             | Mark task as merged and close it       |
+| `el task merge-status <id> <s>`  | Update the merge status of a task      |
+| `el task reject <id>`            | Mark merge as failed and reopen task   |
+| `el task sync <id>`              | Sync task branch with main branch      |
 
 #### task merge
 
@@ -712,6 +714,21 @@ el task merge el-abc123
 el task merge el-abc123 --summary "All tests passing"
 ```
 
+#### task merge-status
+
+Update the merge status of a task. Useful for fixing stuck tasks or manual intervention when the normal merge flow fails.
+
+| Argument   | Description                                                              |
+| ---------- | ------------------------------------------------------------------------ |
+| `<id>`     | Task identifier                                                          |
+| `<status>` | Merge status: pending, testing, merging, merged, conflict, test_failed, failed |
+
+```bash
+el task merge-status el-abc123 merged
+el task merge-status el-abc123 pending
+el task merge-status el-abc123 conflict
+```
+
 #### task reject
 
 Mark a task merge as failed and reopen it.
@@ -724,6 +741,14 @@ Mark a task merge as failed and reopen it.
 ```bash
 el task reject el-abc123 --reason "Tests failed"
 el task reject el-abc123 --reason "Tests failed" --message "Fix flaky test in auth.test.ts"
+```
+
+#### task sync
+
+Sync a task's branch with the main branch (master/main). This fetches from origin and attempts to merge.
+
+```bash
+el task sync el-abc123
 ```
 
 ## Short IDs
