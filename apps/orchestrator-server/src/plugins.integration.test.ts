@@ -10,10 +10,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { spawn, type Subprocess } from 'bun';
 import { resolve, dirname } from 'node:path';
+import { unlinkSync, existsSync } from 'node:fs';
 
 // Test configuration
 const TEST_PORT = 3458; // Use a different port than default
 const SERVER_URL = `http://localhost:${TEST_PORT}`;
+const TEST_DB_PATH = '/tmp/elemental-plugin-api-test.db';
 
 // Server process
 let serverProcess: Subprocess<'ignore', 'pipe', 'pipe'> | null = null;
@@ -24,7 +26,6 @@ let serverProcess: Subprocess<'ignore', 'pipe', 'pipe'> | null = null;
 
 async function startServer(): Promise<void> {
   const serverPath = resolve(dirname(import.meta.path), 'index.ts');
-  const projectRoot = resolve(dirname(import.meta.path), '../../..');
 
   // Start the server
   serverProcess = spawn({
@@ -32,8 +33,8 @@ async function startServer(): Promise<void> {
     env: {
       ...process.env,
       PORT: String(TEST_PORT),
-      // Use a test database
-      ELEMENTAL_DB_PATH: resolve(projectRoot, '.elemental/test-plugin-api.db'),
+      // Use a test database in /tmp to work in both main repo and worktrees
+      ELEMENTAL_DB_PATH: TEST_DB_PATH,
     },
     stdout: 'pipe',
     stderr: 'pipe',
@@ -64,17 +65,34 @@ async function stopServer(): Promise<void> {
   }
 }
 
+function cleanupTestDb(): void {
+  // Clean up SQLite database files (main db, write-ahead log, and shared memory)
+  for (const suffix of ['', '-wal', '-shm']) {
+    const file = `${TEST_DB_PATH}${suffix}`;
+    if (existsSync(file)) {
+      try {
+        unlinkSync(file);
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+  }
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
 
 describe('Plugin API Integration Tests', () => {
   beforeAll(async () => {
+    // Clean up any stale test database from previous runs
+    cleanupTestDb();
     await startServer();
   });
 
   afterAll(async () => {
     await stopServer();
+    cleanupTestDb();
   });
 
   describe('GET /api/plugins/builtin', () => {
