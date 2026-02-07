@@ -965,7 +965,12 @@ export class SessionManagerImpl implements SessionManager {
 
       // Forward to the running process via spawner
       if (session.mode === 'interactive') {
-        await this.spawner.writeToPty(sessionId, formattedMessage + '\n');
+        // Write the message content first
+        await this.spawner.writeToPty(sessionId, formattedMessage);
+        // Wait for the terminal to process the pasted content before sending Enter.
+        // The carriage return must be sent as a separate message to ensure proper submission.
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await this.spawner.writeToPty(sessionId, '\r');
       } else {
         await this.spawner.sendInput(sessionId, formattedMessage);
       }
