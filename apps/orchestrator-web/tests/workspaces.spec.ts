@@ -1108,5 +1108,118 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
       // Resize handle should no longer be visible (not in DOM when maximized)
       await expect(grid.locator('.cursor-col-resize')).toHaveCount(0);
     });
+
+    test('vertical swap button swaps rows in 2x2 grid layout', async ({ page }) => {
+      await page.goto('/workspaces');
+
+      // Set up a 2x2 grid layout with 4 panes
+      await page.evaluate(() => {
+        const mockLayout = {
+          id: 'test-layout',
+          name: 'Test',
+          preset: 'grid',
+          panes: [
+            {
+              id: 'pane-1',
+              agentId: 'agent-1',
+              agentName: 'Worker 1',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 0,
+              weight: 1,
+            },
+            {
+              id: 'pane-2',
+              agentId: 'agent-2',
+              agentName: 'Worker 2',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 1,
+              weight: 1,
+            },
+            {
+              id: 'pane-3',
+              agentId: 'agent-3',
+              agentName: 'Worker 3',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 2,
+              weight: 1,
+            },
+            {
+              id: 'pane-4',
+              agentId: 'agent-4',
+              agentName: 'Worker 4',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 3,
+              weight: 1,
+            },
+          ],
+          gridConfig: {
+            cols: 2,
+            rows: 2,
+            colSizes: [{ fr: 1 }, { fr: 1 }],
+            rowSizes: [{ fr: 1 }, { fr: 1 }],
+          },
+          createdAt: Date.now(),
+          modifiedAt: Date.now(),
+        };
+        localStorage.setItem('elemental-active-workspace-layout', JSON.stringify(mockLayout));
+      });
+
+      await page.reload();
+
+      // Wait for grid to render
+      const grid = page.getByTestId('workspace-grid');
+      await expect(grid).toBeVisible();
+
+      // Verify 2x2 grid with 4 panes
+      expect(await grid.getAttribute('data-pane-count')).toBe('4');
+      expect(await grid.getAttribute('data-preset')).toBe('grid');
+
+      // Check for vertical resize handle (row divider)
+      const verticalHandle = grid.locator('.cursor-row-resize').first();
+      await expect(verticalHandle).toBeVisible({ timeout: 5000 });
+
+      // Check that the vertical swap button exists on the handle
+      const swapButton = grid.getByTestId('swap-row-0-1-btn');
+      await expect(swapButton).toBeVisible({ timeout: 5000 });
+
+      // Get the initial order of panes by checking names in the DOM
+      const initialPaneNames: string[] = await page.evaluate(() => {
+        const layout = JSON.parse(localStorage.getItem('elemental-active-workspace-layout') || '{}');
+        return layout.panes?.map((p: { agentName: string }) => p.agentName) || [];
+      });
+      expect(initialPaneNames).toEqual(['Worker 1', 'Worker 2', 'Worker 3', 'Worker 4']);
+
+      // The swap button has pointer-events: none, so we need to click on it
+      // using coordinates. The global click listener will detect it.
+      const swapButtonBox = await swapButton.boundingBox();
+      expect(swapButtonBox).toBeTruthy();
+      await page.mouse.click(
+        swapButtonBox!.x + swapButtonBox!.width / 2,
+        swapButtonBox!.y + swapButtonBox!.height / 2
+      );
+
+      // Wait a bit for the swap to complete
+      await page.waitForTimeout(300);
+
+      // Check the pane order has been swapped (rows swapped: top row [0,1] and bottom row [2,3] swapped)
+      const finalPaneNames: string[] = await page.evaluate(() => {
+        const layout = JSON.parse(localStorage.getItem('elemental-active-workspace-layout') || '{}');
+        return layout.panes?.map((p: { agentName: string }) => p.agentName) || [];
+      });
+      // After row swap: [0,1] <-> [2,3] means order becomes [3,4,1,2] -> Worker 3, Worker 4, Worker 1, Worker 2
+      expect(finalPaneNames).toEqual(['Worker 3', 'Worker 4', 'Worker 1', 'Worker 2']);
+    });
   });
 });

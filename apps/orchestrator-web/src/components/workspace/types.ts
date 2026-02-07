@@ -123,6 +123,8 @@ export interface WorkspaceActions {
   rotateLayout: () => void;
   /** Swap grid sections (toggles between single-first and single-last layout) */
   swapGridSections: () => void;
+  /** Swap rows in 2x2 grid layout (top row swaps with bottom row) */
+  swap2x2Rows: () => void;
 }
 
 /**

@@ -553,6 +553,37 @@ export function usePaneManager(): UsePaneManagerResult {
     });
   }, []);
 
+  // Swap rows in 2x2 grid layout
+  // For a 2x2 grid with panes [0,1,2,3] arranged as:
+  //   [0] [1]  <- top row
+  //   [2] [3]  <- bottom row
+  // This swaps the rows so they become:
+  //   [2] [3]  <- was bottom, now top
+  //   [0] [1]  <- was top, now bottom
+  const swap2x2Rows = useCallback(() => {
+    setLayout(prev => {
+      const paneCount = prev.panes.length;
+      if (paneCount !== 4) return prev;
+
+      const panes = [...prev.panes];
+      // Swap rows: [0,1] <-> [2,3]
+      [panes[0], panes[2]] = [panes[2], panes[0]];
+      [panes[1], panes[3]] = [panes[3], panes[1]];
+
+      // Re-index positions
+      const reindexed = panes.map((p, i) => ({
+        ...p,
+        position: i,
+      }));
+
+      return {
+        ...prev,
+        panes: reindexed,
+        modifiedAt: Date.now(),
+      };
+    });
+  }, []);
+
   return {
     // State
     layout,
@@ -587,5 +618,6 @@ export function usePaneManager(): UsePaneManagerResult {
     movePaneDown,
     rotateLayout,
     swapGridSections,
+    swap2x2Rows,
   };
 }
