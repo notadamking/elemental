@@ -35,9 +35,10 @@ interface ChannelViewProps {
   channelId: string;
   isMobile?: boolean;
   onBack?: () => void;
+  onChannelDeleted?: () => void;
 }
 
-export function ChannelView({ channelId, isMobile = false, onBack }: ChannelViewProps) {
+export function ChannelView({ channelId, isMobile = false, onBack, onChannelDeleted }: ChannelViewProps) {
   const { data: channel } = useChannel(channelId);
   const { data: messages = [], isLoading, error } = useChannelMessages(channelId);
   const { data: entities } = useEntities();
@@ -383,6 +384,7 @@ export function ChannelView({ channelId, isMobile = false, onBack }: ChannelView
           channel={channel}
           currentOperator={currentOperator}
           onClose={() => setShowMembersPanel(false)}
+          onChannelDeleted={onChannelDeleted}
         />
       )}
     </div>

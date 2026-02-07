@@ -7,7 +7,8 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, UserPlus, UserMinus, Users, Crown, LogOut, Loader2, AlertCircle } from 'lucide-react';
+import { X, UserPlus, UserMinus, Users, Crown, LogOut, Loader2, AlertCircle, Trash2, AlertTriangle } from 'lucide-react';
+import { useDeleteChannel } from '../../api/hooks/useMessages';
 import { EntityLink } from '../entity/EntityLink';
 
 // ============================================================================
@@ -48,6 +49,7 @@ interface ChannelMembersPanelProps {
   channel: Channel;
   currentOperator: string; // The current user/operator's entity ID
   onClose: () => void;
+  onChannelDeleted?: () => void; // Called after channel is successfully deleted
 }
 
 // ============================================================================
@@ -403,16 +405,22 @@ export function ChannelMembersPanel({
   channel,
   currentOperator,
   onClose,
+  onChannelDeleted,
 }: ChannelMembersPanelProps) {
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { data: membersData, isLoading, error } = useChannelMembers(channel.id);
   const removeMember = useRemoveMember();
   const leaveChannel = useLeaveChannel();
+  const deleteChannel = useDeleteChannel();
 
   const isDirect = channel.channelType === 'direct';
   const canModify =
     !isDirect && membersData?.permissions.modifyMembers.includes(currentOperator);
   const isMember = channel.members.includes(currentOperator);
+  // Only channel creator or users with modify permissions can delete
+  const canDelete =
+    !isDirect && (channel.createdBy === currentOperator || canModify);
 
   const handleRemoveMember = async (entityId: string) => {
     setRemovingMemberId(entityId);
@@ -438,6 +446,20 @@ export function ChannelMembersPanel({
         actor: currentOperator,
       });
       onClose();
+    } catch {
+      // Error handled by mutation state
+    }
+  };
+
+  const handleDeleteChannel = async () => {
+    try {
+      await deleteChannel.mutateAsync({
+        channelId: channel.id,
+        actor: currentOperator,
+      });
+      setShowDeleteConfirm(false);
+      onClose();
+      onChannelDeleted?.();
     } catch {
       // Error handled by mutation state
     }
@@ -518,11 +540,11 @@ export function ChannelMembersPanel({
 
       {/* Leave Channel Button (only for group channels where user is a member) */}
       {!isDirect && isMember && (
-        <div className="px-4 py-3 border-t border-gray-200">
+        <div className="px-4 py-3 border-t border-gray-200 dark:border-[var(--color-border)]">
           <button
             onClick={handleLeaveChannel}
             disabled={leaveChannel.isPending}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors disabled:opacity-50"
             data-testid="leave-channel-button"
           >
             {leaveChannel.isPending ? (
@@ -537,6 +559,106 @@ export function ChannelMembersPanel({
               {(leaveChannel.error as Error).message}
             </p>
           )}
+        </div>
+      )}
+
+      {/* Delete Channel Button (only for channel creator or users with modify permission) */}
+      {canDelete && (
+        <div className="px-4 py-3 border-t border-gray-200 dark:border-[var(--color-border)]">
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={deleteChannel.isPending}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors disabled:opacity-50"
+            data-testid="delete-channel-button"
+          >
+            {deleteChannel.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Trash2 className="w-4 h-4" />
+            )}
+            Delete Channel
+          </button>
+        </div>
+      )}
+
+      {/* Delete Channel Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div
+          className="fixed inset-0 z-[60]"
+          onClick={() => setShowDeleteConfirm(false)}
+          data-testid="delete-channel-confirm-modal"
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+
+          {/* Dialog */}
+          <div
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-[var(--color-surface)] rounded-xl shadow-2xl border border-[var(--color-border)]">
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-[var(--color-border)]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
+                    <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-[var(--color-text)]">Delete Channel</h2>
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      This action cannot be undone.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="px-5 py-4">
+                <p className="text-sm text-[var(--color-text-secondary)] mb-3">
+                  All messages and data in this channel will be permanently deleted.
+                </p>
+                <div className="p-3 bg-[var(--color-surface-elevated)] rounded-md border border-[var(--color-border)]">
+                  <p className="text-sm font-medium text-[var(--color-text)] truncate" title={channel.name}>
+                    #{channel.name}
+                  </p>
+                  <p className="text-xs text-[var(--color-text-tertiary)] font-mono mt-1">
+                    {channel.id}
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-4 border-t border-[var(--color-border)] bg-[var(--color-bg-secondary)] rounded-b-xl flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deleteChannel.isPending}
+                  className="px-4 py-2 text-sm font-medium text-[var(--color-text)] bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-hover)] rounded-md transition-colors disabled:opacity-50"
+                  data-testid="delete-channel-cancel"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteChannel}
+                  disabled={deleteChannel.isPending}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
+                  data-testid="delete-channel-confirm"
+                >
+                  {deleteChannel.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Delete
+                </button>
+              </div>
+
+              {/* Error message */}
+              {deleteChannel.isError && (
+                <div className="px-5 py-3 border-t border-[var(--color-border)]">
+                  <p className="text-sm text-red-600 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    {(deleteChannel.error as Error).message}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

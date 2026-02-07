@@ -6,6 +6,9 @@ import { dirname, resolve } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Allow tests to override the API port via VITE_API_PORT env var
+const apiPort = process.env.VITE_API_PORT || '3457';
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -20,11 +23,11 @@ export default defineConfig({
     proxy: {
       // All API routes go to orchestrator server (includes shared collaborate routes)
       '/api': {
-        target: 'http://localhost:3457',
+        target: `http://localhost:${apiPort}`,
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:3457',
+        target: `ws://localhost:${apiPort}`,
         ws: true,
       },
     },

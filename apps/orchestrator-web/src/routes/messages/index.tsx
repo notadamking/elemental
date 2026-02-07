@@ -133,6 +133,19 @@ export function MessagesPage() {
     });
   };
 
+  // Handle channel deletion - navigate away from deleted channel
+  const handleChannelDeleted = useCallback(() => {
+    setSelectedChannelId(null);
+    navigate({
+      to: '/messages',
+      search: { channel: undefined, message: undefined },
+    });
+    toast.success('Channel deleted', {
+      description: 'The channel has been permanently deleted',
+      duration: 3000,
+    });
+  }, [navigate]);
+
   if (isError) {
     return (
       <div data-testid="messages-page-error" className="flex items-center justify-center h-full">
@@ -187,7 +200,12 @@ export function MessagesPage() {
 
         {/* Mobile: Show channel view when channel selected */}
         {selectedChannelId && (
-          <ChannelView channelId={selectedChannelId} isMobile={true} onBack={handleMobileBack} />
+          <ChannelView
+            channelId={selectedChannelId}
+            isMobile={true}
+            onBack={handleMobileBack}
+            onChannelDeleted={handleChannelDeleted}
+          />
         )}
 
         <CreateChannelModal
@@ -223,7 +241,11 @@ export function MessagesPage() {
       )}
 
       {selectedChannelId ? (
-        <ChannelView channelId={selectedChannelId} isMobile={false} />
+        <ChannelView
+          channelId={selectedChannelId}
+          isMobile={false}
+          onChannelDeleted={handleChannelDeleted}
+        />
       ) : (
         <ChannelPlaceholder isMobile={false} />
       )}

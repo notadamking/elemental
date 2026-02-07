@@ -170,6 +170,35 @@ export function useThreadReplies(threadId: string | null) {
 }
 
 /**
+ * Hook to delete a channel
+ */
+export function useDeleteChannel() {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ success: boolean }, Error, { channelId: string; actor: string }>({
+    mutationFn: async ({ channelId, actor }) => {
+      const response = await fetch(
+        `/api/channels/${channelId}?actor=${encodeURIComponent(actor)}`,
+        { method: 'DELETE' }
+      );
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to delete channel');
+      }
+      return response.json();
+    },
+    onSuccess: (_, { channelId }) => {
+      // Remove channel from all caches
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+      queryClient.invalidateQueries({ queryKey: ['elements', 'channels'] });
+      queryClient.invalidateQueries({ queryKey: ['channels', channelId] });
+      queryClient.invalidateQueries({ queryKey: ['channels', channelId, 'messages'] });
+      queryClient.invalidateQueries({ queryKey: ['channels', channelId, 'members'] });
+    },
+  });
+}
+
+/**
  * Hook to search messages within a channel (TB103)
  */
 export function useMessageSearch(query: string, channelId: string | null) {
