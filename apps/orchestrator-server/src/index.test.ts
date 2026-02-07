@@ -135,8 +135,10 @@ describe('AgentRegistry Integration', () => {
     const agentEntityId = agent.id as unknown as EntityId;
     const channel = await agentRegistry.getAgentChannel(agentEntityId);
     expect(channel).toBeDefined();
-    // Channel name is based on agent name, not ID
-    expect(channel?.name).toBe(`agent-${agent.name}`);
+    // Direct channel name is a sorted combination of both entity names
+    // Agent name: test-agent-with-channel, System entity name: test-system
+    // Sorted: test-agent-with-channel:test-system
+    expect(channel?.name).toBe('test-agent-with-channel:test-system');
   });
 });
 
