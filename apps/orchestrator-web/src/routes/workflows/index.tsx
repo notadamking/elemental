@@ -340,7 +340,7 @@ export function WorkflowsPage() {
 
       {/* Loading state */}
       {isLoading && (
-        <div className="flex items-center justify-center py-16">
+        <div className="flex items-center justify-center py-16" data-testid="workflows-loading">
           <Loader2 className="w-8 h-8 text-[var(--color-primary)] animate-spin" />
         </div>
       )}

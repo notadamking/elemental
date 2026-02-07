@@ -548,7 +548,7 @@ test.describe('TB-O32: Workflows Page', () => {
       await page.goto('/workflows');
 
       // Should show loading indicator (main loader, not the refresh button)
-      const loader = page.locator('.lucide-loader-circle.animate-spin');
+      const loader = page.getByTestId('workflows-loading');
       await expect(loader).toBeVisible();
     });
   });
