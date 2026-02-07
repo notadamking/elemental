@@ -376,7 +376,7 @@ Constructs the prompt for a triage session using the `message-triage.md` prompt 
 
 ### Closed-Unmerged Reconciliation Behavior
 
-Tasks can end up with `status=CLOSED` but `mergeStatus` not `'merged'` (e.g. when `el close` is run on a REVIEW task, or from race conditions between CLI commands and steward processing). These tasks are stuck: hidden from the task list (closed) and invisible to merge stewards (they only query `status=REVIEW`).
+Tasks can end up with `status=CLOSED` but `mergeStatus` not `'merged'` (e.g. when `el close` is run on a REVIEW task, or from race conditions between CLI commands and steward processing). While these tasks appear in the **Awaiting Merge** section of the web UI (alongside `REVIEW` status tasks), they are invisible to merge stewards which only query for `status=REVIEW`.
 
 The reconciliation poll detects and recovers these stuck tasks:
 
