@@ -133,8 +133,8 @@ describe('isValidCronExpression', () => {
 
 describe('evaluateCondition', () => {
   it('should evaluate simple property access', () => {
-    expect(evaluateCondition("task.status === 'done'", { task: { status: 'done' } })).toBe(true);
-    expect(evaluateCondition("task.status === 'done'", { task: { status: 'open' } })).toBe(false);
+    expect(evaluateCondition("task.status === 'closed'", { task: { status: 'closed' } })).toBe(true);
+    expect(evaluateCondition("task.status === 'closed'", { task: { status: 'open' } })).toBe(false);
   });
 
   it('should evaluate nested property access', () => {
@@ -198,7 +198,7 @@ describe('StewardSchedulerImpl', () => {
   beforeEach(() => {
     mockSteward = createMockAgentEntity('steward-1', 'Test Steward', 'merge', [
       { type: 'cron', schedule: '*/5 * * * *' },
-      { type: 'event', event: 'task_completed', condition: "task.status === 'done'" },
+      { type: 'event', event: 'task_completed', condition: "task.status === 'closed'" },
     ]);
     mockRegistry = createMockAgentRegistry([mockSteward]);
     mockExecutor = createMockExecutor();
@@ -343,7 +343,7 @@ describe('StewardSchedulerImpl', () => {
 
     it('should trigger steward on matching event', async () => {
       const triggered = await scheduler.publishEvent('task_completed', {
-        task: { status: 'done' },
+        task: { status: 'closed' },
       });
       expect(triggered).toBe(1);
 
@@ -369,7 +369,7 @@ describe('StewardSchedulerImpl', () => {
       await scheduler.stop();
 
       const triggered = await scheduler.publishEvent('task_completed', {
-        task: { status: 'done' },
+        task: { status: 'closed' },
       });
       expect(triggered).toBe(0);
     });

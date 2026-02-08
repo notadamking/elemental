@@ -3254,7 +3254,7 @@ app.get('/api/teams/:id/stats', async (c) => {
         }
 
         const status = taskData.status || 'open';
-        if (status === 'closed' || status === 'completed' || status === 'done') {
+        if (status === 'closed' || status === 'completed') {
           completedTasksAssigned++;
           if (tasksByMember[memberKey]) {
             tasksByMember[memberKey].completed++;

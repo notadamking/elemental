@@ -40,7 +40,7 @@ test.describe('TB-O18: Orchestrator Task List Page', () => {
       await expect(page.getByTestId('tasks-tab-unassigned')).toBeVisible();
       await expect(page.getByTestId('tasks-tab-assigned')).toBeVisible();
       await expect(page.getByTestId('tasks-tab-in_progress')).toBeVisible();
-      await expect(page.getByTestId('tasks-tab-done')).toBeVisible();
+      await expect(page.getByTestId('tasks-tab-closed')).toBeVisible();
       await expect(page.getByTestId('tasks-tab-awaiting_merge')).toBeVisible();
     });
 
@@ -73,12 +73,12 @@ test.describe('TB-O18: Orchestrator Task List Page', () => {
       await expect(page).toHaveURL(/status=in_progress/);
     });
 
-    test('can switch to Done tab', async ({ page }) => {
+    test('can switch to Closed tab', async ({ page }) => {
       await page.goto('/tasks');
 
-      await page.getByTestId('tasks-tab-done').click();
+      await page.getByTestId('tasks-tab-closed').click();
 
-      await expect(page).toHaveURL(/status=done/);
+      await expect(page).toHaveURL(/status=closed/);
     });
 
     test('can switch to Awaiting Merge tab', async ({ page }) => {
@@ -153,7 +153,7 @@ test.describe('TB-O18: Orchestrator Task List Page', () => {
         await expect(page.getByTestId('kanban-column-unassigned')).toBeVisible();
         await expect(page.getByTestId('kanban-column-assigned')).toBeVisible();
         await expect(page.getByTestId('kanban-column-in-progress')).toBeVisible();
-        await expect(page.getByTestId('kanban-column-done')).toBeVisible();
+        await expect(page.getByTestId('kanban-column-closed')).toBeVisible();
         await expect(page.getByTestId('kanban-column-awaiting-merge')).toBeVisible();
       }
     });

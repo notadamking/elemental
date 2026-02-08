@@ -5,7 +5,7 @@
  * - @dnd-kit drag-and-drop for status changes
  * - Per-column filtering and sorting
  * - Virtualized columns for performance
- * - Orchestrator-specific columns (Unassigned, Assigned, In Progress, Done, Awaiting Merge)
+ * - Orchestrator-specific columns (Unassigned, Assigned, In Progress, Closed, Awaiting Merge)
  * - Column preferences stored in localStorage
  */
 
@@ -106,7 +106,7 @@ const COLUMNS = [
   { id: 'assigned', title: 'Assigned', icon: UserCheck, color: 'border-blue-400', iconColor: 'text-blue-500' },
   { id: 'in_progress', title: 'In Progress', icon: Play, color: 'border-yellow-400', iconColor: 'text-yellow-500' },
   { id: 'awaiting_merge', title: 'Awaiting Merge', icon: GitMerge, color: 'border-purple-400', iconColor: 'text-purple-500' },
-  { id: 'done', title: 'Done', icon: CheckCircle2, color: 'border-green-400', iconColor: 'text-green-500' },
+  { id: 'closed', title: 'Closed', icon: CheckCircle2, color: 'border-green-400', iconColor: 'text-green-500' },
 ] as const;
 
 const TASK_CARD_HEIGHT = 120;
@@ -835,7 +835,7 @@ export function KanbanBoard({
   const [unassignedPrefs, setUnassignedPrefs] = useColumnPreferences('unassigned');
   const [assignedPrefs, setAssignedPrefs] = useColumnPreferences('assigned');
   const [inProgressPrefs, setInProgressPrefs] = useColumnPreferences('in_progress');
-  const [donePrefs, setDonePrefs] = useColumnPreferences('done');
+  const [closedPrefs, setClosedPrefs] = useColumnPreferences('closed');
   const [awaitingMergePrefs, setAwaitingMergePrefs] = useColumnPreferences('awaiting_merge');
 
   // Collect unique assignees and tags
@@ -849,7 +849,7 @@ export function KanbanBoard({
       unassigned: [],
       assigned: [],
       in_progress: [],
-      done: [],
+      closed: [],
       awaiting_merge: [],
     };
 
@@ -869,7 +869,7 @@ export function KanbanBoard({
         if (mergeStatus && mergeStatus !== 'merged') {
           groups.awaiting_merge.push(task);
         } else {
-          groups.done.push(task);
+          groups.closed.push(task);
         }
       } else if (task.status === 'in_progress') {
         groups.in_progress.push(task);
@@ -906,9 +906,9 @@ export function KanbanBoard({
     [tasksByColumn.in_progress, inProgressPrefs.filters, inProgressPrefs.sortOverride, normalizedPageSort, searchQuery]
   );
 
-  const filteredDone = useMemo(
-    () => applyFiltersAndSort(tasksByColumn.done, donePrefs.filters, donePrefs.sortOverride || normalizedPageSort, searchQuery),
-    [tasksByColumn.done, donePrefs.filters, donePrefs.sortOverride, normalizedPageSort, searchQuery]
+  const filteredClosed = useMemo(
+    () => applyFiltersAndSort(tasksByColumn.closed, closedPrefs.filters, closedPrefs.sortOverride || normalizedPageSort, searchQuery),
+    [tasksByColumn.closed, closedPrefs.filters, closedPrefs.sortOverride, normalizedPageSort, searchQuery]
   );
 
   const filteredAwaitingMerge = useMemo(
@@ -973,7 +973,7 @@ export function KanbanBoard({
         unassigned: 'open',
         assigned: 'open',
         in_progress: 'in_progress',
-        done: 'closed',
+        closed: 'closed',
         awaiting_merge: 'closed',
       };
 
@@ -1003,7 +1003,7 @@ export function KanbanBoard({
     { id: 'assigned', prefs: assignedPrefs, setPrefs: setAssignedPrefs, tasks: filteredAssigned },
     { id: 'in_progress', prefs: inProgressPrefs, setPrefs: setInProgressPrefs, tasks: filteredInProgress },
     { id: 'awaiting_merge', prefs: awaitingMergePrefs, setPrefs: setAwaitingMergePrefs, tasks: filteredAwaitingMerge },
-    { id: 'done', prefs: donePrefs, setPrefs: setDonePrefs, tasks: filteredDone },
+    { id: 'closed', prefs: closedPrefs, setPrefs: setClosedPrefs, tasks: filteredClosed },
   ];
 
   return (

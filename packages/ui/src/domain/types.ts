@@ -27,7 +27,6 @@ export type TaskStatus =
   | 'todo'
   | 'open'
   | 'in_progress'
-  | 'done'
   | 'blocked'
   | 'review'
   | 'closed'
@@ -233,8 +232,6 @@ export function getStatusDisplayName(status: TaskStatus | string): string {
       return 'To Do';
     case 'in_progress':
       return 'In Progress';
-    case 'done':
-      return 'Done';
     case 'blocked':
       return 'Blocked';
     case 'review':
@@ -263,8 +260,6 @@ export function getStatusColor(status: TaskStatus | string): string {
       return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-800/50';
     case 'in_progress':
       return 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30';
-    case 'done':
-      return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30';
     case 'blocked':
       return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30';
     case 'review':

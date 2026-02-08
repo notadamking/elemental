@@ -16,7 +16,7 @@
  * Builds a constrained prompt for a test worker agent.
  *
  * Instructs the worker to complete a task with minimal exploration,
- * commit changes, push to the current branch, and mark the task done.
+ * commit changes, push to the current branch, and close the task.
  */
 export function buildTestWorkerPrompt(
   taskTitle: string,
@@ -32,7 +32,7 @@ INSTRUCTIONS:
 3. Do NOT explore the codebase beyond what is needed.
 4. Commit your changes with a descriptive message.
 5. Push to the current branch.
-6. Mark the task as done using: el task complete <task-id>
+6. Close the task: el task close <task-id>
 
 CONSTRAINTS:
 - Do not refactor existing code.
@@ -54,7 +54,7 @@ You are running inside an orchestration test. Your goal is to complete tasks qui
 - Make minimal changes to satisfy the task requirements.
 - Skip exploration — go straight to implementation.
 - Use the \`el\` CLI for all elemental operations.
-- Always commit and push your changes before marking a task done.
+- Always commit and push your changes before closing a task.
 - Do not ask clarifying questions — use your best judgment.
 - Do not install dependencies or run builds unless required by the task.
 - The \`el\` command is on PATH and ready to use. Do not attempt to install or locate it.`;

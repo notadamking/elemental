@@ -416,7 +416,7 @@ function isSafeCondition(condition: string): boolean {
  * Supports basic JavaScript-like expressions with property access.
  *
  * Examples:
- * - "task.status === 'done'"
+ * - "task.status === 'closed'"
  * - "task.assignedAgent?.role === 'worker'"
  * - "branch.tests === 'passing'"
  */

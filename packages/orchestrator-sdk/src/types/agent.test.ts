@@ -109,7 +109,7 @@ describe('StewardTrigger', () => {
 
   test('isStewardTrigger validates event triggers', () => {
     expect(isStewardTrigger({ type: 'event', event: 'task_completed' })).toBe(true);
-    expect(isStewardTrigger({ type: 'event', event: 'branch_ready', condition: "task.status === 'done'" })).toBe(true);
+    expect(isStewardTrigger({ type: 'event', event: 'branch_ready', condition: "task.status === 'closed'" })).toBe(true);
     expect(isStewardTrigger({ type: 'event' })).toBe(false);
     expect(isStewardTrigger({ type: 'event', event: 123 })).toBe(false);
   });

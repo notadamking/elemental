@@ -281,7 +281,7 @@ export interface TaskResponse {
 }
 
 // Filter for fetching tasks
-export type TaskFilterStatus = 'all' | 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed' | 'done' | 'awaiting_merge';
+export type TaskFilterStatus = 'all' | 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed' | 'awaiting_merge';
 export type TaskAssignmentFilter = 'all' | 'unassigned' | 'assigned';
 
 export interface TaskFilter {

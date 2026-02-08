@@ -33,7 +33,7 @@ export function MetricsPage() {
     assigned,
     inProgress,
     blocked,
-    done,
+    closed,
     allTasks,
     isLoading: tasksLoading,
     error: tasksError,
@@ -48,9 +48,9 @@ export function MetricsPage() {
       { name: 'Open', value: assigned.length, key: 'open', color: STATUS_COLORS.open },
       { name: 'In Progress', value: inProgress.length, key: 'in_progress', color: STATUS_COLORS.in_progress },
       { name: 'Blocked', value: blocked.length, key: 'blocked', color: STATUS_COLORS.blocked },
-      { name: 'Completed', value: done.length, key: 'closed', color: STATUS_COLORS.closed },
+      { name: 'Completed', value: closed.length, key: 'closed', color: STATUS_COLORS.closed },
     ].filter(d => d.value > 0);
-  }, [assigned.length, inProgress.length, blocked.length, done.length]);
+  }, [assigned.length, inProgress.length, blocked.length, closed.length]);
 
   // Calculate completed tasks over time (last 7 days) - placeholder data structure
   const completedOverTimeData = useMemo((): LineChartDataPoint[] => {
@@ -65,7 +65,7 @@ export function MetricsPage() {
       const dayLabel = i === 0 ? 'Today' : i === 1 ? 'Yesterday' : date.toLocaleDateString('en-US', { weekday: 'short' });
 
       // Count tasks completed on this day (simplified - uses random placeholder if no real data)
-      const tasksOnDay = done.filter(t => {
+      const tasksOnDay = closed.filter(t => {
         const taskDate = new Date(t.updatedAt);
         taskDate.setHours(0, 0, 0, 0);
         const targetDate = new Date(date);
@@ -81,7 +81,7 @@ export function MetricsPage() {
     }
 
     return days;
-  }, [done]);
+  }, [closed]);
 
   // Calculate workload by agent for bar chart
   const workloadByAgentData = useMemo((): BarChartDataPoint[] => {
@@ -118,7 +118,7 @@ export function MetricsPage() {
   const isError = !!(tasksError || agentsError);
 
   // Calculate summary stats
-  const totalCompleted = done.length;
+  const totalCompleted = closed.length;
   const activeAgents = agents.filter(a => a.metadata?.agent?.sessionStatus === 'running').length;
 
   return (

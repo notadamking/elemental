@@ -121,7 +121,7 @@ export const KANBAN_COLUMNS = [
   { id: 'assigned', title: 'Assigned', status: 'open', filter: 'assigned', color: 'border-blue-400' },
   { id: 'in_progress', title: 'In Progress', status: 'in_progress', filter: null, color: 'border-yellow-400' },
   { id: 'awaiting_merge', title: 'Awaiting Merge', status: 'review', filter: null, color: 'border-purple-400' },
-  { id: 'done', title: 'Done', status: 'closed', filter: null, color: 'border-green-400' },
+  { id: 'closed', title: 'Closed', status: 'closed', filter: null, color: 'border-green-400' },
 ] as const;
 
 // Task type options

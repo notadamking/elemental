@@ -102,7 +102,6 @@ describe('Domain Types Utility Functions', () => {
     test('returns correct display name for all statuses', () => {
       expect(getStatusDisplayName('todo')).toBe('To Do');
       expect(getStatusDisplayName('in_progress')).toBe('In Progress');
-      expect(getStatusDisplayName('done')).toBe('Done');
       expect(getStatusDisplayName('blocked')).toBe('Blocked');
       expect(getStatusDisplayName('closed')).toBe('Closed');
       expect(getStatusDisplayName('cancelled')).toBe('Cancelled');
@@ -118,7 +117,7 @@ describe('Domain Types Utility Functions', () => {
     test('returns color classes for all statuses', () => {
       expect(getStatusColor('todo')).toContain('gray');
       expect(getStatusColor('in_progress')).toContain('blue');
-      expect(getStatusColor('done')).toContain('green');
+      expect(getStatusColor('closed')).toContain('green');
       expect(getStatusColor('blocked')).toContain('red');
       expect(getStatusColor('deferred')).toContain('yellow');
     });

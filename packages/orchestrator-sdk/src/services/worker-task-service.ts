@@ -146,7 +146,7 @@ export interface TaskContext {
  * This service provides the complete lifecycle management for workers:
  * 1. Start worker on a task (dispatch + worktree + spawn)
  * 2. Build task context prompts
- * 3. Complete tasks (mark done + ready for merge)
+ * 3. Complete tasks (close + ready for merge)
  * 4. Clean up after task completion
  */
 export interface WorkerTaskService {
@@ -446,8 +446,8 @@ export class WorkerTaskServiceImpl implements WorkerTaskService {
     lines.push(
       '1. Work on this task in the current working directory.',
       '2. Make commits as you progress (use clear commit messages).',
-      '3. When complete, use the elemental CLI to mark the task as done:',
-      '   `el task done ' + context.taskId + '`',
+      '3. When complete, use the elemental CLI to close the task:',
+      '   `el task close ' + context.taskId + '`',
       '4. The Merge Steward will then review and merge your changes.'
     );
 

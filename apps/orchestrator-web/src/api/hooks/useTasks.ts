@@ -99,7 +99,7 @@ export function useTasksByStatus() {
   const assigned = tasks.filter(t => t.assignee && t.status !== 'backlog' && t.status !== 'closed' && t.status !== 'tombstone');
   const inProgress = tasks.filter(t => t.status === 'in_progress');
   const blocked = tasks.filter(t => t.status === 'blocked');
-  const done = tasks.filter(t => t.status === 'closed');
+  const closed = tasks.filter(t => t.status === 'closed');
   // Include tasks with 'review' status OR closed tasks with a pending merge status
   const awaitingMerge = tasks.filter(t => {
     // Tasks with 'review' status are always awaiting merge
@@ -119,7 +119,7 @@ export function useTasksByStatus() {
     assigned,
     inProgress,
     blocked,
-    done,
+    closed,
     awaitingMerge,
     merged,
     allTasks: tasks,
@@ -142,7 +142,7 @@ export function useTaskCounts() {
     assigned: allTasks.filter(t => t.assignee && t.status !== 'backlog' && t.status !== 'closed' && t.status !== 'tombstone').length,
     inProgress: allTasks.filter(t => t.status === 'in_progress').length,
     blocked: allTasks.filter(t => t.status === 'blocked').length,
-    done: allTasks.filter(t => t.status === 'closed').length,
+    closed: allTasks.filter(t => t.status === 'closed').length,
     awaitingMerge: allTasks.filter(t => {
       // Tasks with 'review' status are always awaiting merge
       if (t.status === 'review') return true;

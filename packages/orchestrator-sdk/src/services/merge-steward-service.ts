@@ -890,7 +890,7 @@ export class MergeStewardServiceImpl implements MergeStewardService {
       '## Instructions',
       '1. Fix the issue(s) described above',
       '2. Run tests to verify: `npm test`',
-      `3. Mark as done: \`el task done <task-id>\``,
+      `3. Close the task: \`el task close <task-id>\``,
       '',
       'The Merge Steward will automatically attempt to merge again.',
     );
@@ -937,7 +937,7 @@ export class MergeStewardServiceImpl implements MergeStewardService {
           '',
           `**Issue:** ${options.type === 'test_failure' ? 'Tests are failing' : 'Merge conflict detected'}`,
           '',
-          'Please review and fix the issue, then mark the task as done.',
+          'Please review and fix the issue, then close the task.',
         ].join('\n');
 
         await this.dispatchService.notifyAgent(

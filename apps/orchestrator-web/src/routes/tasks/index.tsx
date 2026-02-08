@@ -83,7 +83,7 @@ import {
 } from '../../lib/task-utils';
 import { getCurrentBinding, formatKeyBinding } from '../../lib/keyboard';
 
-type TabValue = 'all' | 'backlog' | 'unassigned' | 'assigned' | 'in_progress' | 'done' | 'awaiting_merge';
+type TabValue = 'all' | 'backlog' | 'unassigned' | 'assigned' | 'in_progress' | 'closed' | 'awaiting_merge';
 
 export function TasksPage() {
   const search = useSearch({ from: '/tasks' }) as {
@@ -164,7 +164,7 @@ export function TasksPage() {
     unassigned,
     assigned,
     inProgress,
-    done,
+    closed,
     awaitingMerge,
     allTasks,
     isLoading,
@@ -280,8 +280,8 @@ export function TasksPage() {
       case 'in_progress':
         tasks = inProgress;
         break;
-      case 'done':
-        tasks = done;
+      case 'closed':
+        tasks = closed;
         break;
       case 'awaiting_merge':
         tasks = awaitingMerge;
@@ -290,7 +290,7 @@ export function TasksPage() {
         tasks = allTasks.filter((t) => t.status !== 'tombstone' && (showClosed || t.status !== 'closed'));
     }
     return tasks;
-  }, [currentTab, allTasks, backlog, unassigned, assigned, inProgress, done, awaitingMerge, showClosed]);
+  }, [currentTab, allTasks, backlog, unassigned, assigned, inProgress, closed, awaitingMerge, showClosed]);
 
   // Apply filters and search
   const filteredTasks = useMemo(() => {
@@ -574,7 +574,7 @@ export function TasksPage() {
     unassigned: unassigned.length,
     assigned: assigned.length,
     in_progress: inProgress.length,
-    done: done.length,
+    closed: closed.length,
     awaiting_merge: awaitingMerge.length,
   };
 
@@ -745,12 +745,12 @@ export function TasksPage() {
               onClick={() => setTab('awaiting_merge')}
             />
             <TabButton
-              label="Done"
-              value="done"
+              label="Closed"
+              value="closed"
               current={currentTab}
-              count={counts.done}
+              count={counts.closed}
               icon={CheckCircle2}
-              onClick={() => setTab('done')}
+              onClick={() => setTab('closed')}
             />
           </nav>
 
@@ -1288,7 +1288,7 @@ function EmptyState({ searchQuery, currentTab, onCreateClick }: EmptyStateProps)
       title: 'No tasks in progress',
       description: 'No agents are currently working on tasks. Start a task to see it here.',
     },
-    done: {
+    closed: {
       title: 'No completed tasks',
       description: 'No tasks have been completed yet. Keep working on those tasks!',
     },

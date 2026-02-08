@@ -35,7 +35,7 @@ const STATUS_CONFIG: Record<string, { icon: React.ReactNode; className: string }
     icon: <Ban className="w-3 h-3" />,
     className: 'text-red-600 bg-red-100',
   },
-  done: {
+  closed: {
     icon: <CheckCircle2 className="w-3 h-3" />,
     className: 'text-green-600 bg-green-100',
   },
