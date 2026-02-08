@@ -8,11 +8,16 @@ import {
   Search,
   XCircle,
   ChevronLeft,
+  Trash2,
+  Loader2,
+  AlertTriangle,
+  AlertCircle,
 } from 'lucide-react';
 import { VirtualizedChatList } from '../../../components/shared/VirtualizedChatList';
 import { ChannelMembersPanel } from '../../../components/message/ChannelMembersPanel';
 import { groupMessagesByDay } from '../../../lib';
-import { useChannel, useChannelMessages, useEntities } from '../../../api/hooks/useMessages';
+import { useChannel, useChannelMessages, useDeleteChannel } from '../../../api/hooks/useMessages';
+import { useCurrentUser } from '../../../contexts';
 import {
   ChannelHeader as SharedChannelHeader,
   ChannelIcon,
@@ -23,6 +28,9 @@ import { MessageComposer } from './MessageComposer';
 import { MessageSearchDropdown } from './MessageSearch';
 import { ThreadPanel } from './ThreadPanel';
 import type { Message, Channel } from '../types';
+
+// Human operator ID that can delete any channel
+const ADMIN_OPERATOR_ID = 'el-0000';
 
 // Estimated message height for virtualization
 const MESSAGE_ROW_HEIGHT = 100;
@@ -35,16 +43,19 @@ interface ChannelViewProps {
   channelId: string;
   isMobile?: boolean;
   onBack?: () => void;
+  onChannelDeleted?: () => void;
 }
 
-export function ChannelView({ channelId, isMobile = false, onBack }: ChannelViewProps) {
+export function ChannelView({ channelId, isMobile = false, onBack, onChannelDeleted }: ChannelViewProps) {
   const { data: channel } = useChannel(channelId);
   const { data: messages = [], isLoading, error } = useChannelMessages(channelId);
-  const { data: entities } = useEntities();
+  const { currentUser } = useCurrentUser();
+  const deleteChannel = useDeleteChannel();
   const [selectedThread, setSelectedThread] = useState<Message | null>(null);
   const [showMembersPanel, setShowMembersPanel] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Use shared search hook
   const {
@@ -56,9 +67,32 @@ export function ChannelView({ channelId, isMobile = false, onBack }: ChannelView
     clearSearch,
   } = useChannelSearch({ enableKeyboardShortcut: true });
 
-  // Determine current operator (prefer human entity, fall back to first entity)
-  const currentOperator =
-    entities?.find((e) => e.entityType === 'human')?.id || entities?.[0]?.id || '';
+  // Get current operator from the logged-in user context
+  const currentOperator = currentUser?.id || '';
+
+  // Check if user can delete this channel:
+  // - Human operator (el-0000) can delete any channel
+  // - Channel creator can delete their own channel
+  const canDeleteChannel =
+    channel &&
+    channel.channelType !== 'direct' &&
+    (currentOperator === ADMIN_OPERATOR_ID || channel.createdBy === currentOperator);
+
+  // Handle channel deletion
+  const handleDeleteChannel = async () => {
+    if (!channel || !currentOperator) return;
+
+    try {
+      await deleteChannel.mutateAsync({
+        channelId: channel.id,
+        actor: currentOperator,
+      });
+      setShowDeleteConfirm(false);
+      onChannelDeleted?.();
+    } catch {
+      // Error handled by mutation state
+    }
+  };
 
   // Handle search result selection - scroll to and highlight message
   const handleSearchResultSelect = useCallback((messageId: string) => {
@@ -170,24 +204,56 @@ export function ChannelView({ channelId, isMobile = false, onBack }: ChannelView
     </div>
   );
 
+  // Render delete button for the header
+  const renderDeleteButton = (mobile: boolean) => {
+    if (!canDeleteChannel) return null;
+
+    return (
+      <button
+        onClick={() => setShowDeleteConfirm(true)}
+        disabled={deleteChannel.isPending}
+        className={`rounded-md text-gray-500 dark:text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50 ${
+          mobile ? 'p-2 touch-target' : 'p-1.5 ml-2'
+        }`}
+        data-testid="delete-channel-header-button"
+        aria-label="Delete channel"
+        title="Delete channel"
+      >
+        {deleteChannel.isPending ? (
+          <Loader2 className={`animate-spin ${mobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
+        ) : (
+          <Trash2 className={mobile ? 'w-5 h-5' : 'w-4 h-4'} />
+        )}
+      </button>
+    );
+  };
+
   // Render actions for the header
   const renderHeaderActions = ({ isMobile: mobile }: { isMobile: boolean }) => {
     if (!channel) return null;
 
     if (mobile) {
       return (
-        <button
-          onClick={() => setShowMobileSearch(!showMobileSearch)}
-          className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
-          data-testid="mobile-search-toggle"
-          aria-label="Search messages"
-        >
-          <Search className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setShowMobileSearch(!showMobileSearch)}
+            className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
+            data-testid="mobile-search-toggle"
+            aria-label="Search messages"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+          {renderDeleteButton(true)}
+        </div>
       );
     }
 
-    return <>{renderDesktopSearch()}</>;
+    return (
+      <div className="flex items-center">
+        {renderDesktopSearch()}
+        {renderDeleteButton(false)}
+      </div>
+    );
   };
 
   return (
@@ -379,7 +445,89 @@ export function ChannelView({ channelId, isMobile = false, onBack }: ChannelView
           channel={channel}
           currentOperator={currentOperator}
           onClose={() => setShowMembersPanel(false)}
+          onChannelDeleted={onChannelDeleted}
         />
+      )}
+
+      {/* Delete Channel Confirmation Modal */}
+      {showDeleteConfirm && channel && (
+        <div
+          className="fixed inset-0 z-[60]"
+          onClick={() => setShowDeleteConfirm(false)}
+          data-testid="delete-channel-confirm-modal"
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+
+          {/* Dialog */}
+          <div
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-[var(--color-surface)] rounded-xl shadow-2xl border border-[var(--color-border)]">
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-[var(--color-border)]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
+                    <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-[var(--color-text)]">Delete Channel</h2>
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      This action cannot be undone.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="px-5 py-4">
+                <p className="text-sm text-[var(--color-text-secondary)] mb-3">
+                  All messages and data in this channel will be permanently deleted.
+                </p>
+                <div className="p-3 bg-[var(--color-surface-elevated)] rounded-md border border-[var(--color-border)]">
+                  <p className="text-sm font-medium text-[var(--color-text)] truncate" title={channel.name}>
+                    #{channel.name}
+                  </p>
+                  <p className="text-xs text-[var(--color-text-tertiary)] font-mono mt-1">
+                    {channel.id}
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-4 border-t border-[var(--color-border)] bg-[var(--color-bg-secondary)] rounded-b-xl flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deleteChannel.isPending}
+                  className="px-4 py-2 text-sm font-medium text-[var(--color-text)] bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-hover)] rounded-md transition-colors disabled:opacity-50"
+                  data-testid="delete-channel-cancel"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteChannel}
+                  disabled={deleteChannel.isPending}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
+                  data-testid="delete-channel-confirm"
+                >
+                  {deleteChannel.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Delete
+                </button>
+              </div>
+
+              {/* Error message */}
+              {deleteChannel.isError && (
+                <div className="px-5 py-3 border-t border-[var(--color-border)]">
+                  <p className="text-sm text-red-600 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    {(deleteChannel.error as Error).message}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

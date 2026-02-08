@@ -441,76 +441,82 @@ export function AppShell() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <header
-          className="flex items-center justify-between h-14 px-4 md:px-6 bg-[var(--color-header-bg)] border-b border-[var(--color-header-border)]"
+          className="h-14 bg-[var(--color-header-bg)] border-b border-[var(--color-header-border)] overflow-x-auto scrollbar-hide"
           data-testid="header"
         >
-          {/* Mobile: Hamburger menu + centered title + search button */}
-          {isMobile && (
-            <div className="flex items-center gap-3 flex-1">
-              <button
-                onClick={openMobileDrawer}
-                className="p-2 -ml-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 touch-target"
-                aria-label="Open navigation menu"
-                aria-expanded={mobileDrawerOpen}
-                data-testid="mobile-menu-button"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
-              <div className="flex-1 text-center">
-                <BreadcrumbsMobile />
+          <div className="flex items-center justify-between h-full px-4 md:px-6 min-w-max">
+            {/* Mobile: Hamburger menu + centered title + search button */}
+            {isMobile && (
+              <div className="flex items-center gap-3 flex-1">
+                <button
+                  onClick={openMobileDrawer}
+                  className="p-2 -ml-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 touch-target flex-shrink-0"
+                  aria-label="Open navigation menu"
+                  aria-expanded={mobileDrawerOpen}
+                  data-testid="mobile-menu-button"
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
+                <div className="flex-1 text-center whitespace-nowrap">
+                  <BreadcrumbsMobile />
+                </div>
+                <button
+                  className="p-2 -mr-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 touch-target flex-shrink-0"
+                  aria-label="Search"
+                  data-testid="mobile-search-button"
+                >
+                  <Search className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                className="p-2 -mr-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 touch-target"
-                aria-label="Search"
-                data-testid="mobile-search-button"
-              >
-                <Search className="w-5 h-5" />
-              </button>
+            )}
+
+            {/* Tablet & Desktop: Full breadcrumbs */}
+            {!isMobile && (
+              <div className="flex-shrink-0 whitespace-nowrap">
+                <Breadcrumbs />
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
+              {/* Command palette trigger - hidden on mobile */}
+              {!isMobile && (
+                <button
+                  onClick={() => setCommandPaletteOpen(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--color-text-muted)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 whitespace-nowrap"
+                  aria-label="Open command palette"
+                  data-testid="command-palette-trigger"
+                >
+                  <Search className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden lg:inline">Search...</span>
+                  <kbd className="hidden md:flex items-center gap-0.5 px-1.5 py-0.5 text-xs bg-[var(--color-bg)] border border-[var(--color-border)] rounded">
+                    <Command className="w-3 h-3" />K
+                  </kbd>
+                </button>
+              )}
+              {/* User selector for switching human entities */}
+              {!isMobile && <UserSelector />}
+              {/* Daemon toggle for dispatch daemon control */}
+              {!isMobile && <DaemonToggle />}
+              {/* Stop all running agents button */}
+              {!isMobile && <StopAllAgentsButton />}
+              <NotificationCenter
+                notifications={notifications}
+                unreadCount={unreadCount}
+                isConnected={notificationsConnected}
+                onMarkAsRead={markAsRead}
+                onMarkAllAsRead={markAllAsRead}
+                onDismiss={dismissNotification}
+                onClearAll={clearAll}
+                onOpenSettings={() => router.navigate({ to: '/settings', search: { tab: 'preferences' } })}
+              />
+              <ThemeToggle />
+              {!isMobile && (
+                <>
+                  <div className="h-5 w-px bg-[var(--color-border)] flex-shrink-0" />
+                  <ConnectionStatus health={health} />
+                </>
+              )}
             </div>
-          )}
-
-          {/* Tablet & Desktop: Full breadcrumbs */}
-          {!isMobile && <Breadcrumbs />}
-
-          <div className="flex items-center gap-2 md:gap-4">
-            {/* Command palette trigger - hidden on mobile */}
-            {!isMobile && (
-              <button
-                onClick={() => setCommandPaletteOpen(true)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--color-text-muted)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-secondary)] transition-colors duration-150"
-                aria-label="Open command palette"
-                data-testid="command-palette-trigger"
-              >
-                <Search className="w-4 h-4" />
-                <span className="hidden lg:inline">Search...</span>
-                <kbd className="hidden md:flex items-center gap-0.5 px-1.5 py-0.5 text-xs bg-[var(--color-bg)] border border-[var(--color-border)] rounded">
-                  <Command className="w-3 h-3" />K
-                </kbd>
-              </button>
-            )}
-            {/* User selector for switching human entities */}
-            {!isMobile && <UserSelector />}
-            {/* Daemon toggle for dispatch daemon control */}
-            {!isMobile && <DaemonToggle />}
-            {/* Stop all running agents button */}
-            {!isMobile && <StopAllAgentsButton />}
-            <NotificationCenter
-              notifications={notifications}
-              unreadCount={unreadCount}
-              isConnected={notificationsConnected}
-              onMarkAsRead={markAsRead}
-              onMarkAllAsRead={markAllAsRead}
-              onDismiss={dismissNotification}
-              onClearAll={clearAll}
-              onOpenSettings={() => router.navigate({ to: '/settings', search: { tab: 'preferences' } })}
-            />
-            <ThemeToggle />
-            {!isMobile && (
-              <>
-                <div className="h-5 w-px bg-[var(--color-border)]" />
-                <ConnectionStatus health={health} />
-              </>
-            )}
           </div>
         </header>
 
