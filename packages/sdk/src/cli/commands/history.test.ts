@@ -261,7 +261,7 @@ describe('history command', () => {
         actor: 'test-actor',
       });
       expect(result.exitCode).toBe(ExitCode.GENERAL_ERROR);
-      expect(result.error).toContain('not found');
+      expect(result.error).toContain('No database found');
     });
 
     test('validates limit must be positive', async () => {

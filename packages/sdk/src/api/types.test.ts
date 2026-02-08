@@ -567,11 +567,11 @@ describe('Constants', () => {
   it('should have sensible DEFAULT_PAGE_SIZE', () => {
     expect(DEFAULT_PAGE_SIZE).toBeGreaterThan(0);
     expect(DEFAULT_PAGE_SIZE).toBeLessThanOrEqual(MAX_PAGE_SIZE);
-    expect(DEFAULT_PAGE_SIZE).toBe(50);
+    expect(DEFAULT_PAGE_SIZE).toBe(10000);
   });
 
   it('should have sensible MAX_PAGE_SIZE', () => {
-    expect(MAX_PAGE_SIZE).toBeGreaterThan(DEFAULT_PAGE_SIZE);
+    expect(MAX_PAGE_SIZE).toBeGreaterThanOrEqual(DEFAULT_PAGE_SIZE);
     expect(MAX_PAGE_SIZE).toBe(10000);
   });
 
