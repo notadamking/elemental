@@ -27,6 +27,27 @@ import {
   type MergeStrategy,
 } from './merge-steward-service.js';
 
+// Mock node:child_process for attemptMerge git command tests
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>();
+  return {
+    ...actual,
+    exec: vi.fn(),
+  };
+});
+
+// Mock node:fs for existsSync used in attemptMerge
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...actual,
+    default: {
+      ...actual,
+      existsSync: vi.fn().mockReturnValue(false),
+    },
+  };
+});
+
 // ============================================================================
 // Test Fixtures
 // ============================================================================
@@ -774,6 +795,177 @@ describe('MergeStewardService', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('no branch');
+    });
+
+    // ----------------------------------------
+    // attemptMerge git command sequence tests
+    // ----------------------------------------
+
+    describe('git command sequence', () => {
+      let execMock: MockInstance;
+      let execCalls: Array<{ cmd: string; cwd: string }>;
+
+      beforeEach(async () => {
+        // Get a reference to the mocked exec from node:child_process
+        const cp = await import('node:child_process');
+        execMock = cp.exec as unknown as MockInstance;
+        execCalls = [];
+
+        // Track all exec calls and provide default success responses
+        execMock.mockImplementation((cmd: string, opts: Record<string, unknown>, callback?: Function) => {
+          // Handle both (cmd, callback) and (cmd, opts, callback) signatures
+          const cb = typeof opts === 'function' ? opts as unknown as Function : callback;
+          const cwd = (typeof opts === 'object' && opts !== null ? opts.cwd : '') as string;
+          execCalls.push({ cmd: cmd as string, cwd: cwd || '' });
+
+          // Default: all git commands succeed with empty output
+          if (cb) {
+            // Pre-flight merge-base: return a fake hash
+            if ((cmd as string).includes('merge-base')) {
+              cb(null, { stdout: 'abc123\n', stderr: '' });
+            }
+            // Pre-flight merge-tree: no conflicts
+            else if ((cmd as string).includes('merge-tree')) {
+              cb(null, { stdout: '', stderr: '' });
+            }
+            // git symbolic-ref: return current branch
+            else if ((cmd as string).includes('symbolic-ref')) {
+              cb(null, { stdout: 'agent/worker/some-branch\n', stderr: '' });
+            }
+            // git rev-parse HEAD: return a commit hash
+            else if ((cmd as string).includes('rev-parse HEAD')) {
+              cb(null, { stdout: 'def456\n', stderr: '' });
+            }
+            // Everything else: succeed
+            else {
+              cb(null, { stdout: '', stderr: '' });
+            }
+          }
+        });
+
+        // Setup task mock
+        const mockTask = createMockTask();
+        (api.get as MockInstance).mockResolvedValue(mockTask);
+      });
+
+      it('should use --detach and origin/targetBranch for worktree creation', async () => {
+        const result = await service.attemptMerge('task-001' as ElementId);
+
+        expect(result.success).toBe(true);
+        const worktreeCmd = execCalls.find(c => c.cmd.includes('worktree add'));
+        expect(worktreeCmd).toBeDefined();
+        expect(worktreeCmd!.cmd).toContain('--detach');
+        expect(worktreeCmd!.cmd).toContain('origin/main');
+      });
+
+      it('should use HEAD:targetBranch for push', async () => {
+        const result = await service.attemptMerge('task-001' as ElementId);
+
+        expect(result.success).toBe(true);
+        const pushCmd = execCalls.find(c => c.cmd.includes('push origin'));
+        expect(pushCmd).toBeDefined();
+        expect(pushCmd!.cmd).toContain('push origin HEAD:main');
+      });
+
+      it('should use origin/targetBranch in pre-flight merge-base and merge-tree', async () => {
+        await service.attemptMerge('task-001' as ElementId);
+
+        const mergeBaseCmd = execCalls.find(c => c.cmd.includes('merge-base'));
+        expect(mergeBaseCmd).toBeDefined();
+        expect(mergeBaseCmd!.cmd).toContain('origin/main');
+
+        const mergeTreeCmd = execCalls.find(c => c.cmd.includes('merge-tree'));
+        expect(mergeTreeCmd).toBeDefined();
+        expect(mergeTreeCmd!.cmd).toContain('origin/main');
+      });
+
+      it('should sync local branch AFTER worktree removal', async () => {
+        const result = await service.attemptMerge('task-001' as ElementId);
+
+        expect(result.success).toBe(true);
+
+        // Find indices of key operations
+        const worktreeRemoveIdx = execCalls.findIndex(c => c.cmd.includes('worktree remove'));
+        const checkoutTargetIdx = execCalls.findIndex(
+          (c, i) => i > worktreeRemoveIdx && c.cmd.includes('git checkout main')
+        );
+        const mergeRemoteIdx = execCalls.findIndex(
+          (c, i) => i > worktreeRemoveIdx && c.cmd.includes('git merge origin/main')
+        );
+
+        // Worktree removal must come before sync operations
+        expect(worktreeRemoveIdx).toBeGreaterThan(-1);
+        expect(checkoutTargetIdx).toBeGreaterThan(worktreeRemoveIdx);
+        expect(mergeRemoteIdx).toBeGreaterThan(worktreeRemoveIdx);
+      });
+
+      it('should perform checkout, merge, and return-to-original-branch during sync', async () => {
+        const result = await service.attemptMerge('task-001' as ElementId);
+
+        expect(result.success).toBe(true);
+
+        // After worktree removal, expect: checkout target, merge, checkout saved branch
+        const worktreeRemoveIdx = execCalls.findIndex(c => c.cmd.includes('worktree remove'));
+        const postWorktreeCmds = execCalls.slice(worktreeRemoveIdx + 1);
+
+        // Should have: symbolic-ref, checkout target, merge, checkout saved
+        const symbolicRef = postWorktreeCmds.find(c => c.cmd.includes('symbolic-ref'));
+        const checkoutTarget = postWorktreeCmds.find(c => c.cmd.includes('git checkout main'));
+        const mergeRemote = postWorktreeCmds.find(c => c.cmd.includes('git merge origin/main'));
+        const checkoutSaved = postWorktreeCmds.find(c => c.cmd.includes('git checkout "agent/worker/some-branch"'));
+
+        expect(symbolicRef).toBeDefined();
+        expect(checkoutTarget).toBeDefined();
+        expect(mergeRemote).toBeDefined();
+        expect(checkoutSaved).toBeDefined();
+      });
+
+      it('should not sync local branch when merge fails', async () => {
+        // Make the squash merge fail with a non-conflict error
+        execMock.mockImplementation((cmd: string, opts: Record<string, unknown>, callback?: Function) => {
+          const cb = typeof opts === 'function' ? opts as unknown as Function : callback;
+          const cwd = (typeof opts === 'object' && opts !== null ? opts.cwd : '') as string;
+          execCalls.push({ cmd: cmd as string, cwd: cwd || '' });
+
+          if (cb) {
+            if ((cmd as string).includes('merge --squash')) {
+              cb(new Error('merge failed'), { stdout: '', stderr: 'fatal: merge failed' });
+              return;
+            }
+            if ((cmd as string).includes('merge-base')) {
+              cb(null, { stdout: 'abc123\n', stderr: '' });
+              return;
+            }
+            if ((cmd as string).includes('merge-tree')) {
+              cb(null, { stdout: '', stderr: '' });
+              return;
+            }
+            cb(null, { stdout: '', stderr: '' });
+          }
+        });
+
+        const result = await service.attemptMerge('task-001' as ElementId);
+
+        expect(result.success).toBe(false);
+
+        // No checkout of target branch should occur after worktree removal
+        const worktreeRemoveIdx = execCalls.findIndex(c => c.cmd.includes('worktree remove'));
+        if (worktreeRemoveIdx >= 0) {
+          const postWorktreeCmds = execCalls.slice(worktreeRemoveIdx + 1);
+          const checkoutTarget = postWorktreeCmds.find(c => c.cmd.includes('git checkout main'));
+          expect(checkoutTarget).toBeUndefined();
+        }
+      });
+
+      it('should fetch origin before pre-flight conflict detection', async () => {
+        await service.attemptMerge('task-001' as ElementId);
+
+        const fetchIdx = execCalls.findIndex(c => c.cmd === 'git fetch origin');
+        const mergeBaseIdx = execCalls.findIndex(c => c.cmd.includes('merge-base'));
+
+        expect(fetchIdx).toBeGreaterThan(-1);
+        expect(mergeBaseIdx).toBeGreaterThan(fetchIdx);
+      });
     });
   });
 

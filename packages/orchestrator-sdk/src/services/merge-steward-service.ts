@@ -682,14 +682,19 @@ export class MergeStewardServiceImpl implements MergeStewardService {
       : `Merge branch '${sourceBranch}' (Task: ${taskId})`;
     const message = commitMessage ?? defaultMessage;
 
+    // Fetch latest remote state before pre-flight conflict detection
+    await execAsync('git fetch origin', {
+      cwd: this.config.workspaceRoot, encoding: 'utf8',
+    });
+
     // Pre-flight: detect conflicts without creating a worktree
     try {
       const { stdout: mergeBase } = await execAsync(
-        `git merge-base ${targetBranch} ${sourceBranch}`,
+        `git merge-base origin/${targetBranch} ${sourceBranch}`,
         { cwd: this.config.workspaceRoot, encoding: 'utf8' }
       );
       const dryRun = await execAsync(
-        `git merge-tree ${mergeBase.trim()} ${targetBranch} ${sourceBranch}`,
+        `git merge-tree ${mergeBase.trim()} origin/${targetBranch} ${sourceBranch}`,
         { cwd: this.config.workspaceRoot, encoding: 'utf8' }
       ).catch((e: { stdout?: string }) => e);
       if ((dryRun as { stdout?: string }).stdout?.includes('<<<<<<<')) {
@@ -717,10 +722,13 @@ export class MergeStewardServiceImpl implements MergeStewardService {
       });
     }
 
-    // Create the temp worktree on the target branch
-    await execAsync(`git worktree add "${mergeDir}" ${targetBranch}`, {
+    // Create the temp worktree with detached HEAD at origin target branch
+    // (avoids locking the target branch, which would prevent local sync later)
+    await execAsync(`git worktree add --detach "${mergeDir}" origin/${targetBranch}`, {
       cwd: this.config.workspaceRoot, encoding: 'utf8',
     });
+
+    let mergeResult: MergeAttemptResult;
 
     try {
       let commitHash: string;
@@ -747,61 +755,18 @@ export class MergeStewardServiceImpl implements MergeStewardService {
         commitHash = hash.trim();
       }
 
-      // Auto-push to remote if enabled
+      // Auto-push to remote if enabled (HEAD is detached, so push HEAD:targetBranch)
       if (this.config.autoPushAfterMerge) {
         try {
-          await this.execGitSafe(`push origin ${targetBranch}`, mergeDir);
+          await this.execGitSafe(`push origin HEAD:${targetBranch}`, mergeDir);
         } catch (pushError) {
           // Log warning but don't fail the merge
           const pushErrorMsg = pushError instanceof Error ? pushError.message : String(pushError);
           console.warn(`[merge-steward] Failed to push to remote: ${pushErrorMsg}`);
         }
-
-        // Sync local master with remote after push
-        try {
-          await execAsync('git fetch origin', {
-            cwd: this.config.workspaceRoot, encoding: 'utf8',
-          });
-
-          // Save current branch
-          const { stdout: currentBranch } = await execAsync(
-            'git symbolic-ref --short HEAD',
-            { cwd: this.config.workspaceRoot, encoding: 'utf8' }
-          );
-          const savedBranch = currentBranch.trim();
-
-          // Checkout target branch
-          await execAsync(`git checkout ${targetBranch}`, {
-            cwd: this.config.workspaceRoot, encoding: 'utf8',
-          });
-
-          // Merge remote — succeeds on FF or clean merge, aborts on conflict
-          try {
-            await execAsync(`git merge origin/${targetBranch} --no-edit`, {
-              cwd: this.config.workspaceRoot, encoding: 'utf8',
-            });
-          } catch {
-            // Conflict — abort the merge to leave master clean
-            try {
-              await execAsync('git merge --abort', {
-                cwd: this.config.workspaceRoot, encoding: 'utf8',
-              });
-            } catch {
-              // Ignore abort errors
-            }
-          }
-
-          // Return to original branch
-          await execAsync(`git checkout "${savedBranch}"`, {
-            cwd: this.config.workspaceRoot, encoding: 'utf8',
-          });
-        } catch {
-          // Non-fatal: local master sync is best-effort
-          console.warn('[merge-steward] Failed to sync local master with remote');
-        }
       }
 
-      return {
+      mergeResult = {
         success: true,
         commitHash,
         hasConflict: false,
@@ -831,19 +796,19 @@ export class MergeStewardServiceImpl implements MergeStewardService {
           return match ? match[1] : '';
         }).filter(Boolean);
 
-        return {
+        mergeResult = {
           success: false,
           hasConflict: true,
           error: 'Merge conflict detected',
           conflictFiles,
         };
+      } else {
+        mergeResult = {
+          success: false,
+          hasConflict: false,
+          error: output || 'Merge failed',
+        };
       }
-
-      return {
-        success: false,
-        hasConflict: false,
-        error: output || 'Merge failed',
-      };
     } finally {
       try {
         await execAsync(`git worktree remove --force "${mergeDir}"`, {
@@ -853,6 +818,50 @@ export class MergeStewardServiceImpl implements MergeStewardService {
         // Ignore cleanup errors
       }
     }
+
+    // Phase B: Sync local target branch with remote
+    // (worktree is removed above, so targetBranch is no longer locked)
+    if (mergeResult.success && this.config.autoPushAfterMerge) {
+      try {
+        // Save current branch
+        const { stdout: currentBranch } = await execAsync(
+          'git symbolic-ref --short HEAD',
+          { cwd: this.config.workspaceRoot, encoding: 'utf8' }
+        );
+        const savedBranch = currentBranch.trim();
+
+        // Checkout target branch (now possible — no worktree holds it)
+        await execAsync(`git checkout ${targetBranch}`, {
+          cwd: this.config.workspaceRoot, encoding: 'utf8',
+        });
+
+        // Merge remote — succeeds on FF or clean merge, fails on conflict
+        try {
+          await execAsync(`git merge origin/${targetBranch} --no-edit`, {
+            cwd: this.config.workspaceRoot, encoding: 'utf8',
+          });
+        } catch {
+          // Conflict — abort to leave branch clean
+          try {
+            await execAsync('git merge --abort', {
+              cwd: this.config.workspaceRoot, encoding: 'utf8',
+            });
+          } catch {
+            // Ignore abort errors
+          }
+        }
+
+        // Return to original branch
+        await execAsync(`git checkout "${savedBranch}"`, {
+          cwd: this.config.workspaceRoot, encoding: 'utf8',
+        });
+      } catch {
+        // Non-fatal: local branch sync is best-effort
+        console.warn('[merge-steward] Failed to sync local target branch with remote');
+      }
+    }
+
+    return mergeResult;
   }
 
   async createFixTask(

@@ -634,23 +634,28 @@ const mergeSteward = createMergeStewardService(
 
 ### Merge Strategy
 
+The merge runs in two phases to avoid branch locking issues:
+
+- **Phase A** (temp worktree): Fetches origin, creates a detached HEAD worktree at `origin/<target>`, performs the merge/commit/push, then cleans up the worktree in a `finally` block.
+- **Phase B** (main repo): After the worktree is removed and the target branch is free, syncs the local target branch with remote via checkout + merge + return-to-original-branch. This is best-effort.
+
 **Squash Merge (default):**
-- Creates a temporary worktree on the target branch (`.elemental/.worktrees/_merge-<taskId>`)
+- Creates a detached HEAD worktree at `origin/<target>` (`.elemental/.worktrees/_merge-<taskId>`)
 - Runs `git merge --squash` and `git commit` in the temp worktree
 - Commit message format: `{task title} ({task ID})`
-- Pushes to remote from the temp worktree, then syncs local target branch
-- Cleans up the temp worktree in a `finally` block
+- Pushes from detached HEAD: `git push origin HEAD:<target>`
+- Cleans up the temp worktree in a `finally` block, then syncs local target branch
 
 **Standard Merge:**
-- Creates a temporary worktree on the target branch
+- Creates a detached HEAD worktree at `origin/<target>`
 - Creates a merge commit preserving branch history
 - Commit message format: `Merge branch '{branch}' (Task: {task ID})`
-- Pushes to remote from the temp worktree, then syncs local target branch
-- Cleans up the temp worktree in a `finally` block
+- Pushes from detached HEAD: `git push origin HEAD:<target>`
+- Cleans up the temp worktree in a `finally` block, then syncs local target branch
 
 ### Worktree Safety
 
-The `attemptMerge()` method uses `execGitSafe()` for all git operations within the merge flow. This helper rejects any command where the working directory resolves to the main workspace root, preventing accidental HEAD corruption. Only worktree creation/removal and the post-push local sync intentionally operate on the main repo.
+The `attemptMerge()` method uses `execGitSafe()` for all git operations within the merge flow. This helper rejects any command where the working directory resolves to the main workspace root, preventing accidental HEAD corruption. Only worktree creation/removal and the post-merge local sync (Phase B) intentionally operate on the main repo. The temp worktree uses a detached HEAD (`--detach`) so it never locks the target branch — this allows Phase B to check out and sync the target branch after cleanup.
 
 ### Methods
 
