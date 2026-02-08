@@ -53,6 +53,8 @@ export interface AssignTaskOptions {
   sessionId?: string;
   /** Whether to mark the task as started immediately */
   markAsStarted?: boolean;
+  /** Whether to allow reassignment if task is already assigned to a different agent */
+  forceReassign?: boolean;
 }
 
 /**
@@ -365,8 +367,8 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       throw new Error(`Task not found: ${taskId}`);
     }
 
-    // Guard against double-assignment
-    if (task.assignee && task.assignee !== agentId) {
+    // Guard against double-assignment (unless forceReassign is set)
+    if (task.assignee && task.assignee !== agentId && !options?.forceReassign) {
       throw new ConflictError(
         `Task ${taskId} is already assigned to ${task.assignee}`,
         ConflictErrorCode.ALREADY_EXISTS,

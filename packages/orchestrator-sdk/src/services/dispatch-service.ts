@@ -233,11 +233,13 @@ export class DispatchServiceImpl implements DispatchService {
     }
 
     // Assign the task using TaskAssignmentService
+    // Note: forceReassign is always true because dispatch handles reassignment scenarios
     const assignOptions: AssignTaskOptions = {
       branch: options?.branch,
       worktree: options?.worktree,
       sessionId: options?.sessionId,
       markAsStarted: options?.markAsStarted,
+      forceReassign: true,
     };
     const updatedTask = await this.taskAssignment.assignToAgent(
       taskId,

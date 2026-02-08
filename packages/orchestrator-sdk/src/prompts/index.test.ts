@@ -46,28 +46,28 @@ describe("Prompt Loading", () => {
     it("loads director prompt", () => {
       const prompt = loadBuiltInPrompt("director");
       expect(prompt).toBeDefined();
-      expect(prompt).toContain("# Director Agent");
       expect(prompt).toContain("You are the **Director**");
+      expect(prompt).toContain("## Your Role");
     });
 
     it("loads worker prompt", () => {
       const prompt = loadBuiltInPrompt("worker");
       expect(prompt).toBeDefined();
-      expect(prompt).toContain("# Worker Agent");
-      expect(prompt).toContain("You are a **Worker**");
+      expect(prompt).toContain("You are an **Ephemeral Worker**");
+      expect(prompt).toContain("## Your Role");
     });
 
     it("loads steward base prompt", () => {
       const prompt = loadBuiltInPrompt("steward");
       expect(prompt).toBeDefined();
-      expect(prompt).toContain("# Steward Agent");
+      expect(prompt).toContain("You are a **Steward**");
     });
 
     it("combines steward base with focus", () => {
       const prompt = loadBuiltInPrompt("steward", "merge");
       expect(prompt).toBeDefined();
-      expect(prompt).toContain("# Steward Agent"); // Base
-      expect(prompt).toContain("# Merge Steward Focus"); // Focus
+      expect(prompt).toContain("You are a **Steward**"); // Base
+      expect(prompt).toContain("You are a **Merge Steward**"); // Focus
     });
   });
 
@@ -76,14 +76,14 @@ describe("Prompt Loading", () => {
       const result = loadRolePrompt("director");
       expect(result).toBeDefined();
       expect(result!.source).toBe("built-in");
-      expect(result!.prompt).toContain("# Director Agent");
+      expect(result!.prompt).toContain("You are the **Director**");
     });
 
     it("loads worker with source info", () => {
       const result = loadRolePrompt("worker");
       expect(result).toBeDefined();
       expect(result!.source).toBe("built-in");
-      expect(result!.prompt).toContain("# Worker Agent");
+      expect(result!.prompt).toContain("You are an **Ephemeral Worker**");
     });
 
     it("loads steward with source info for base and focus", () => {
@@ -92,8 +92,8 @@ describe("Prompt Loading", () => {
       expect(result!.source).toBe("built-in");
       expect(result!.baseSource).toBe("built-in");
       expect(result!.focusSource).toBe("built-in");
-      expect(result!.prompt).toContain("# Steward Agent");
-      expect(result!.prompt).toContain("# Health Steward Focus");
+      expect(result!.prompt).toContain("You are a **Steward**");
+      expect(result!.prompt).toContain("You are a **Health Steward**");
     });
   });
 
@@ -101,7 +101,7 @@ describe("Prompt Loading", () => {
     it("builds director prompt without task context", () => {
       const prompt = buildAgentPrompt({ role: "director" });
       expect(prompt).toBeDefined();
-      expect(prompt).toContain("# Director Agent");
+      expect(prompt).toContain("You are the **Director**");
       expect(prompt).not.toContain("# Current Task");
     });
 
@@ -111,7 +111,7 @@ describe("Prompt Loading", () => {
         taskContext: "Implement user authentication with OAuth2.",
       });
       expect(prompt).toBeDefined();
-      expect(prompt).toContain("# Worker Agent");
+      expect(prompt).toContain("You are an **Ephemeral Worker**");
       expect(prompt).toContain("# Current Task");
       expect(prompt).toContain("OAuth2");
     });
@@ -122,8 +122,8 @@ describe("Prompt Loading", () => {
         stewardFocus: "ops",
       });
       expect(prompt).toBeDefined();
-      expect(prompt).toContain("# Steward Agent");
-      expect(prompt).toContain("# Ops Steward Focus");
+      expect(prompt).toContain("You are a **Steward**");
+      expect(prompt).toContain("You are an **Ops Steward**");
     });
 
     it("adds additional instructions", () => {
@@ -159,7 +159,7 @@ describe("Prompt Content", () => {
   describe("Worker prompt", () => {
     it("includes handoff guidance", () => {
       const prompt = loadBuiltInPrompt("worker");
-      expect(prompt).toContain("el handoff");
+      expect(prompt).toContain("el task handoff");
       expect(prompt).toContain("Handoff");
     });
 
@@ -184,14 +184,16 @@ describe("Prompt Content", () => {
   describe("Steward prompts", () => {
     it("base includes director lookup for escalations", () => {
       const prompt = loadBuiltInPrompt("steward");
-      expect(prompt).toContain("el agent list --role director");
+      // Director ID is now provided in session context, not via CLI lookup
+      expect(prompt).toContain("Director ID");
       expect(prompt).toContain("escalation");
     });
 
     it("merge focus includes test workflow", () => {
       const prompt = loadBuiltInPrompt("steward", "merge");
-      expect(prompt).toContain("tests pass");
-      expect(prompt).toContain("tests fail");
+      // Tests criteria are in Review Criteria section (capitalized)
+      expect(prompt).toContain("Tests pass");
+      expect(prompt).toContain("Tests fail");
     });
 
     it("health focus includes nudge guidance", () => {
