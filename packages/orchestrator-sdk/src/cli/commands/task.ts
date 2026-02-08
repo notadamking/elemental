@@ -11,6 +11,7 @@
 
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '@elemental/sdk/cli';
 import { success, failure, ExitCode, getOutputMode } from '@elemental/sdk/cli';
+import { checkPlanAutoComplete } from '@elemental/sdk';
 import type { ElementId, Task } from '@elemental/core';
 import { TaskStatus } from '@elemental/core';
 
@@ -405,12 +406,17 @@ async function taskMergeHandler(
 
     await api.update<Task>(taskId as ElementId, { status: TaskStatus.CLOSED });
 
+    // Check if parent plan should be auto-completed when task is closed
+    const planAutoCompleteResult = await checkPlanAutoComplete(api, taskId as ElementId);
+
     const mode = getOutputMode(options);
 
     if (mode === 'json') {
       return success({
         taskId,
         mergeStatus: 'merged',
+        planAutoCompleted: planAutoCompleteResult.completed,
+        planId: planAutoCompleteResult.planId,
       });
     }
 
@@ -425,8 +431,11 @@ async function taskMergeHandler(
     if (options.summary) {
       lines.push(`  Summary: ${options.summary.slice(0, 50)}${options.summary.length > 50 ? '...' : ''}`);
     }
+    if (planAutoCompleteResult.completed) {
+      lines.push(`  Plan ${planAutoCompleteResult.planId} auto-completed (all tasks are now closed)`);
+    }
 
-    return success({ taskId, mergeStatus: 'merged' }, lines.join('\n'));
+    return success({ taskId, mergeStatus: 'merged', planAutoCompleted: planAutoCompleteResult.completed, planId: planAutoCompleteResult.planId }, lines.join('\n'));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return failure(`Failed to merge task: ${message}`, ExitCode.GENERAL_ERROR);

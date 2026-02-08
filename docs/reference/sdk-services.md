@@ -257,6 +257,48 @@ Refreshes automatically on access if stale. Used by CLI for short ID support.
 
 ---
 
+## PlanAutoCompleteService
+
+**File:** `services/plan-auto-complete.ts`
+
+Automatically marks plans as complete when all their tasks are closed.
+
+```typescript
+import { checkPlanAutoComplete } from '@elemental/sdk';
+```
+
+### Functions
+
+```typescript
+// Check if task's parent plan should be auto-completed
+const result = await checkPlanAutoComplete(api, taskId);
+// result.completed - whether a plan was auto-completed
+// result.planId - the plan ID if auto-completed
+// result.plan - the updated plan object if auto-completed
+// result.error - error message if something went wrong
+
+// Get the plan ID a task belongs to (if any)
+const planId = await getTaskPlanId(api, taskId);
+```
+
+### Integration Points
+
+This service is automatically called from all task status change paths:
+- CLI: `el close`, `el update --status closed`, `el task merge`
+- Server API: `PATCH /api/tasks/:id`, `PATCH /api/tasks/bulk`
+- Orchestrator API: `PATCH /api/tasks/:id`
+- Merge Steward: when merge completes and task closes
+
+### Behavior
+
+A plan auto-completes when:
+1. The plan status is `active`
+2. All non-tombstone tasks in the plan are `closed`
+
+The transition sets `plan.status = 'completed'` and records `completedAt` timestamp.
+
+---
+
 ## SyncService
 
 **File:** `sync/service.ts`
