@@ -985,9 +985,10 @@ app.get('/api/tasks/:id/dependency-tasks', async (c) => {
       };
     });
 
-    // Calculate progress stats
+    // Calculate progress stats — check terminal statuses across all element types
+    // Tasks: closed, tombstone | Plans: completed, cancelled | Workflows: completed, cancelled, failed
     const blockedByResolved = blockedBy.filter(b =>
-      b.task.status === 'completed' || b.task.status === 'cancelled'
+      ['closed', 'completed', 'tombstone', 'cancelled', 'failed'].includes(b.task.status)
     ).length;
     const blockedByTotal = blockedBy.length;
 
@@ -3254,12 +3255,12 @@ app.get('/api/teams/:id/stats', async (c) => {
         }
 
         const status = taskData.status || 'open';
-        if (status === 'closed' || status === 'completed') {
+        if (status === 'closed') {
           completedTasksAssigned++;
           if (tasksByMember[memberKey]) {
             tasksByMember[memberKey].completed++;
           }
-        } else if (status !== 'cancelled') {
+        } else if (status !== 'tombstone') {
           activeTasksAssigned++;
           if (tasksByMember[memberKey]) {
             tasksByMember[memberKey].active++;

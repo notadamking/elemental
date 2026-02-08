@@ -96,9 +96,9 @@ test.describe('TB84: Dependencies as Sub-Issues Display', () => {
 
     test('calculates progress correctly', async ({ page }) => {
       // Create 3 blockers for one task
-      const blocker1 = await createTask(page, { title: 'TB84 API: Blocker 1', status: 'completed' });
+      const blocker1 = await createTask(page, { title: 'TB84 API: Blocker 1', status: 'closed' });
       const blocker2 = await createTask(page, { title: 'TB84 API: Blocker 2', status: 'open' });
-      const blocker3 = await createTask(page, { title: 'TB84 API: Blocker 3', status: 'cancelled' });
+      const blocker3 = await createTask(page, { title: 'TB84 API: Blocker 3', status: 'deferred' });
       const blocked = await createTask(page, { title: 'TB84 API: Blocked task' });
 
       await createDependency(page, blocker1.id, blocked.id, 'blocks');
@@ -110,7 +110,7 @@ test.describe('TB84: Dependencies as Sub-Issues Display', () => {
 
       const data = await response.json();
       expect(data.blockedBy.length).toBe(3);
-      expect(data.progress.resolved).toBe(2); // completed + cancelled
+      expect(data.progress.resolved).toBe(1); // closed blocker
       expect(data.progress.total).toBe(3);
     });
 
@@ -122,7 +122,7 @@ test.describe('TB84: Dependencies as Sub-Issues Display', () => {
 
   test.describe('TaskDetailPanel - Blocked By Section', () => {
     test('shows "Blocked By" section with progress for task with blockers', async ({ page }) => {
-      const blocker1 = await createTask(page, { title: 'TB84 UI: Blocker 1', status: 'completed', priority: 1 });
+      const blocker1 = await createTask(page, { title: 'TB84 UI: Blocker 1', status: 'closed', priority: 1 });
       const blocker2 = await createTask(page, { title: 'TB84 UI: Blocker 2', status: 'open', priority: 2 });
       const blocked = await createTask(page, { title: 'TB84 UI: Blocked Task' });
 
@@ -231,8 +231,8 @@ test.describe('TB84: Dependencies as Sub-Issues Display', () => {
       await expect(blockerCard).toContainText('P1'); // Priority badge
     });
 
-    test('completed blockers are shown with strikethrough style', async ({ page }) => {
-      const blocker = await createTask(page, { title: 'TB84 Strikethrough: Completed Blocker', status: 'completed' });
+    test('closed blockers are shown with strikethrough style', async ({ page }) => {
+      const blocker = await createTask(page, { title: 'TB84 Strikethrough: Closed Blocker', status: 'closed' });
       const blocked = await createTask(page, { title: 'TB84 Strikethrough: Blocked' });
 
       await createDependency(page, blocker.id, blocked.id, 'blocks');

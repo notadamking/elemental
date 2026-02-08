@@ -498,7 +498,9 @@ const SUB_ISSUE_STATUS_CONFIG: Record<string, { icon: React.ReactNode; color: st
   open: { icon: <Circle className="w-3 h-3" />, color: 'text-blue-600', bgColor: 'bg-blue-50' },
   in_progress: { icon: <CircleDot className="w-3 h-3" />, color: 'text-yellow-600', bgColor: 'bg-yellow-50' },
   blocked: { icon: <AlertTriangle className="w-3 h-3" />, color: 'text-red-600', bgColor: 'bg-red-50' },
+  closed: { icon: <CheckCircle2 className="w-3 h-3" />, color: 'text-green-600', bgColor: 'bg-green-50' },
   completed: { icon: <CheckCircle2 className="w-3 h-3" />, color: 'text-green-600', bgColor: 'bg-green-50' },
+  tombstone: { icon: <X className="w-3 h-3" />, color: 'text-gray-500', bgColor: 'bg-gray-50' },
   cancelled: { icon: <X className="w-3 h-3" />, color: 'text-gray-500', bgColor: 'bg-gray-50' },
   deferred: { icon: <Clock className="w-3 h-3" />, color: 'text-purple-600', bgColor: 'bg-purple-50' },
   backlog: { icon: <Inbox className="w-3 h-3" />, color: 'text-slate-600', bgColor: 'bg-slate-50' },
@@ -535,7 +537,7 @@ function SubIssueCard({
 }) {
   const statusConfig = SUB_ISSUE_STATUS_CONFIG[task.status] || SUB_ISSUE_STATUS_CONFIG.open;
   const priorityConfig = PRIORITY_LABELS[task.priority] || PRIORITY_LABELS[3];
-  const isResolved = task.status === 'completed' || task.status === 'cancelled';
+  const isResolved = ['closed', 'completed', 'tombstone', 'cancelled', 'failed'].includes(task.status);
 
   return (
     <button
