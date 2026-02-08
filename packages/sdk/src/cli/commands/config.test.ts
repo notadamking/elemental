@@ -39,6 +39,9 @@ function writeTestConfig(content: string): void {
 // Setup / Teardown
 // ============================================================================
 
+// Store original env for restoration
+let originalElementalRoot: string | undefined;
+
 beforeEach(() => {
   // Create test workspace
   if (existsSync(TEST_DIR)) {
@@ -54,6 +57,10 @@ sync:
   auto_export: false
 `);
 
+  // Clear ELEMENTAL_ROOT so tests use test directory, not main workspace
+  originalElementalRoot = process.env.ELEMENTAL_ROOT;
+  delete process.env.ELEMENTAL_ROOT;
+
   // Clear config cache and reload from test directory
   clearConfigCache();
   // Change to test directory temporarily for config discovery
@@ -64,6 +71,10 @@ sync:
 });
 
 afterEach(() => {
+  // Restore ELEMENTAL_ROOT
+  if (originalElementalRoot !== undefined) {
+    process.env.ELEMENTAL_ROOT = originalElementalRoot;
+  }
   // Cleanup test workspace
   if (existsSync(TEST_DIR)) {
     rmSync(TEST_DIR, { recursive: true });

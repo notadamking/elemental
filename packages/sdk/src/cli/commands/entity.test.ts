@@ -214,14 +214,13 @@ describe('entity register command', () => {
     expect(result.data).toMatch(/^el-/);
   });
 
-  test('fails when database path does not exist', async () => {
+  test('fails when database parent directory does not exist', async () => {
     const nonExistentPath = join(TEST_DIR, 'nonexistent', 'test.db');
     const options = createTestOptions({ db: nonExistentPath });
     const result = await entityRegisterCommand.handler!(['test'], options);
 
-    // With explicit db path that doesn't exist, should still create and succeed
-    // But if we pass an undefined db, it will look for .elemental in cwd
-    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    // SQLite can't create a database if the parent directory doesn't exist
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
   });
 });
 
@@ -309,11 +308,14 @@ describe('entity list command', () => {
   });
 
   test('succeeds with explicit database path', async () => {
-    const newPath = join(TEST_DIR, 'new-db', 'test.db');
+    const newDbDir = join(TEST_DIR, 'new-db');
+    const newPath = join(newDbDir, 'test.db');
+    // Create parent directory so SQLite can create the database
+    mkdirSync(newDbDir, { recursive: true });
     const options = createTestOptions({ db: newPath });
     const result = await entityListCommand.handler!([], options);
 
-    // With explicit db path that doesn't exist, should create and return empty list
+    // With explicit db path (parent directory exists), should create and return empty list
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(result.data).toEqual([]);
   });

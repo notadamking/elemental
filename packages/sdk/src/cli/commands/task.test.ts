@@ -84,6 +84,10 @@ beforeEach(() => {
     rmSync(TEST_DIR, { recursive: true });
   }
   mkdirSync(ELEMENTAL_DIR, { recursive: true });
+  // Initialize the database so tests can run without auto-creation
+  const backend = createStorage({ path: DB_PATH, create: true });
+  initializeSchema(backend);
+  backend.close();
 });
 
 afterEach(() => {

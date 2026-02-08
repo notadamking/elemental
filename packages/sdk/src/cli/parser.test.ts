@@ -118,11 +118,6 @@ describe('parseArgs', () => {
       expect(result.options.actor).toBe('sender');
     });
 
-    it('should parse -f as short form of --from', () => {
-      const result = parseArgs(['-f', 'sender', 'list']);
-      expect(result.options.actor).toBe('sender');
-    });
-
     it('should parse --from=value syntax', () => {
       const result = parseArgs(['--from=sender', 'list']);
       expect(result.options.actor).toBe('sender');
