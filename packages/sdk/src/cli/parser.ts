@@ -197,8 +197,9 @@ export function parseArgs(
     }
 
     // Commands and positional arguments
-    // First non-option args are commands, subsequent are args
-    if (command.length === 0 || isSubcommand(arg)) {
+    // First non-option args are commands/subcommands, subsequent are positional args
+    // Once we've started collecting positional args, don't add more to command path
+    if ((command.length === 0 || isSubcommand(arg)) && args.length === 0) {
       command.push(arg);
     } else {
       args.push(unescapeShellArtifacts(arg));
