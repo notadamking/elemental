@@ -1,6 +1,7 @@
 /**
  * DirectorPanel - Right sidebar panel for Director agent terminal
  * Collapsible panel that shows the Director agent's interactive terminal
+ * and a pending messages queue for operator-controlled inbox reading.
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -15,10 +16,13 @@ import {
   AlertCircle,
   CirclePause,
   ListFilter,
+  Mail,
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import { XTerminal, type TerminalStatus, type XTerminalHandle } from '../terminal';
 import { useDirector, useStartAgentSession, useStopAgentSession } from '../../api/hooks/useAgents';
+import { useAgentInboxCount } from '../../api/hooks/useAgentInbox';
+import { PendingMessagesQueue } from './PendingMessagesQueue';
 
 // Panel width constraints
 const MIN_WIDTH = 280;
@@ -35,10 +39,14 @@ interface DirectorPanelProps {
 
 export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProps) {
   const [terminalStatus, setTerminalStatus] = useState<TerminalStatus>('disconnected');
-  const terminalRef = useRef<XTerminalHandle>(null);
+  const [showMessagesQueue, setShowMessagesQueue] = useState(false);
   const { director, hasActiveSession, isLoading, error } = useDirector();
   const startSession = useStartAgentSession();
   const stopSession = useStopAgentSession();
+  const terminalRef = useRef<XTerminalHandle>(null);
+
+  // Get unread message count for the director
+  const { data: inboxCountData } = useAgentInboxCount(director?.id ?? null);
 
   // Panel width state with localStorage persistence
   const [width, setWidth] = useState(() => {
@@ -169,6 +177,19 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
     }, 200);
   }, []);
 
+  // Toggle messages queue visibility
+  const handleToggleMessagesQueue = useCallback(() => {
+    setShowMessagesQueue((prev) => !prev);
+  }, []);
+
+  // Send command to director terminal
+  const handleSendCommand = useCallback((command: string) => {
+    terminalRef.current?.sendInput(command);
+  }, []);
+
+  // Unread message count
+  const unreadCount = inboxCountData?.count ?? 0;
+
   if (collapsed) {
     return (
       <aside
@@ -221,6 +242,32 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
           </span>
         </div>
         <div className="flex items-center gap-1">
+          {/* Pending Messages Queue Toggle */}
+          {director && (
+            <Tooltip
+              content={showMessagesQueue ? 'Hide pending messages' : 'Show pending messages'}
+              side="bottom"
+            >
+              <button
+                onClick={handleToggleMessagesQueue}
+                className={`relative p-1.5 rounded-md transition-colors duration-150 ${
+                  showMessagesQueue
+                    ? 'text-[var(--color-primary)] bg-[var(--color-primary)]/10'
+                    : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
+                }`}
+                aria-label={showMessagesQueue ? 'Hide pending messages' : 'Show pending messages'}
+                data-testid="toggle-messages-queue"
+              >
+                <Mail className="w-4 h-4" />
+                {/* Unread count badge */}
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold rounded-full bg-[var(--color-primary)] text-white">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
+            </Tooltip>
+          )}
           {/* Session Controls */}
           {director && (
             <>
@@ -299,9 +346,26 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
         </div>
       </div>
 
-      {/* Terminal Area */}
-      <div className="flex-1 p-2 overflow-hidden" data-testid="director-terminal-container">
-        <div className="h-full rounded-lg bg-[#1a1a1a] border border-[var(--color-border)] flex flex-col overflow-hidden">
+      {/* Main Content Area - Terminal or Messages Queue */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Pending Messages Queue - slides in from top when visible */}
+        {showMessagesQueue && (
+          <div
+            className="border-b border-[var(--color-border)] bg-[var(--color-bg)] overflow-hidden"
+            style={{ height: '280px', minHeight: '200px' }}
+            data-testid="pending-messages-container"
+          >
+            <PendingMessagesQueue
+              directorId={director?.id ?? null}
+              hasActiveSession={hasActiveSession}
+              onSendCommand={handleSendCommand}
+            />
+          </div>
+        )}
+
+        {/* Terminal Area */}
+        <div className="flex-1 p-2 overflow-hidden" data-testid="director-terminal-container">
+          <div className="h-full rounded-lg bg-[#1a1a1a] border border-[var(--color-border)] flex flex-col overflow-hidden">
           {/* Terminal header */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border)] bg-[#252525]">
             <div className="flex items-center gap-2">
@@ -451,6 +515,7 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
               </>
             )}
           </div>
+        </div>
         </div>
       </div>
     </aside>
