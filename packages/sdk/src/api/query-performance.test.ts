@@ -511,11 +511,15 @@ describe('Query API Performance', () => {
   // ==========================================================================
 
   describe('Search Performance', () => {
+    // Use unique keyword per test run to avoid collisions with parallel tests
+    const uniqueSearchKeyword = `SearchPerf${crypto.randomUUID().replace(/-/g, '').substring(0, 12)}`;
+
     beforeEach(async () => {
       // Pre-populate with documents for search testing
       // Use UUID in content to guarantee unique IDs
       for (let i = 0; i < DATASET_SIZES.medium; i++) {
-        const keyword = i % 2 === 0 ? 'Important' : 'Regular';
+        // Use unique keyword instead of generic 'Important' to avoid collisions
+        const keyword = i % 2 === 0 ? uniqueSearchKeyword : 'RegularDoc';
         const uniqueId = crypto.randomUUID();
         const doc = await createDocument({
           contentType: ContentType.MARKDOWN,
@@ -528,10 +532,10 @@ describe('Query API Performance', () => {
 
     it('should search by content keyword within threshold', async () => {
       const { result, duration } = await measureTime(() =>
-        api.search('Important')
+        api.search(uniqueSearchKeyword)
       );
 
-      // Half the documents have "Important" in content
+      // Half the documents have the unique keyword in content
       expect(result.length).toBe(DATASET_SIZES.medium / 2);
       expect(duration).toBeLessThan(THRESHOLDS.search);
     });

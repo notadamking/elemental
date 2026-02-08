@@ -840,6 +840,103 @@ Examples:
 };
 
 // ============================================================================
+// Task Merge-Status Command
+// ============================================================================
+
+import { MergeStatusValues, isMergeStatus, type MergeStatus } from '../../types/task-meta.js';
+
+async function taskMergeStatusHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [taskId, statusArg] = args;
+
+  if (!taskId || !statusArg) {
+    return failure(
+      `Usage: el task merge-status <task-id> <status>\nExample: el task merge-status el-abc123 merged\n\nValid statuses: ${MergeStatusValues.join(', ')}`,
+      ExitCode.INVALID_ARGUMENTS
+    );
+  }
+
+  // Validate that the provided status is a valid MergeStatus
+  if (!isMergeStatus(statusArg)) {
+    return failure(
+      `Invalid merge status: "${statusArg}"\nValid statuses: ${MergeStatusValues.join(', ')}`,
+      ExitCode.INVALID_ARGUMENTS
+    );
+  }
+
+  const status: MergeStatus = statusArg;
+
+  const { api, error } = await createOrchestratorApi(options);
+  if (error || !api) {
+    return failure(error ?? 'Failed to create API', ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    await api.updateTaskOrchestratorMeta(taskId as ElementId, {
+      mergeStatus: status,
+    });
+
+    const mode = getOutputMode(options);
+
+    if (mode === 'json') {
+      return success({
+        taskId,
+        mergeStatus: status,
+      });
+    }
+
+    if (mode === 'quiet') {
+      return success(taskId);
+    }
+
+    return success(
+      { taskId, mergeStatus: status },
+      `Updated task ${taskId}\n  Merge Status: ${status}`
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // Check if it's a "not found" error
+    if (message.includes('not found') || message.includes('Task not found')) {
+      return failure(`Task not found: ${taskId}`, ExitCode.GENERAL_ERROR);
+    }
+    return failure(`Failed to update merge status: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+export const taskMergeStatusCommand: Command = {
+  name: 'merge-status',
+  description: 'Update the merge status of a task',
+  usage: 'el task merge-status <task-id> <status>',
+  help: `Update the merge status of a task.
+
+This command allows you to manually update the merge status of a task,
+which is useful when the merge steward gets stuck or when a branch is
+manually merged outside of the normal workflow.
+
+Arguments:
+  task-id    Task identifier to update
+  status     New merge status value
+
+Valid status values:
+  pending      Task completed, awaiting merge
+  testing      Steward is running tests on the branch
+  merging      Tests passed, merge in progress
+  merged       Successfully merged
+  conflict     Merge conflict detected
+  test_failed  Tests failed, needs attention
+  failed       Merge failed for other reason
+
+Examples:
+  el task merge-status el-abc123 merged
+  el task merge-status el-abc123 pending
+  el task merge-status el-abc123 test_failed`,
+  options: [],
+  handler: taskMergeStatusHandler as Command['handler'],
+};
+
+// ============================================================================
 // Main Task Command
 // ============================================================================
 
@@ -855,19 +952,22 @@ Subcommands:
   merge          Mark a task as merged and close it
   reject         Mark a task merge as failed and reopen it
   sync           Sync a task branch with the main branch
+  merge-status   Update the merge status of a task
 
 Examples:
   el task handoff el-abc123 --message "Need help with frontend"
   el task complete el-abc123 --summary "Implemented feature"
   el task merge el-abc123
   el task reject el-abc123 --reason "Tests failed"
-  el task sync el-abc123`,
+  el task sync el-abc123
+  el task merge-status el-abc123 merged`,
   subcommands: {
     handoff: taskHandoffCommand,
     complete: taskCompleteCommand,
     merge: taskMergeCommand,
     reject: taskRejectCommand,
     sync: taskSyncCommand,
+    'merge-status': taskMergeStatusCommand,
   },
   handler: taskHandoffCommand.handler, // Default to handoff
   options: [],

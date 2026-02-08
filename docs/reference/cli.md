@@ -718,12 +718,13 @@ el dispatch smart el-task123 --branch feature/task
 
 ### Orchestrator Task Commands
 
-| Command                 | Description                            |
-| ----------------------- | -------------------------------------- |
-| `el task handoff <id>`  | Hand off task to another agent         |
-| `el task complete <id>` | Complete task and create merge request |
-| `el task merge <id>`    | Mark task as merged and close it       |
-| `el task reject <id>`   | Mark merge as failed and reopen task   |
+| Command                                    | Description                            |
+| ------------------------------------------ | -------------------------------------- |
+| `el task handoff <id>`                     | Hand off task to another agent         |
+| `el task complete <id>`                    | Complete task and create merge request |
+| `el task merge <id>`                       | Mark task as merged and close it       |
+| `el task reject <id>`                      | Mark merge as failed and reopen task   |
+| `el task merge-status <id> <status>`       | Update the merge status of a task      |
 
 #### task merge
 
@@ -750,6 +751,30 @@ Mark a task merge as failed and reopen it.
 ```bash
 el task reject el-abc123 --reason "Tests failed"
 el task reject el-abc123 --reason "Tests failed" --message "Fix flaky test in auth.test.ts"
+```
+
+#### task merge-status
+
+Update the merge status of a task. Useful when the merge steward gets stuck or when a branch is manually merged outside the normal workflow.
+
+| Argument   | Description                     |
+| ---------- | ------------------------------- |
+| `<id>`     | Task identifier                 |
+| `<status>` | New merge status                |
+
+Valid status values:
+- `pending` - Task completed, awaiting merge
+- `testing` - Steward is running tests on the branch
+- `merging` - Tests passed, merge in progress
+- `merged` - Successfully merged
+- `conflict` - Merge conflict detected
+- `test_failed` - Tests failed, needs attention
+- `failed` - Merge failed for other reason
+
+```bash
+el task merge-status el-abc123 merged
+el task merge-status el-abc123 pending
+el task merge-status el-abc123 test_failed
 ```
 
 ## Short IDs
