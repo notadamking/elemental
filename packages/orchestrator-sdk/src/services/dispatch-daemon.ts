@@ -134,6 +134,21 @@ export interface DispatchDaemonConfig {
   readonly closedUnmergedGracePeriodMs?: number;
 
   /**
+   * Whether stuck-merge recovery is enabled.
+   * Detects tasks stuck in 'merging' or 'testing' mergeStatus for too long
+   * and resets them to 'pending' for a fresh retry.
+   * Default: true
+   */
+  readonly stuckMergeRecoveryEnabled?: boolean;
+
+  /**
+   * Grace period in ms before a stuck merge task is recovered.
+   * Prevents racing with in-progress merge operations.
+   * Default: 600000 (10 minutes)
+   */
+  readonly stuckMergeRecoveryGracePeriodMs?: number;
+
+  /**
    * Maximum session duration in ms before the daemon terminates it.
    * Prevents stuck workers from blocking their slot indefinitely.
    * Default: 0 (disabled).
@@ -158,7 +173,7 @@ export interface DispatchDaemonConfig {
  */
 export interface PollResult {
   /** The poll type */
-  readonly pollType: 'worker-availability' | 'inbox' | 'steward-trigger' | 'workflow-task' | 'orphan-recovery' | 'closed-unmerged-reconciliation';
+  readonly pollType: 'worker-availability' | 'inbox' | 'steward-trigger' | 'workflow-task' | 'orphan-recovery' | 'closed-unmerged-reconciliation' | 'stuck-merge-recovery';
   /** Timestamp when the poll started */
   readonly startedAt: string;
   /** Duration of the poll in milliseconds */
@@ -183,6 +198,8 @@ interface NormalizedConfig {
   orphanRecoveryEnabled: boolean;
   closedUnmergedReconciliationEnabled: boolean;
   closedUnmergedGracePeriodMs: number;
+  stuckMergeRecoveryEnabled: boolean;
+  stuckMergeRecoveryGracePeriodMs: number;
   maxSessionDurationMs: number;
   onSessionStarted?: OnSessionStartedCallback;
   projectRoot: string;
@@ -263,6 +280,13 @@ export interface DispatchDaemon {
    * and moves them back to REVIEW so merge stewards can pick them up.
    */
   reconcileClosedUnmergedTasks(): Promise<PollResult>;
+
+  /**
+   * Manually triggers stuck-merge recovery.
+   * Detects tasks stuck in 'merging' or 'testing' mergeStatus for too long
+   * and resets them to 'pending' for a fresh retry.
+   */
+  recoverStuckMergeTasks(): Promise<PollResult>;
 
   // ----------------------------------------
   // Configuration
@@ -951,6 +975,118 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     return result;
   }
 
+  /**
+   * Detects tasks stuck in 'merging' or 'testing' mergeStatus for too long
+   * and resets them to 'pending' for a fresh retry.
+   */
+  async recoverStuckMergeTasks(): Promise<PollResult> {
+    const startedAt = new Date().toISOString();
+    const startTime = Date.now();
+    let processed = 0;
+    let errors = 0;
+    const errorMessages: string[] = [];
+
+    this.emitter.emit('poll:start', 'stuck-merge-recovery');
+
+    try {
+      const stuckTasks = await this.taskAssignment.listAssignments({
+        taskStatus: [TaskStatus.REVIEW],
+        mergeStatus: ['merging', 'testing'],
+      });
+
+      const now = Date.now();
+
+      for (const assignment of stuckTasks) {
+        try {
+          const { task, orchestratorMeta } = assignment;
+          if (!orchestratorMeta) continue;
+
+          // Grace period: skip if updatedAt is within the grace period
+          if (task.updatedAt) {
+            const updatedAtMs = typeof task.updatedAt === 'number'
+              ? task.updatedAt
+              : new Date(task.updatedAt).getTime();
+            if (now - updatedAtMs < this.config.stuckMergeRecoveryGracePeriodMs) {
+              continue;
+            }
+          }
+
+          // Skip if steward has an active session (merge still in progress)
+          if (orchestratorMeta.assignedAgent) {
+            const activeSession = this.sessionManager.getActiveSession(
+              orchestratorMeta.assignedAgent as EntityId
+            );
+            if (activeSession) continue;
+          }
+
+          // Safety valve: skip if already recovered 3+ times
+          const currentCount = orchestratorMeta.stuckMergeRecoveryCount ?? 0;
+          if (currentCount >= 3) {
+            console.warn(
+              `[dispatch-daemon] Task ${task.id} has been recovered from stuck merge ${currentCount} times, skipping (safety valve)`
+            );
+            continue;
+          }
+
+          // Reset mergeStatus to 'pending' for fresh steward pickup
+          await this.api.update<Task>(task.id, {
+            assignee: undefined,
+            metadata: updateOrchestratorTaskMeta(
+              task.metadata as Record<string, unknown> | undefined,
+              {
+                mergeStatus: 'pending' as const,
+                stuckMergeRecoveryCount: currentCount + 1,
+              }
+            ),
+          });
+
+          // Clean up temp merge worktree if it exists
+          const mergeDirName = `_merge-${task.id.replace(/[^a-zA-Z0-9-]/g, '-')}`;
+          const mergeWorktreePath = `.elemental/.worktrees/${mergeDirName}`;
+          try {
+            const exists = await this.worktreeManager.worktreeExists(mergeWorktreePath);
+            if (exists) {
+              await this.worktreeManager.removeWorktree(mergeWorktreePath, { force: true });
+            }
+          } catch {
+            // Ignore worktree cleanup errors
+          }
+
+          processed++;
+          console.log(
+            `[dispatch-daemon] Recovered stuck merge task ${task.id} (mergeStatus=${orchestratorMeta.mergeStatus}, attempt=${currentCount + 1})`
+          );
+        } catch (error) {
+          errors++;
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          errorMessages.push(`Task ${assignment.taskId}: ${errorMessage}`);
+          console.error(`[dispatch-daemon] Error recovering stuck merge task ${assignment.taskId}:`, error);
+        }
+      }
+
+      if (processed > 0) {
+        console.log(`[dispatch-daemon] Recovered ${processed} stuck merge task(s)`);
+      }
+    } catch (error) {
+      errors++;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      errorMessages.push(errorMessage);
+      console.error('[dispatch-daemon] Error in recoverStuckMergeTasks:', error);
+    }
+
+    const stuckResult: PollResult = {
+      pollType: 'stuck-merge-recovery',
+      startedAt,
+      durationMs: Date.now() - startTime,
+      processed,
+      errors,
+      errorMessages: errorMessages.length > 0 ? errorMessages : undefined,
+    };
+
+    this.emitter.emit('poll:complete', stuckResult);
+    return stuckResult;
+  }
+
   // ----------------------------------------
   // Configuration
   // ----------------------------------------
@@ -1020,6 +1156,8 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       orphanRecoveryEnabled: config?.orphanRecoveryEnabled ?? true,
       closedUnmergedReconciliationEnabled: config?.closedUnmergedReconciliationEnabled ?? true,
       closedUnmergedGracePeriodMs: config?.closedUnmergedGracePeriodMs ?? 120_000,
+      stuckMergeRecoveryEnabled: config?.stuckMergeRecoveryEnabled ?? true,
+      stuckMergeRecoveryGracePeriodMs: config?.stuckMergeRecoveryGracePeriodMs ?? 600_000,
       maxSessionDurationMs: config?.maxSessionDurationMs ?? 0,
       onSessionStarted: config?.onSessionStarted,
       projectRoot: config?.projectRoot ?? process.cwd(),
@@ -1067,6 +1205,11 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       // state transition.
       if (this.config.closedUnmergedReconciliationEnabled) {
         await this.reconcileClosedUnmergedTasks();
+      }
+
+      // Recover tasks stuck in merging/testing for too long
+      if (this.config.stuckMergeRecoveryEnabled) {
+        await this.recoverStuckMergeTasks();
       }
     } finally {
       this.polling = false;

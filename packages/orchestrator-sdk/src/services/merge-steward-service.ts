@@ -682,6 +682,30 @@ export class MergeStewardServiceImpl implements MergeStewardService {
       : `Merge branch '${sourceBranch}' (Task: ${taskId})`;
     const message = commitMessage ?? defaultMessage;
 
+    // Pre-flight: detect conflicts without creating a worktree
+    try {
+      const { stdout: mergeBase } = await execAsync(
+        `git merge-base ${targetBranch} ${sourceBranch}`,
+        { cwd: this.config.workspaceRoot, encoding: 'utf8' }
+      );
+      const dryRun = await execAsync(
+        `git merge-tree ${mergeBase.trim()} ${targetBranch} ${sourceBranch}`,
+        { cwd: this.config.workspaceRoot, encoding: 'utf8' }
+      ).catch((e: { stdout?: string }) => e);
+      if ((dryRun as { stdout?: string }).stdout?.includes('<<<<<<<')) {
+        const dryRunOutput = (dryRun as { stdout: string }).stdout;
+        const conflictFiles = [...dryRunOutput.matchAll(/\+\+\+ b\/(.+)/g)].map(m => m[1]);
+        return {
+          success: false,
+          hasConflict: true,
+          error: 'Pre-flight: merge conflicts detected',
+          conflictFiles: conflictFiles.length > 0 ? conflictFiles : undefined,
+        };
+      }
+    } catch {
+      // merge-base can fail if branches have no common ancestor; continue to worktree merge
+    }
+
     // Create a temporary worktree for the merge to avoid corrupting main repo HEAD
     const mergeDirName = `_merge-${taskId.replace(/[^a-zA-Z0-9-]/g, '-')}`;
     const mergeDir = path.join(this.config.workspaceRoot, '.elemental/.worktrees', mergeDirName);

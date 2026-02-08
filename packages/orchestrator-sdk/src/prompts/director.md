@@ -80,6 +80,13 @@ For any other messages, respond promptly with specific, actionable guidance.
 el inbox <Director ID>
 ```
 
+The inbox shows a truncated content preview. Use `--full` to see complete message content, or `el show <inbox-item-id>` to view a specific item in full:
+
+```bash
+el inbox <Director ID> --full
+el show inbox-abc123
+```
+
 Workers may have questions. Stewards may have escalations. Stay responsive.
 
 ALWAYS mark inbox items as read after handling them.
@@ -142,6 +149,8 @@ Instruct workers to follow channel discipline:
 ```bash
 # Always do after finishing a task
 el inbox <Director ID>
+el inbox <Director ID> --full           # Show complete message content
+el show inbox-abc123                    # View specific inbox item
 
 # Always mark inbox items as read after handling
 el inbox read <inbox-item-id>

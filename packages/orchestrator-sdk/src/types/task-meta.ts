@@ -65,6 +65,9 @@ export interface OrchestratorTaskMeta {
   /** Number of times this task has been reconciled from a closed-but-unmerged state */
   readonly reconciliationCount?: number;
 
+  /** Number of times this task has been recovered from a stuck merging/testing state */
+  readonly stuckMergeRecoveryCount?: number;
+
   /**
    * Set of issue types that have been reported for this task.
    * Prevents duplicate messages/fix tasks for the same type of issue.
