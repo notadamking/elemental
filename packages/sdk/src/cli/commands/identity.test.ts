@@ -53,6 +53,7 @@ describe('identityCommand', () => {
       // Remove any env variables that might affect the test
       delete process.env.ELEMENTAL_ACTOR;
       delete process.env.ELEMENTAL_CONFIG;
+      delete process.env.ELEMENTAL_ROOT;
     });
 
     afterEach(() => {
@@ -97,6 +98,7 @@ describe('whoamiCommand', () => {
     clearConfigCache();
     delete process.env.ELEMENTAL_ACTOR;
     delete process.env.ELEMENTAL_CONFIG;
+    delete process.env.ELEMENTAL_ROOT;
   });
 
   afterEach(() => {
@@ -343,6 +345,7 @@ describe('identity mode subcommand', () => {
     delete process.env.ELEMENTAL_ACTOR;
     delete process.env.ELEMENTAL_CONFIG;
     delete process.env.ELEMENTAL_IDENTITY_MODE;
+    delete process.env.ELEMENTAL_ROOT;
   });
 
   afterEach(() => {
@@ -456,6 +459,7 @@ describe('actor priority', () => {
     clearConfigCache();
     delete process.env.ELEMENTAL_ACTOR;
     delete process.env.ELEMENTAL_CONFIG;
+    delete process.env.ELEMENTAL_ROOT;
   });
 
   afterEach(() => {
