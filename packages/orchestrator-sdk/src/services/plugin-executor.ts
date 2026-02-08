@@ -222,12 +222,12 @@ export interface PluginExecutionOptions {
 // ============================================================================
 
 /**
- * Built-in plugin: Garbage collect ephemeral tasks
+ * Built-in plugin: Garbage collect ephemeral workflows
  */
 export const GcEphemeralTasksPlugin: CommandPlugin = {
   type: 'command',
   name: 'gc-ephemeral-tasks',
-  description: 'Garbage collect old ephemeral tasks (older than 24 hours)',
+  description: 'Garbage collect old ephemeral workflows (older than 24 hours)',
   command: 'el gc workflows --age 1',
   timeout: 60000, // 1 minute
   continueOnError: true,

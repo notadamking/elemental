@@ -29,7 +29,7 @@ const SUBCOMMAND_HINTS: Record<string, string> = {
   entity: 'register, list, reports, ...',
   team: 'create, list, ...',
   library: 'create, list, ...',
-  inbox: 'list, read, archive, ...',
+  inbox: 'read, read-all, archive, ...',
 };
 
 // Built-in command categories for display

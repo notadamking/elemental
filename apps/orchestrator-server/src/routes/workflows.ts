@@ -626,7 +626,7 @@ export function createWorkflowRoutes(services: Services) {
 
       // Use createWorkflowFromPlaybook from @elemental/core to instantiate
       // workflow, tasks, and dependencies from playbook
-      const pourResult = await createWorkflowFromPlaybook({
+      const createResult = await createWorkflowFromPlaybook({
         playbook,
         variables: providedVariables ?? {},
         createdBy,
@@ -637,12 +637,12 @@ export function createWorkflowRoutes(services: Services) {
 
       // Save the workflow
       const savedWorkflow = await api.create<Workflow>({
-        ...pourResult.workflow,
+        ...createResult.workflow,
       });
 
       // Save all tasks
       const savedTasks: Task[] = [];
-      for (const createdTask of pourResult.tasks) {
+      for (const createdTask of createResult.tasks) {
         const savedTask = await api.create<Task>({
           ...createdTask.task,
         });
@@ -651,8 +651,8 @@ export function createWorkflowRoutes(services: Services) {
 
       // Save all dependencies (both blocks and parent-child)
       const allDependencies = [
-        ...pourResult.blocksDependencies,
-        ...pourResult.parentChildDependencies,
+        ...createResult.blocksDependencies,
+        ...createResult.parentChildDependencies,
       ];
       for (const dep of allDependencies) {
         await api.addDependency({
@@ -664,7 +664,7 @@ export function createWorkflowRoutes(services: Services) {
       }
 
       console.log(
-        `[workflows] Instantiated playbook ${playbook.name}: workflow=${savedWorkflow.id}, tasks=${savedTasks.length}, dependencies=${allDependencies.length}, skipped=${pourResult.skippedSteps.length}`
+        `[workflows] Instantiated playbook ${playbook.name}: workflow=${savedWorkflow.id}, tasks=${savedTasks.length}, dependencies=${allDependencies.length}, skipped=${createResult.skippedSteps.length}`
       );
 
       const response: WorkflowResponse = {

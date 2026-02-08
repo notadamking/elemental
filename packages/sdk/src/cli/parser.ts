@@ -252,7 +252,7 @@ export function getGlobalOptionsHelp(): string {
   return `Global Options:
   --db <path>            Database file path
   --actor <name>         Actor name for operations
-  -f, --from <name>      Alias for --actor
+  --from <name>          Alias for --actor
   --sign-key <key>       Private key for signing (base64 PKCS8)
   --sign-key-file <path> Path to file containing private key
   --json                 Output in JSON format

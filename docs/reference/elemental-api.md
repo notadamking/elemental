@@ -267,7 +267,7 @@ const tasks = await api.getTasksInWorkflow(workflowId);
 const ready = await api.getReadyTasksInWorkflow(workflowId);
 const ordered = await api.getOrderedTasksInWorkflow(workflowId);  // Topological sort
 const progress = await api.getWorkflowProgress(workflowId);
-await api.burnWorkflow(workflowId);  // Hard delete
+await api.deleteWorkflow(workflowId);  // Hard delete
 await api.garbageCollectWorkflows({ maxAgeMs: 7 * 24 * 60 * 60 * 1000 });  // 7 days
 ```
 

@@ -104,7 +104,7 @@ async function workflowCreateHandler(
     }
 
     // For now, create a workflow directly
-    // TODO: When playbook pouring is implemented, look up playbook and instantiate
+    // TODO: When playbook instantiation is implemented, look up playbook and create workflow
     const title = options.title || `Workflow from ${playbookNameOrId}`;
 
     const input: CreateWorkflowInput = {

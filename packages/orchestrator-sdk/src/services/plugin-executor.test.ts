@@ -218,7 +218,7 @@ describe('Built-in Plugins', () => {
     it('should define gc-ephemeral-tasks plugin', () => {
       expect(GcEphemeralTasksPlugin.type).toBe('command');
       expect(GcEphemeralTasksPlugin.name).toBe('gc-ephemeral-tasks');
-      expect(GcEphemeralTasksPlugin.command).toContain('el gc tasks');
+      expect(GcEphemeralTasksPlugin.command).toContain('el gc workflows');
     });
 
     it('should define cleanup-stale-worktrees plugin', () => {

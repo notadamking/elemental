@@ -205,7 +205,7 @@ el task complete <task-id>
 el task handoff <task-id> --message "..."
 
 # Create discovered work
-el task create --title "..." --blocks <other-task-id> --plan "Existing Plan Name"
+el task create --title "..." --plan "Existing Plan Name"
 
 # Communication
 el inbox <Worker ID>

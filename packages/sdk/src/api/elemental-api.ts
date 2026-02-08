@@ -3937,7 +3937,7 @@ export class ElementalAPIImpl implements ElementalAPI {
     // Delete tasks
     for (const taskId of taskIds) {
       try {
-        // Hard delete via SQL since we're burning
+        // Hard delete via SQL since this is a destructive delete
         this.backend.run('DELETE FROM elements WHERE id = ?', [taskId]);
         this.backend.run('DELETE FROM tags WHERE element_id = ?', [taskId]);
         this.backend.run('DELETE FROM events WHERE element_id = ?', [taskId]);

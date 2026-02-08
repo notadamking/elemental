@@ -43,7 +43,7 @@ Your **Steward ID** and **Director ID** are provided in the task assignment sect
 
 ```bash
 # Status checks
-el task list --status done --merge-status pending
+el task list --status review
 el agent list --role worker --status running
 
 # Communication (use Steward ID and Director ID from session context)

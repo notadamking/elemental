@@ -123,7 +123,7 @@ describe('Plugin API Integration Tests', () => {
       expect(data.plugin).toBeDefined();
       expect(data.plugin.name).toBe('gc-ephemeral-tasks');
       expect(data.plugin.type).toBe('command');
-      expect(data.plugin.command).toContain('el gc tasks');
+      expect(data.plugin.command).toContain('el gc workflows');
     });
 
     it('should return 404 for unknown plugin', async () => {
