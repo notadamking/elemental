@@ -110,9 +110,14 @@ export class SyncService {
     const elementsPath = join(options.outputDir, elementsFile);
     const dependenciesPath = join(options.outputDir, dependenciesFile);
 
-    // Serialize to JSONL
-    const elementsContent = sortedElements.map((e) => serializeElement(e)).join('\n');
+    // Serialize to JSONL (skip invalid elements with a warning)
+    const { content: elementsContent, skipped: skippedCount } =
+      this.serializeElementsSafe(sortedElements);
     const dependenciesContent = sortedDependencies.map((d) => serializeDependency(d)).join('\n');
+
+    if (skippedCount > 0) {
+      console.warn(`[sync] Skipped ${skippedCount} invalid element(s) during export`);
+    }
 
     // Write files
     await writeFile(elementsPath, elementsContent + (elementsContent ? '\n' : ''));
@@ -124,7 +129,7 @@ export class SyncService {
     }
 
     return {
-      elementsExported: sortedElements.length,
+      elementsExported: sortedElements.length - skippedCount,
       dependenciesExported: sortedDependencies.length,
       incremental: !options.full,
       elementsFile: elementsPath,
@@ -162,9 +167,14 @@ export class SyncService {
     const elementsPath = join(options.outputDir, elementsFile);
     const dependenciesPath = join(options.outputDir, dependenciesFile);
 
-    // Serialize to JSONL
-    const elementsContent = sortedElements.map((e) => serializeElement(e)).join('\n');
+    // Serialize to JSONL (skip invalid elements with a warning)
+    const { content: elementsContent, skipped: skippedCount } =
+      this.serializeElementsSafe(sortedElements);
     const dependenciesContent = sortedDependencies.map((d) => serializeDependency(d)).join('\n');
+
+    if (skippedCount > 0) {
+      console.warn(`[sync] Skipped ${skippedCount} invalid element(s) during export`);
+    }
 
     // Write files
     writeFileSync(elementsPath, elementsContent + (elementsContent ? '\n' : ''));
@@ -176,7 +186,7 @@ export class SyncService {
     }
 
     return {
-      elementsExported: sortedElements.length,
+      elementsExported: sortedElements.length - skippedCount,
       dependenciesExported: sortedDependencies.length,
       incremental: !options.full,
       elementsFile: elementsPath,
@@ -194,7 +204,7 @@ export class SyncService {
   } {
     const elements = this.getAllElements(options?.includeEphemeral ?? false);
     const sortedElements = sortElementsForExport(elements);
-    const elementsContent = sortedElements.map((e) => serializeElement(e)).join('\n');
+    const { content: elementsContent } = this.serializeElementsSafe(sortedElements);
 
     let dependenciesContent: string | undefined;
     if (options?.includeDependencies !== false) {
@@ -529,6 +539,23 @@ export class SyncService {
       metadata: data.metadata ?? {},
       ...data,
     } as Element;
+  }
+
+  /**
+   * Serialize elements to JSONL, skipping any that fail validation.
+   */
+  private serializeElementsSafe(elements: Element[]): { content: string; skipped: number } {
+    const lines: string[] = [];
+    let skipped = 0;
+    for (const el of elements) {
+      try {
+        lines.push(serializeElement(el));
+      } catch {
+        console.warn(`[sync] Skipping invalid element ${el.id} (type=${el.type})`);
+        skipped++;
+      }
+    }
+    return { content: lines.join('\n'), skipped };
   }
 
   /**
