@@ -1717,6 +1717,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
   /**
    * Spawns a merge steward session for a task in REVIEW status.
+   * Creates a fresh detached worktree for the steward instead of reusing the worker's worktree.
    * Syncs the branch with master before spawning to ensure clean diffs.
    */
   private async spawnMergeStewardForTask(steward: AgentEntity, task: Task): Promise<void> {
@@ -1724,53 +1725,86 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     const meta = getAgentMetadata(steward) as StewardMetadata | undefined;
     const stewardFocus = meta?.stewardFocus ?? 'merge';
 
-    // Get task metadata for worktree path
+    // Get task metadata for the branch name
     const taskMeta = task.metadata as Record<string, unknown> | undefined;
     const orchestratorMeta = taskMeta?.orchestrator as Record<string, unknown> | undefined;
-    let worktreePath = orchestratorMeta?.worktree as string | undefined;
+    const taskBranch = orchestratorMeta?.branch as string | undefined;
 
-    // Verify the worktree still exists; fall back to project root if cleaned up
-    if (worktreePath) {
-      const exists = await this.worktreeManager.worktreeExists(worktreePath);
-      if (!exists) {
-        console.warn(`[dispatch-daemon] Worktree ${worktreePath} no longer exists for task ${task.id}, using project root`);
-        worktreePath = undefined;
+    // Sync branch with master before spawning steward if the worker's worktree still exists.
+    // The sync runs in the worker's worktree (if available) before we create the steward's worktree.
+    const workerWorktreePath = orchestratorMeta?.worktree as string | undefined;
+    let syncResult: SyncResult | undefined;
+    if (workerWorktreePath) {
+      const workerWorktreeExists = await this.worktreeManager.worktreeExists(workerWorktreePath);
+      if (workerWorktreeExists) {
+        console.log(`[dispatch-daemon] Syncing task ${task.id} branch before steward spawn...`);
+        syncResult = await this.syncTaskBranch(task);
+
+        // Store sync result in task metadata for audit trail
+        await this.api.update<Task>(task.id, {
+          metadata: updateOrchestratorTaskMeta(
+            task.metadata as Record<string, unknown> | undefined,
+            {
+              lastSyncResult: {
+                success: syncResult.success,
+                conflicts: syncResult.conflicts,
+                error: syncResult.error,
+                message: syncResult.message,
+                syncedAt: new Date().toISOString(),
+              },
+            }
+          ),
+        });
       }
     }
 
-    // Phase 1: Sync branch with master before spawning steward
-    // This ensures `git diff origin/master..HEAD` shows only the task's changes
-    let syncResult: SyncResult | undefined;
-    if (worktreePath) {
-      console.log(`[dispatch-daemon] Syncing task ${task.id} branch before steward spawn...`);
-      syncResult = await this.syncTaskBranch(task);
-
-      // Store sync result in task metadata for audit trail
-      await this.api.update<Task>(task.id, {
-        metadata: updateOrchestratorTaskMeta(
-          task.metadata as Record<string, unknown> | undefined,
-          {
-            lastSyncResult: {
-              success: syncResult.success,
-              conflicts: syncResult.conflicts,
-              error: syncResult.error,
-              message: syncResult.message,
-              syncedAt: new Date().toISOString(),
-            },
+    // Create a fresh detached worktree for the merge steward
+    // This prevents the steward from corrupting the worker's worktree state
+    let mergeWorktreePath: string | undefined;
+    if (taskBranch) {
+      try {
+        const worktreeResult = await this.worktreeManager.createMergeWorktree({
+          stewardName: steward.name,
+          taskId: task.id,
+          taskBranch,
+        });
+        mergeWorktreePath = worktreeResult.path;
+        console.log(`[dispatch-daemon] Created merge worktree at ${mergeWorktreePath} for task ${task.id}`);
+      } catch (error: unknown) {
+        const errorCode = (error as { code?: string })?.code;
+        if (errorCode === 'WORKTREE_EXISTS') {
+          // Remove stale worktree from a previous crash and retry
+          const sanitizedTaskId = task.id.replace(/[^a-zA-Z0-9-]/g, '-');
+          const staleWorktreePath = `.elemental/.worktrees/${steward.name}-merge-${sanitizedTaskId}`;
+          try {
+            await this.worktreeManager.removeWorktree(staleWorktreePath, { force: true });
+          } catch {
+            // Ignore removal errors
           }
-        ),
-      });
+          const worktreeResult = await this.worktreeManager.createMergeWorktree({
+            stewardName: steward.name,
+            taskId: task.id,
+            taskBranch,
+          });
+          mergeWorktreePath = worktreeResult.path;
+          console.log(`[dispatch-daemon] Created merge worktree (after cleanup) at ${mergeWorktreePath} for task ${task.id}`);
+        } else {
+          // Log the error but continue without a dedicated worktree
+          console.warn(`[dispatch-daemon] Failed to create merge worktree for task ${task.id}:`, error);
+        }
+      }
     }
 
     // Build the steward prompt with full context including sync result
     const initialPrompt = await this.buildStewardPrompt(task, stewardId, stewardFocus as 'merge' | 'health', syncResult);
 
-    const workingDirectory = worktreePath ?? this.config.projectRoot;
+    // Use the merge worktree if available, otherwise fall back to project root
+    const workingDirectory = mergeWorktreePath ?? this.config.projectRoot;
 
     // Start the steward session
     const { session, events } = await this.sessionManager.startSession(stewardId, {
       workingDirectory,
-      worktree: worktreePath,
+      worktree: mergeWorktreePath,
       initialPrompt,
       interactive: false, // Stewards use headless mode
     });
@@ -1778,6 +1812,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     // Record steward assignment on the task to prevent double-dispatch and enable recovery.
     // Setting task.assignee makes the steward visible in the UI and enables
     // getAgentTasks() lookups for orphan recovery.
+    // Also store the merge worktree path for cleanup tracking.
     await this.api.update<Task>(task.id, {
       assignee: stewardId,
       metadata: updateOrchestratorTaskMeta(
@@ -1786,6 +1821,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
           assignedAgent: stewardId,
           mergeStatus: 'testing' as const,
           sessionId: session.claudeSessionId ?? session.id,
+          mergeWorktree: mergeWorktreePath,
         }
       ),
     });
@@ -1795,7 +1831,19 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       this.config.onSessionStarted(session, events, stewardId, initialPrompt);
     }
 
-    this.emitter.emit('agent:spawned', stewardId, worktreePath);
+    // On session exit: clean up the merge worktree
+    if (mergeWorktreePath && events) {
+      events.on('exit', async () => {
+        try {
+          await this.worktreeManager.removeWorktree(mergeWorktreePath, { force: true });
+          console.log(`[dispatch-daemon] Cleaned up merge worktree at ${mergeWorktreePath}`);
+        } catch {
+          // Ignore cleanup errors — worktree may already be removed
+        }
+      });
+    }
+
+    this.emitter.emit('agent:spawned', stewardId, mergeWorktreePath);
     console.log(`[dispatch-daemon] Spawned merge steward ${steward.name} for task ${task.id}`);
   }
 

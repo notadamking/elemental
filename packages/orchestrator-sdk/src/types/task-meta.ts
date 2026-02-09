@@ -122,6 +122,9 @@ export interface OrchestratorTaskMeta {
 
   /** Result of the most recent branch sync with master */
   readonly lastSyncResult?: SyncResultMeta;
+
+  /** Path to the merge steward's worktree (separate from worker worktree) */
+  readonly mergeWorktree?: string;
 }
 
 /**

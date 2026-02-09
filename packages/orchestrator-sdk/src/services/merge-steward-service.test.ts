@@ -183,6 +183,7 @@ function createMockWorktreeManager(): WorktreeManager {
     isInitialized: vi.fn().mockReturnValue(true),
     getWorkspaceRoot: vi.fn().mockReturnValue('/project'),
     createWorktree: vi.fn(),
+    createMergeWorktree: vi.fn(),
     removeWorktree: vi.fn(),
     suspendWorktree: vi.fn(),
     resumeWorktree: vi.fn(),

@@ -247,6 +247,20 @@ export interface WorktreeManager {
   }): Promise<CreateWorktreeResult>;
 
   /**
+   * Creates a detached worktree for merge steward sessions.
+   * The worktree is created at `origin/{targetBranch}` (typically main/master)
+   * with the task's branch checked out for review.
+   *
+   * @param options - Steward name, task ID, and task branch for worktree creation
+   * @returns The created worktree result
+   */
+  createMergeWorktree(options: {
+    stewardName: string;
+    taskId: string;
+    taskBranch: string;
+  }): Promise<CreateWorktreeResult>;
+
+  /**
    * Removes a worktree.
    *
    * @param worktreePath - Path to the worktree (relative or absolute)
@@ -545,6 +559,77 @@ export class WorktreeManagerImpl implements WorktreeManager {
       return {
         worktree: enrichedWorktree,
         branch: `(detached-${options.purpose})`,
+        path: fullPath,
+        branchCreated: false,
+      };
+    } catch (error) {
+      this.worktreeStates.delete(relativePath);
+      if (fs.existsSync(fullPath)) {
+        try {
+          await this.execGit(['worktree', 'remove', '--force', fullPath]);
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Creates a detached worktree for merge steward sessions.
+   * The worktree starts at the default branch with the task branch checked out.
+   */
+  async createMergeWorktree(options: {
+    stewardName: string;
+    taskId: string;
+    taskBranch: string;
+  }): Promise<CreateWorktreeResult> {
+    this.ensureInitialized();
+
+    // Generate a unique worktree path for the merge steward
+    // Format: .elemental/.worktrees/{stewardName}-merge-{sanitized-taskId}
+    const sanitizedTaskId = options.taskId.replace(/[^a-zA-Z0-9-]/g, '-');
+    const relativePath = `.elemental/.worktrees/${options.stewardName}-merge-${sanitizedTaskId}`;
+    const fullPath = path.join(this.config.workspaceRoot, relativePath);
+
+    if (fs.existsSync(fullPath)) {
+      throw new WorktreeError(
+        `Worktree already exists at ${relativePath}`,
+        'WORKTREE_EXISTS'
+      );
+    }
+
+    this.worktreeStates.set(relativePath, 'creating');
+
+    try {
+      // Prune stale worktree entries before adding
+      await this.execGit(['worktree', 'prune']);
+
+      // Create a detached worktree at the task branch for review
+      // Using --detach so we don't create a new branch or affect the existing one
+      await this.execGit(['worktree', 'add', '--detach', fullPath, options.taskBranch]);
+
+      this.worktreeStates.set(relativePath, 'active');
+
+      const worktree = await this.getWorktree(relativePath);
+      if (!worktree) {
+        throw new WorktreeError(
+          'Failed to get worktree info after creation',
+          'WORKTREE_INFO_FAILED'
+        );
+      }
+
+      const enrichedWorktree: WorktreeInfo = {
+        ...worktree,
+        agentName: options.stewardName,
+        taskId: options.taskId,
+        createdAt: createTimestamp(),
+        state: 'active',
+      };
+
+      return {
+        worktree: enrichedWorktree,
+        branch: options.taskBranch,
         path: fullPath,
         branchCreated: false,
       };

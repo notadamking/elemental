@@ -201,6 +201,7 @@ function createMockWorktreeManager(): WorktreeManager {
   return {
     initWorkspace: vi.fn(),
     createWorktree: vi.fn(),
+    createMergeWorktree: vi.fn(),
     removeWorktree: vi.fn(),
     suspendWorktree: vi.fn(),
     resumeWorktree: vi.fn(),
