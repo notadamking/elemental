@@ -44,7 +44,6 @@ export interface BaseAgentMetadata {
   worktree?: string;
   sessionStatus?: SessionStatus;
   lastActivityAt?: Timestamp;
-  maxConcurrentTasks?: number;
   roleDefinitionRef?: ElementId;
   provider?: string;
 }
@@ -184,7 +183,6 @@ export interface CreateAgentInput {
   name: string;
   role: AgentRole;
   tags?: string[];
-  maxConcurrentTasks?: number;
   // Worker-specific
   workerMode?: WorkerMode;
   // Steward-specific
