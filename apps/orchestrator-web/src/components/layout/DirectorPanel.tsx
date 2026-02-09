@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import { XTerminal, type TerminalStatus, type XTerminalHandle } from '../terminal';
-import { useDirector, useStartAgentSession, useStopAgentSession } from '../../api/hooks/useAgents';
+import { useDirector, useStartAgentSession, useStopAgentSession, useResumeAgentSession } from '../../api/hooks/useAgents';
 import { useAgentInboxCount } from '../../api/hooks/useAgentInbox';
 import { PendingMessagesQueue } from './PendingMessagesQueue';
 
@@ -40,9 +40,11 @@ interface DirectorPanelProps {
 export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProps) {
   const [terminalStatus, setTerminalStatus] = useState<TerminalStatus>('disconnected');
   const [showMessagesQueue, setShowMessagesQueue] = useState(false);
-  const { director, hasActiveSession, isLoading, error } = useDirector();
+  const { director, hasActiveSession, hasResumableSession, lastResumableSession, isLoading, error } = useDirector();
   const startSession = useStartAgentSession();
   const stopSession = useStopAgentSession();
+  const resumeSession = useResumeAgentSession();
+  const [resumeError, setResumeError] = useState<string | null>(null);
   const terminalRef = useRef<XTerminalHandle>(null);
 
   // Get unread message count for the director
@@ -137,12 +139,27 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
 
   const handleStartSession = useCallback(async () => {
     if (!director?.id) return;
+    setResumeError(null);
     try {
       await startSession.mutateAsync({ agentId: director.id });
     } catch (err) {
       console.error('Failed to start director session:', err);
     }
   }, [director?.id, startSession]);
+
+  const handleResumeSession = useCallback(async () => {
+    if (!director?.id || !lastResumableSession?.claudeSessionId) return;
+    setResumeError(null);
+    try {
+      await resumeSession.mutateAsync({
+        agentId: director.id,
+        claudeSessionId: lastResumableSession.claudeSessionId,
+      });
+    } catch (err) {
+      console.error('Failed to resume director session:', err);
+      setResumeError(err instanceof Error ? err.message : 'Resume failed');
+    }
+  }, [director?.id, lastResumableSession?.claudeSessionId, resumeSession]);
 
   const handleStopSession = useCallback(async () => {
     if (!director?.id) return;
@@ -486,40 +503,119 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
                             Director Idle
                           </h3>
                           <p className="text-xs text-[var(--color-text-muted)] max-w-xs px-4">
-                            Start a session to interact with the Director agent.
+                            {hasResumableSession
+                              ? 'Resume your previous session or start fresh.'
+                              : 'Start a session to interact with the Director agent.'}
                           </p>
                         </div>
 
-                        {/* Start button */}
-                        <button
-                          onClick={handleStartSession}
-                          disabled={startSession.isPending}
-                          className="
-                            inline-flex items-center gap-2
-                            px-5 py-2 rounded-lg
-                            bg-gradient-to-r from-green-600 to-green-500
-                            hover:from-green-500 hover:to-green-400
-                            text-white font-medium text-sm
-                            shadow-lg shadow-green-500/25
-                            transition-all duration-200
-                            hover:scale-105 hover:shadow-green-500/40
-                            disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed
-                            focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:ring-offset-2 focus:ring-offset-[#1a1a1a]
-                          "
-                          data-testid="director-overlay-start-btn"
-                        >
-                          {startSession.isPending ? (
-                            <>
-                              <RefreshCw className="w-4 h-4 animate-spin" />
-                              Starting...
-                            </>
-                          ) : (
-                            <>
-                              <Play className="w-4 h-4" />
-                              Start Session
-                            </>
-                          )}
-                        </button>
+                        {/* Resume error message */}
+                        {resumeError && (
+                          <div className="mb-3 px-3 py-2 rounded-md bg-red-500/10 border border-red-500/20 text-xs text-red-400 max-w-xs text-center">
+                            {resumeError}
+                          </div>
+                        )}
+
+                        {hasResumableSession ? (
+                          // Two-button layout when resumable session exists
+                          <div className="flex flex-col items-center gap-3">
+                            {/* Resume button - primary action */}
+                            <button
+                              onClick={handleResumeSession}
+                              disabled={resumeSession.isPending || startSession.isPending}
+                              className="
+                                inline-flex items-center gap-2
+                                px-5 py-2 rounded-lg
+                                bg-gradient-to-r from-green-600 to-green-500
+                                hover:from-green-500 hover:to-green-400
+                                text-white font-medium text-sm
+                                shadow-lg shadow-green-500/25
+                                transition-all duration-200
+                                hover:scale-105 hover:shadow-green-500/40
+                                disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed
+                                focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:ring-offset-2 focus:ring-offset-[#1a1a1a]
+                              "
+                              data-testid="director-overlay-resume-btn"
+                            >
+                              {resumeSession.isPending ? (
+                                <>
+                                  <RefreshCw className="w-4 h-4 animate-spin" />
+                                  Resuming...
+                                </>
+                              ) : (
+                                <>
+                                  <RotateCcw className="w-4 h-4" />
+                                  Resume Session
+                                </>
+                              )}
+                            </button>
+
+                            {/* New Session button - secondary action */}
+                            <button
+                              onClick={handleStartSession}
+                              disabled={startSession.isPending || resumeSession.isPending}
+                              className="
+                                inline-flex items-center gap-2
+                                px-4 py-1.5 rounded-md
+                                border border-[#444] hover:border-[#555]
+                                text-[var(--color-text-secondary)] text-xs
+                                hover:text-[var(--color-text)]
+                                transition-all duration-200
+                                disabled:opacity-50 disabled:cursor-not-allowed
+                                focus:outline-none focus:ring-2 focus:ring-[#444]/50 focus:ring-offset-2 focus:ring-offset-[#1a1a1a]
+                              "
+                              data-testid="director-overlay-new-session-btn"
+                            >
+                              {startSession.isPending ? (
+                                <>
+                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                  Starting...
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="w-3 h-3" />
+                                  New Session
+                                </>
+                              )}
+                            </button>
+
+                            {/* Caption */}
+                            <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">
+                              Resume picks up where your last session left off
+                            </p>
+                          </div>
+                        ) : (
+                          // Single button when no resumable session
+                          <button
+                            onClick={handleStartSession}
+                            disabled={startSession.isPending}
+                            className="
+                              inline-flex items-center gap-2
+                              px-5 py-2 rounded-lg
+                              bg-gradient-to-r from-green-600 to-green-500
+                              hover:from-green-500 hover:to-green-400
+                              text-white font-medium text-sm
+                              shadow-lg shadow-green-500/25
+                              transition-all duration-200
+                              hover:scale-105 hover:shadow-green-500/40
+                              disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed
+                              focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:ring-offset-2 focus:ring-offset-[#1a1a1a]
+                            "
+                            data-testid="director-overlay-start-btn"
+                          >
+                            {startSession.isPending ? (
+                              <>
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                Starting...
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-4 h-4" />
+                                Start Session
+                              </>
+                            )}
+                          </button>
+                        )}
                       </>
                     )}
                   </div>

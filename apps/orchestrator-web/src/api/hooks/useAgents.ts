@@ -161,11 +161,21 @@ export function useDirector() {
     error: statusError
   } = useAgentStatus(director?.id);
 
+  // Find the most recent session with a claudeSessionId (resumable)
+  const lastResumableSession = useMemo(() => {
+    const history = statusData?.recentHistory ?? [];
+    return history.find((h) => !!h.claudeSessionId) ?? null;
+  }, [statusData?.recentHistory]);
+
+  const hasResumableSession = lastResumableSession !== null;
+
   return {
     director,
     hasActiveSession: statusData?.hasActiveSession ?? false,
     activeSession: statusData?.activeSession ?? null,
     recentHistory: statusData?.recentHistory ?? [],
+    lastResumableSession,
+    hasResumableSession,
     isLoading: agentsLoading || statusLoading,
     error: agentsError || statusError,
     refetch: refetchAgents,
