@@ -153,21 +153,24 @@ export class OpenCodeHeadlessProvider implements HeadlessProvider {
     try {
       // 2. Create or resume session
       if (options.resumeSessionId) {
-        // Verify session exists
+        // Verify session exists (throws on 404)
         await client.session.get({ path: { id: options.resumeSessionId } });
         sessionId = options.resumeSessionId;
       } else {
-        const session = await client.session.create({
+        const result = await client.session.create({
           body: { title: options.initialPrompt?.slice(0, 100) || 'Elemental Agent' },
         });
-        sessionId = session.id;
+        if (!result.data?.id) {
+          throw new Error('OpenCode session creation failed: no session ID returned');
+        }
+        sessionId = result.data.id;
       }
 
-      // 3. Subscribe to SSE events
-      const events = await client.event.subscribe();
+      // 3. Subscribe to SSE events (SDK returns { stream: AsyncGenerator })
+      const { stream } = await client.event.subscribe();
 
       // 4. Create session object
-      const headlessSession = new OpenCodeHeadlessSession(client, sessionId, events);
+      const headlessSession = new OpenCodeHeadlessSession(client, sessionId, stream);
 
       // 5. Synthesize system init message
       headlessSession.injectInitMessage();

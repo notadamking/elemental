@@ -12,16 +12,34 @@
 // Internal Types (our interface into the SDK)
 // ============================================================================
 
-/** Minimal OpenCode client shape we program against */
+/** Session object from the SDK */
+export interface OpencodeSession {
+  id: string;
+  projectID?: string;
+  directory?: string;
+}
+
+/** SDK response wrapper — all SDK methods return { data, error, request, response } */
+export interface SdkResponse<T> {
+  data: T | undefined;
+  error?: unknown;
+}
+
+/** SSE subscribe result — returns { stream: AsyncGenerator<Event> } */
+export interface SseSubscribeResult {
+  stream: AsyncIterable<unknown>;
+}
+
+/** Minimal OpenCode client shape matching the real SDK response wrappers */
 export interface OpencodeClient {
   session: {
-    create(opts: { body: { title?: string } }): Promise<{ id: string }>;
-    get(opts: { path: { id: string } }): Promise<{ id: string }>;
-    abort(opts: { path: { id: string } }): Promise<void>;
-    prompt(opts: { path: { id: string }; body: { content: string } }): Promise<void>;
+    create(opts: { body: { title?: string } }): Promise<SdkResponse<OpencodeSession>>;
+    get(opts: { path: { id: string } }): Promise<SdkResponse<OpencodeSession>>;
+    abort(opts: { path: { id: string } }): Promise<SdkResponse<unknown>>;
+    prompt(opts: { path: { id: string }; body: { content: string } }): Promise<SdkResponse<unknown>>;
   };
   event: {
-    subscribe(): Promise<AsyncIterable<unknown>>;
+    subscribe(): Promise<SseSubscribeResult>;
   };
 }
 
