@@ -15,7 +15,7 @@ import {
   RotateCcw,
   AlertCircle,
   CirclePause,
-  ListFilter,
+  Pickaxe,
   Mail,
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
@@ -260,7 +260,7 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
                 aria-label="Sift Backlog"
                 data-testid="director-sift-backlog"
               >
-                <ListFilter className="w-4 h-4" />
+                <Pickaxe className="w-4 h-4" />
               </button>
             </Tooltip>
           )}
