@@ -10,6 +10,7 @@
 import type { AgentProvider } from './types.js';
 import { ClaudeAgentProvider } from './claude/index.js';
 import { OpenCodeAgentProvider } from './opencode/index.js';
+import { CodexAgentProvider } from './codex/index.js';
 
 /**
  * Registry for agent providers.
@@ -24,6 +25,8 @@ export class AgentProviderRegistry {
     this.register(new ClaudeAgentProvider());
     // Register OpenCode as an alternative provider
     this.register(new OpenCodeAgentProvider());
+    // Register Codex as an alternative provider
+    this.register(new CodexAgentProvider());
   }
 
   /** Register a provider. Overwrites if name already exists. */

@@ -42,3 +42,11 @@ export {
   OpenCodeEventMapper,
   AsyncQueue,
 } from './opencode/index.js';
+
+// Codex provider
+export {
+  CodexAgentProvider,
+  CodexHeadlessProvider,
+  CodexInteractiveProvider,
+  CodexEventMapper,
+} from './codex/index.js';

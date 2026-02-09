@@ -530,14 +530,16 @@ export class SessionManagerImpl implements SessionManager {
     this.sessions.set(sessionState.id, sessionState);
     this.agentSessions.set(agentId, sessionState.id);
 
+    // Forward events from spawner BEFORE any awaits to avoid missing
+    // early exit events (e.g. when provider uses `exec` and the process
+    // terminates before the awaits below complete).
+    this.setupSessionEventForwarding(sessionState, result.events);
+
     // Update agent's session status in database
     await this.registry.updateAgentSession(agentId, result.session.providerSessionId, 'running');
 
     // Persist session state
     await this.persistSession(sessionState.id);
-
-    // Forward events from spawner
-    this.setupSessionEventForwarding(sessionState, result.events);
 
     return {
       session: this.toPublicSession(sessionState),
@@ -642,14 +644,16 @@ export class SessionManagerImpl implements SessionManager {
     this.sessions.set(sessionState.id, sessionState);
     this.agentSessions.set(agentId, sessionState.id);
 
+    // Forward events from spawner BEFORE any awaits to avoid missing
+    // early exit events (e.g. when provider uses `exec` and the process
+    // terminates before the awaits below complete).
+    this.setupSessionEventForwarding(sessionState, result.events);
+
     // Update agent's session status in database
     await this.registry.updateAgentSession(agentId, options.providerSessionId, 'running');
 
     // Persist session state
     await this.persistSession(sessionState.id);
-
-    // Forward events from spawner
-    this.setupSessionEventForwarding(sessionState, result.events);
 
     return {
       session: this.toPublicSession(sessionState),
@@ -1193,6 +1197,12 @@ export class SessionManagerImpl implements SessionManager {
         lastActivityAt: createTimestamp(),
         persisted: false,
       });
+    });
+
+    spawnerEvents.on('pty-data', (data) => {
+      const current = this.sessions.get(session.id);
+      if (!current) return;
+      current.events.emit('pty-data', data);
     });
 
     spawnerEvents.on('error', (error) => {
