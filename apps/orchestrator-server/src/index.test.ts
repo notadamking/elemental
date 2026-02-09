@@ -93,7 +93,6 @@ describe('AgentRegistry Integration', () => {
       role: 'worker',
       workerMode: 'ephemeral',
       createdBy: systemEntity,
-      maxConcurrentTasks: 2,
     });
 
     expect(agent).toBeDefined();
@@ -215,7 +214,6 @@ describe('Task Assignment Service Integration', () => {
       role: 'worker',
       workerMode: 'ephemeral',
       createdBy: systemEntity,
-      maxConcurrentTasks: 3,
     });
 
     // Create a task
@@ -266,7 +264,6 @@ describe('Task Assignment Service Integration', () => {
       role: 'worker',
       workerMode: 'ephemeral',
       createdBy: systemEntity,
-      maxConcurrentTasks: 2,
     });
 
     const workerId = worker.id as unknown as EntityId;
@@ -349,7 +346,6 @@ describe('Dispatch Service Integration', () => {
       role: 'worker',
       workerMode: 'ephemeral',
       createdBy: systemEntity,
-      maxConcurrentTasks: 3,
     });
 
     // Create a task
