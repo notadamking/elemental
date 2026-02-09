@@ -1224,13 +1224,17 @@ function EditableDescription({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value ?? '');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Capture the initial length when entering edit mode to position cursor at end
+  const initialLengthRef = useRef<number>(0);
 
   useEffect(() => {
     if (isEditing && textareaRef.current) {
+      // Capture the current length when first entering edit mode
+      initialLengthRef.current = editValue.length;
       textareaRef.current.focus();
-      textareaRef.current.setSelectionRange(editValue.length, editValue.length);
+      textareaRef.current.setSelectionRange(initialLengthRef.current, initialLengthRef.current);
     }
-  }, [isEditing, editValue.length]);
+  }, [isEditing]); // Only run when isEditing changes, not on every keystroke
 
   useEffect(() => {
     setEditValue(value ?? '');
