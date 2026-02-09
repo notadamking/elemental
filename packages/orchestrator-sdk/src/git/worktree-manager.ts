@@ -31,6 +31,111 @@ const execFileAsync = promisify(execFile);
 /** Default timeout for git operations (30 seconds) */
 const GIT_OPERATION_TIMEOUT_MS = 30_000;
 
+/**
+ * Git reference-transaction hook script.
+ *
+ * This hook prevents checking out master/main branches in worktrees.
+ * The main repository is allowed to checkout any branch, but worktrees
+ * (used by LLM agents) should never checkout master/main as this would
+ * steal the branch from the main repo.
+ */
+const REFERENCE_TRANSACTION_HOOK = `#!/usr/bin/env bash
+#
+# Git reference-transaction hook
+#
+# This hook prevents checking out master/main branches in worktrees.
+# The main repository is allowed to checkout any branch, but worktrees
+# (used by LLM agents) should never checkout master/main as this would
+# steal the branch from the main repo.
+#
+# Installed by: WorktreeManager.initWorkspace()
+#
+
+set -euo pipefail
+
+# Only act during the "prepared" state (before commit)
+# After committed/aborted, we can't do anything
+if [[ "\${1:-}" != "prepared" ]]; then
+  exit 0
+fi
+
+# Get the git directory for this operation
+GIT_DIR_VALUE=$(git rev-parse --git-dir 2>/dev/null)
+
+# Check if we're in a worktree
+# In the main repo, --git-dir returns ".git" (relative) or an absolute path ending in "/.git"
+# In a worktree, --git-dir returns an absolute path like "/path/.git/worktrees/worktree-name"
+is_worktree() {
+  case "$GIT_DIR_VALUE" in
+    # Main repo: .git or ends with /.git
+    .git|*/.git)
+      return 1  # Not a worktree (is main repo)
+      ;;
+    # Worktree: contains /worktrees/ in the path
+    */.git/worktrees/*)
+      return 0  # Is a worktree
+      ;;
+    *)
+      # For other cases, check if the directory contains a commondir file
+      # which indicates it's a worktree linking to the main repo
+      if [[ -f "$GIT_DIR_VALUE/commondir" ]]; then
+        return 0  # Is a worktree
+      fi
+      return 1  # Assume main repo
+      ;;
+  esac
+}
+
+# If we're in the main repo, allow everything
+if ! is_worktree; then
+  exit 0
+fi
+
+# Read reference updates from stdin
+# Format: <old-value> SP <new-value> SP <ref-name> LF
+# For symbolic refs: ref:<old-target> SP ref:<new-target> SP <ref-name> LF
+while IFS=' ' read -r old_value new_value ref_name; do
+  # Skip empty lines
+  [[ -z "$ref_name" ]] && continue
+
+  # Check for symbolic ref updates (e.g., HEAD update)
+  # When checking out a branch, HEAD becomes a symbolic ref to that branch
+  # Format for symbolic: ref:refs/heads/branch-name
+  if [[ "$new_value" =~ ^ref:refs/heads/(master|main)$ ]]; then
+    echo "" >&2
+    echo "=======================================================" >&2
+    echo "ERROR: Cannot checkout master/main in a worktree!" >&2
+    echo "=======================================================" >&2
+    echo "" >&2
+    echo "The main repo should always stay on master/main." >&2
+    echo "Worktrees must use feature branches." >&2
+    echo "" >&2
+    echo "Current worktree git dir: $GIT_DIR_VALUE" >&2
+    echo "Attempted checkout: \${new_value#ref:refs/heads/}" >&2
+    echo "" >&2
+    exit 1
+  fi
+
+  # Also check for direct HEAD updates to refs/heads/master or refs/heads/main
+  # This catches cases where HEAD is updated directly (not as a symbolic ref)
+  if [[ "$ref_name" == "HEAD" && ("$new_value" =~ ^refs/heads/(master|main)$ || "$new_value" == "refs/heads/master" || "$new_value" == "refs/heads/main") ]]; then
+    echo "" >&2
+    echo "=======================================================" >&2
+    echo "ERROR: Cannot checkout master/main in a worktree!" >&2
+    echo "=======================================================" >&2
+    echo "" >&2
+    echo "The main repo should always stay on master/main." >&2
+    echo "Worktrees must use feature branches." >&2
+    echo "" >&2
+    echo "Current worktree git dir: $GIT_DIR_VALUE" >&2
+    echo "" >&2
+    exit 1
+  fi
+done
+
+exit 0
+`;
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -379,6 +484,9 @@ export class WorktreeManagerImpl implements WorktreeManager {
 
     // Add worktree directory to .gitignore if not already there
     await this.ensureGitignore();
+
+    // Install git hook to prevent checking out master/main in worktrees
+    this.installWorktreeCheckoutGuard();
 
     // Cache the default branch
     this.defaultBranch = await this.detectDefaultBranch();
@@ -978,6 +1086,48 @@ export class WorktreeManagerImpl implements WorktreeManager {
         : content + '\n' + worktreeDirPattern + '\n';
       fs.writeFileSync(gitignorePath, newContent, 'utf8');
     }
+  }
+
+  /**
+   * Installs the reference-transaction hook that prevents checking out
+   * master/main branches in worktrees.
+   *
+   * This hook is installed in the main .git/hooks directory and is
+   * shared across all worktrees.
+   */
+  private installWorktreeCheckoutGuard(): void {
+    const hooksDir = path.join(this.config.workspaceRoot, '.git', 'hooks');
+    const hookPath = path.join(hooksDir, 'reference-transaction');
+
+    // Ensure hooks directory exists
+    if (!fs.existsSync(hooksDir)) {
+      fs.mkdirSync(hooksDir, { recursive: true });
+    }
+
+    // Check if hook already exists and matches our content
+    if (fs.existsSync(hookPath)) {
+      const existingContent = fs.readFileSync(hookPath, 'utf8');
+      // Check if our hook is already installed (by checking for our signature comment)
+      if (existingContent.includes('Installed by: WorktreeManager.initWorkspace()')) {
+        // Hook is already installed, check if content matches
+        if (existingContent === REFERENCE_TRANSACTION_HOOK) {
+          return; // Already up to date
+        }
+        // Content differs, update it
+      } else {
+        // There's a custom hook installed, don't overwrite it
+        // Instead, warn about the situation
+        console.warn(
+          '[worktree-manager] Custom reference-transaction hook detected. ' +
+          'Worktree checkout protection not installed. ' +
+          'Consider manually adding worktree protection to your hook.'
+        );
+        return;
+      }
+    }
+
+    // Write the hook
+    fs.writeFileSync(hookPath, REFERENCE_TRANSACTION_HOOK, { mode: 0o755 });
   }
 }
 

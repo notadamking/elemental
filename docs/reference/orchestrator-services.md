@@ -591,6 +591,17 @@ const worktreeResult = await worktreeManager.createReadOnlyWorktree({
 - Suitable for triage sessions that only need to read the codebase
 - The worktree should be cleaned up when the session exits
 
+### Worktree Checkout Guard
+
+During `initWorkspace()`, the manager installs a `reference-transaction` hook that prevents checking out `master` or `main` branches in worktrees. This protects the main repository from having its branch "stolen" by an LLM agent running `git checkout master` in a worktree.
+
+**Hook location:** `.git/hooks/reference-transaction`
+
+**Behavior:**
+- Main repository: All checkouts allowed
+- Worktrees: Checkout to `master` or `main` blocked with clear error message
+- Custom hooks: If a `reference-transaction` hook already exists without our signature comment, it is preserved (warning logged)
+
 ---
 
 ## MergeStewardService

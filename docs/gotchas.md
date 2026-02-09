@@ -52,6 +52,8 @@ Common pitfalls and their solutions, organized by severity and category.
 - **Package exports include `bun` condition** - Workspace packages (`@elemental/core`, `@elemental/storage`, etc.) export source files under the `bun` condition. Bun runtime and tsx with `--conditions=bun` can import directly from TypeScript without building.
 - **tsx works without dist in some cases** - tsx 4.x recognizes the `bun` condition, allowing imports from source files. However, running plain `node` requires built `dist` folders.
 - **`ERR_MODULE_NOT_FOUND` in worktrees** - If you see module not found errors for `@elemental/*` packages, run `turbo run build --force` to rebuild in the current worktree.
+- **Worktrees cannot checkout master/main** - A git `reference-transaction` hook prevents LLM agents from checking out `master` or `main` branches in worktrees. This protects the main repo's branch ownership. The hook is automatically installed by `WorktreeManager.initWorkspace()`. If you have a custom `reference-transaction` hook, add the worktree checkout protection manually.
+- **Custom git hooks are not overwritten** - If `.git/hooks/reference-transaction` exists without our signature comment, the workspace initialization preserves it and logs a warning. Check the hook manually if worktree protection is needed.
 
 ## Documents
 

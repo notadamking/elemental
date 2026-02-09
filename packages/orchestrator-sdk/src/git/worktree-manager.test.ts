@@ -634,3 +634,159 @@ describe('Error Messages', () => {
     expect(error.name).toBe('WorktreeError');
   });
 });
+
+// ============================================================================
+// Unit Tests - Worktree Checkout Guard
+// ============================================================================
+
+describe('Worktree Checkout Guard', () => {
+  let tempDir: string;
+  let manager: WorktreeManager;
+
+  beforeEach(async () => {
+    tempDir = createTempGitRepo();
+    manager = createWorktreeManager({ workspaceRoot: tempDir });
+    await manager.initWorkspace();
+  });
+
+  afterEach(() => {
+    cleanupTempDir(tempDir);
+  });
+
+  test('installs reference-transaction hook during workspace initialization', () => {
+    const hookPath = path.join(tempDir, '.git', 'hooks', 'reference-transaction');
+    expect(fs.existsSync(hookPath)).toBe(true);
+
+    // Check hook is executable
+    const stats = fs.statSync(hookPath);
+    const isExecutable = (stats.mode & 0o111) !== 0;
+    expect(isExecutable).toBe(true);
+
+    // Check hook content contains our signature
+    const content = fs.readFileSync(hookPath, 'utf8');
+    expect(content).toContain('Installed by: WorktreeManager.initWorkspace()');
+    expect(content).toContain('Cannot checkout master/main in a worktree');
+  });
+
+  test('prevents checkout of main/master in worktree', async () => {
+    // Get the default branch
+    const defaultBranch = await manager.getDefaultBranch();
+
+    // Create a worktree
+    const result = await manager.createWorktree({
+      agentName: 'test-agent',
+      taskId: 'test-123' as ElementId,
+    });
+
+    // Switch main repo off the default branch so the worktree could theoretically checkout it
+    execSync(`git checkout -b develop`, { cwd: tempDir, stdio: 'pipe' });
+
+    // Try to checkout main/master in the worktree - should fail
+    let checkoutError: Error | null = null;
+    try {
+      execSync(`git checkout ${defaultBranch}`, {
+        cwd: result.path,
+        stdio: 'pipe',
+        encoding: 'utf8',
+      });
+    } catch (error) {
+      checkoutError = error as Error;
+    }
+
+    expect(checkoutError).not.toBeNull();
+    expect(checkoutError!.message).toContain('ref updates aborted by hook');
+  });
+
+  test('allows checkout of non-main branches in worktree', async () => {
+    // Create a feature branch in the main repo
+    execSync('git branch other-feature', { cwd: tempDir, stdio: 'pipe' });
+
+    // Create a worktree
+    const result = await manager.createWorktree({
+      agentName: 'test-agent',
+      taskId: 'test-123' as ElementId,
+    });
+
+    // Checkout other-feature in the worktree - should succeed
+    let checkoutError: Error | null = null;
+    try {
+      execSync('git checkout other-feature', {
+        cwd: result.path,
+        stdio: 'pipe',
+        encoding: 'utf8',
+      });
+    } catch (error) {
+      checkoutError = error as Error;
+    }
+
+    expect(checkoutError).toBeNull();
+  });
+
+  test('allows checkout of main/master in main repo', async () => {
+    const defaultBranch = await manager.getDefaultBranch();
+
+    // Switch to a different branch in main repo
+    execSync('git checkout -b develop', { cwd: tempDir, stdio: 'pipe' });
+
+    // Checkout back to main - should succeed
+    let checkoutError: Error | null = null;
+    try {
+      execSync(`git checkout ${defaultBranch}`, {
+        cwd: tempDir,
+        stdio: 'pipe',
+        encoding: 'utf8',
+      });
+    } catch (error) {
+      checkoutError = error as Error;
+    }
+
+    expect(checkoutError).toBeNull();
+  });
+
+  test('does not overwrite custom reference-transaction hook', async () => {
+    // First clean up the previous manager's changes
+    cleanupTempDir(tempDir);
+
+    // Create a new temp repo
+    tempDir = createTempGitRepo();
+
+    // Install a custom hook BEFORE initializing the manager
+    const hookPath = path.join(tempDir, '.git', 'hooks', 'reference-transaction');
+    fs.mkdirSync(path.dirname(hookPath), { recursive: true });
+    const customHookContent = '#!/bin/bash\n# Custom hook\necho "custom hook"';
+    fs.writeFileSync(hookPath, customHookContent, { mode: 0o755 });
+
+    // Initialize the manager (should warn but not overwrite)
+    manager = createWorktreeManager({ workspaceRoot: tempDir });
+    await manager.initWorkspace();
+
+    // Check that the custom hook was not overwritten
+    const content = fs.readFileSync(hookPath, 'utf8');
+    expect(content).toBe(customHookContent);
+    expect(content).not.toContain('Installed by: WorktreeManager.initWorkspace()');
+  });
+
+  test('updates hook if our signature is present but content differs', async () => {
+    // First clean up the previous manager's changes
+    cleanupTempDir(tempDir);
+
+    // Create a new temp repo
+    tempDir = createTempGitRepo();
+
+    // Install an old version of our hook
+    const hookPath = path.join(tempDir, '.git', 'hooks', 'reference-transaction');
+    fs.mkdirSync(path.dirname(hookPath), { recursive: true });
+    const oldHookContent = '#!/bin/bash\n# Installed by: WorktreeManager.initWorkspace()\n# Old version';
+    fs.writeFileSync(hookPath, oldHookContent, { mode: 0o755 });
+
+    // Initialize the manager (should update the hook)
+    manager = createWorktreeManager({ workspaceRoot: tempDir });
+    await manager.initWorkspace();
+
+    // Check that the hook was updated
+    const content = fs.readFileSync(hookPath, 'utf8');
+    expect(content).not.toBe(oldHookContent);
+    expect(content).toContain('Installed by: WorktreeManager.initWorkspace()');
+    expect(content).toContain('Cannot checkout master/main in a worktree');
+  });
+});
