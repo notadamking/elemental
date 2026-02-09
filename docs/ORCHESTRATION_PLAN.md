@@ -266,7 +266,7 @@ The Dispatch Daemon is a continuously running process that coordinates task assi
 **Background:** Tasks can reach CLOSED status without being merged (e.g. when `el task close` is run on a REVIEW task, or from race conditions between CLI commands and steward processing). While these tasks appear in the **Awaiting Merge** section of the web UI (alongside `REVIEW` status tasks), they are invisible to merge stewards which only query for `status=REVIEW`.
 
 **Process:**
-1. Query for tasks with `status=CLOSED` and non-merged `mergeStatus` (`pending`, `testing`, `merging`, `conflict`, `test_failed`, `failed`)
+1. Query for tasks with `status=CLOSED` and non-merged `mergeStatus` (`pending`, `testing`, `merging`, `conflict`, `test_failed`, `failed`, `not_applicable`)
 2. For each stuck task:
    - Skip if `closedAt` is within the grace period (default: 120s) — prevents racing with in-progress close+merge sequences
    - Skip if `reconciliationCount >= 3` — safety valve to prevent infinite loops
@@ -534,6 +534,7 @@ Tasks in REVIEW status track their merge progress via `mergeStatus` in metadata:
 | `test_failed` | Tests failed | Fix task created; original task stays in REVIEW |
 | `conflict` | Merge conflict detected | Fix task created; original task stays in REVIEW |
 | `failed` | Merge failed for other reason | Fix task created; original task stays in REVIEW |
+| `not_applicable` | No merge needed (fix already on master) | Task moves to CLOSED |
 
 ### Merge Strategy
 

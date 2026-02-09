@@ -168,13 +168,14 @@ export interface HandoffHistoryEntry {
  * Status of the merge process for a completed task's branch
  */
 export type MergeStatus =
-  | 'pending'      // Task completed, awaiting merge
-  | 'testing'      // Steward is running tests on the branch
-  | 'merging'      // Tests passed, merge in progress
-  | 'merged'       // Successfully merged
-  | 'conflict'     // Merge conflict detected
-  | 'test_failed'  // Tests failed, needs attention
-  | 'failed';      // Merge failed for other reason
+  | 'pending'         // Task completed, awaiting merge
+  | 'testing'         // Steward is running tests on the branch
+  | 'merging'         // Tests passed, merge in progress
+  | 'merged'          // Successfully merged
+  | 'conflict'        // Merge conflict detected
+  | 'test_failed'     // Tests failed, needs attention
+  | 'failed'          // Merge failed for other reason
+  | 'not_applicable'; // No merge needed (e.g., fix already existed on master)
 
 /**
  * All valid merge status values
@@ -187,6 +188,7 @@ export const MergeStatusValues = [
   'conflict',
   'test_failed',
   'failed',
+  'not_applicable',
 ] as const;
 
 /**
