@@ -365,14 +365,11 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       throw new Error(`Task not found: ${taskId}`);
     }
 
-    // Guard against double-assignment
-    if (task.assignee && task.assignee !== agentId) {
-      throw new ConflictError(
-        `Task ${taskId} is already assigned to ${task.assignee}`,
-        ConflictErrorCode.ALREADY_EXISTS,
-        { taskId, currentAssignee: task.assignee, requestedAssignee: agentId }
-      );
-    }
+    // Note: Previously there was a guard against reassignment here, but
+    // the dispatch service needs to support task reassignment. The dispatch
+    // layer is responsible for determining when reassignment is appropriate
+    // (e.g., for handoffs). Callers who want to prevent reassignment should
+    // check task.assignee before calling assignToAgent.
 
     // Get and validate the agent
     const agent = await this.api.get<AgentEntity>(asElementId(agentId));

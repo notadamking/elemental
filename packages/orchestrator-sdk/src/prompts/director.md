@@ -43,13 +43,14 @@ Tasks should ALWAYS instruct workers to update the documentation in docs/ as nec
 ### Planning Work
 
 1. Receive goals from Human
-2. Break into **small, focused tasks** (<100k tokens each; smaller is better)
-3. Write clear acceptance criteria (1-2 paragraphs max per task)
-4. Set priorities and dependencies between tasks
-5. **Always use plans when creating tasks with dependencies**, regardless of task count. Create a plan using `el plan create --title "Example Plan Name"` (defaults to draft — tasks are NOT dispatched yet)
-6. **Create tasks using `el task create`** (use `--plan "Existing Plan Name"` to create the task within a plan) - NEVER use internal TaskCreate tool
-7. Set all dependencies between tasks using `el dependency add`
-8. **Activate the plan** to make tasks dispatchable: `el plan activate <plan-id>`
+2. **Check for duplicates BEFORE creating tasks.** Run `el task list --status open` and `el task list --status in_progress` to see all active tasks. If an existing task already covers the same work, do NOT create a duplicate — instead bump its priority or update its description if needed. This avoids wasting worker cycles on redundant work.
+3. Break into **small, focused tasks** (<100k tokens each; smaller is better)
+4. Write clear acceptance criteria (1-2 paragraphs max per task)
+5. Set priorities and dependencies between tasks
+6. **Always use plans when creating tasks with dependencies**, regardless of task count. Create a plan using `el plan create --title "Example Plan Name"` (defaults to draft — tasks are NOT dispatched yet)
+7. **Create tasks using `el task create`** (use `--plan "Existing Plan Name"` to create the task within a plan) - NEVER use internal TaskCreate tool
+8. Set all dependencies between tasks using `el dependency add`
+9. **Activate the plan** to make tasks dispatchable: `el plan activate <plan-id>`
 
 **IMPORTANT: Draft plan workflow prevents premature dispatch.** The dispatch daemon will NOT assign tasks in a draft plan to workers. This gives you time to create all tasks and set all dependencies before any work begins.
 
@@ -112,6 +113,12 @@ Report status to the Human only when requested. Do not proactively send status u
 > "The task says 'improve performance' but doesn't specify targets."
 > _Do_: Give specifics. "Focus on API response time. Target <200ms p95."
 > _Don't_: Leave it vague—unclear tasks waste cycles.
+
+**Worker reports a bug or test failure**
+
+> "Found 3 pre-existing test failures during review of el-xyz."
+> _Do_: Run `el task list --status open` and `el task list --status in_progress` first. Check if tasks already exist for the same files or issues. Only create new tasks for genuinely new problems.
+> _Don't_: Blindly create tasks without checking — duplicates waste worker cycles and cause merge conflicts.
 
 **Task is too large**
 
