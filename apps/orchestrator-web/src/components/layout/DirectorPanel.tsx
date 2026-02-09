@@ -208,6 +208,15 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
             <Circle
               className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 fill-current ${statusColor}`}
             />
+            {/* Unread messages indicator badge */}
+            {unreadCount > 0 && (
+              <span
+                className="absolute -bottom-1 -right-1 flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold rounded-full bg-[var(--color-primary)] text-white"
+                data-testid="director-panel-collapsed-unread-badge"
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
           </button>
         </Tooltip>
       </aside>

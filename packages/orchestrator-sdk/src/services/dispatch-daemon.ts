@@ -347,6 +347,18 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   private pollIntervalHandle?: NodeJS.Timeout;
   private currentPollCycle?: Promise<void>;
 
+  /**
+   * Tracks inbox item IDs that are currently being forwarded to persistent agents.
+   * Prevents duplicate message delivery when concurrent pollInboxes() calls
+   * race to forward the same unread message before markAsRead() completes.
+   *
+   * Key: inbox item ID
+   * Value: true (item is in-flight, being processed)
+   *
+   * Items are added before forwarding and removed after markAsRead() completes.
+   */
+  private readonly forwardingInboxItems = new Set<string>();
+
   constructor(
     api: ElementalAPI,
     agentRegistry: AgentRegistry,
@@ -1865,16 +1877,32 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     const agentId = asEntityId(agent.id);
 
     if (activeSession) {
-      // In session -> forward as user input
-      const forwardedContent = await this.formatForwardedMessage(message);
-      await this.sessionManager.messageSession(activeSession.id, {
-        content: forwardedContent,
-        senderId: message.sender,
-      });
+      // Guard against duplicate forwarding:
+      // If another concurrent pollInboxes() call is already processing this item,
+      // skip it to prevent duplicate message delivery. The in-flight call will
+      // mark it as read when done.
+      if (this.forwardingInboxItems.has(item.id)) {
+        return false;
+      }
 
-      this.inboxService.markAsRead(item.id);
-      this.emitter.emit('message:forwarded', message.id, agentId);
-      return true;
+      // Mark as in-flight before the async operation
+      this.forwardingInboxItems.add(item.id);
+
+      try {
+        // In session -> forward as user input
+        const forwardedContent = await this.formatForwardedMessage(message);
+        await this.sessionManager.messageSession(activeSession.id, {
+          content: forwardedContent,
+          senderId: message.sender,
+        });
+
+        this.inboxService.markAsRead(item.id);
+        this.emitter.emit('message:forwarded', message.id, agentId);
+        return true;
+      } finally {
+        // Always clean up the in-flight tracking, even on error
+        this.forwardingInboxItems.delete(item.id);
+      }
     }
 
     // No session -> leave message unread for next session
