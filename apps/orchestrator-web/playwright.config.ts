@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, '../..');
 const testDbPath = resolve(projectRoot, '.elemental-test/elemental.db');
+const setupTestDbScript = resolve(__dirname, 'tests/setup-test-db.ts');
 
 // Use dedicated test ports to avoid conflicts with development servers
 const testApiPort = 3458;
@@ -31,7 +32,9 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: `ELEMENTAL_DB_PATH=${testDbPath} DAEMON_AUTO_START=false PORT=${testApiPort} tsx ${resolve(projectRoot, 'apps/orchestrator-server/src/index.ts')}`,
+      // Run setup-test-db.ts first to ensure .elemental-test directory and DB exist
+      // before the server starts. This fixes a race condition with globalSetup.
+      command: `tsx ${setupTestDbScript} && ELEMENTAL_DB_PATH=${testDbPath} DAEMON_AUTO_START=false PORT=${testApiPort} tsx ${resolve(projectRoot, 'apps/orchestrator-server/src/index.ts')}`,
       port: testApiPort,
       reuseExistingServer: !process.env.CI,
     },
