@@ -103,7 +103,7 @@ function createMockSpawnerService(): SpawnerService & { _mockEmitters: Map<strin
         agentRole,
         workerMode: agentRole === 'worker' ? 'ephemeral' : undefined,
         mode: options?.mode ?? 'headless',
-        pid: 12345 + sessionIdCounter,
+        pid: process.pid, // Use current process PID so isProcessAlive() returns true
         status: 'running',
         workingDirectory: options?.workingDirectory ?? '/tmp',
         createdAt: now,
