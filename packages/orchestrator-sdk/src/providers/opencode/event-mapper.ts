@@ -114,10 +114,17 @@ export interface OpenCodeEvent {
  * Tracks emitted tool IDs to avoid duplicate tool_use/tool_result messages
  * when OpenCode fires multiple `message.part.updated` events for the same tool
  * as it transitions through states.
+ *
+ * Buffers streaming text deltas and emits a single accumulated `assistant`
+ * message when the text part is complete (i.e. a non-text event arrives).
+ * This matches the Claude provider behavior where each AgentMessage is a
+ * complete response, not a streaming chunk.
  */
 export class OpenCodeEventMapper {
   private emittedToolUses = new Set<string>();
   private emittedToolResults = new Set<string>();
+  /** Buffered text content from streaming deltas, keyed by part ID */
+  private pendingText: { partId: string; content: string } | null = null;
 
   /**
    * Maps an OpenCode SSE event to zero or more AgentMessages.
@@ -137,19 +144,26 @@ export class OpenCodeEventMapper {
       case 'message.part.updated':
         return this.mapPartUpdated(event);
 
-      case 'session.idle':
-        return [{
+      case 'session.idle': {
+        // Flush buffered text before emitting result
+        const messages = this.flushPendingText();
+        messages.push({
           type: 'result',
           subtype: 'success',
           raw: event,
-        }];
+        });
+        return messages;
+      }
 
-      case 'session.error':
-        return [{
+      case 'session.error': {
+        const messages = this.flushPendingText();
+        messages.push({
           type: 'error',
           content: this.extractErrorMessage(event.properties?.error),
           raw: event,
-        }];
+        });
+        return messages;
+      }
 
       // Internal state events - no AgentMessage needed
       case 'session.status':
@@ -161,10 +175,16 @@ export class OpenCodeEventMapper {
     }
   }
 
+  /** Flush any buffered text as a final assistant message. Call after stream ends. */
+  flush(): AgentMessage[] {
+    return this.flushPendingText();
+  }
+
   /** Reset state for a new conversation turn */
   reset(): void {
     this.emittedToolUses.clear();
     this.emittedToolResults.clear();
+    this.pendingText = null;
   }
 
   // ----------------------------------------
@@ -188,39 +208,69 @@ export class OpenCodeEventMapper {
     return String(error);
   }
 
+  private flushPendingText(): AgentMessage[] {
+    if (!this.pendingText || !this.pendingText.content) {
+      this.pendingText = null;
+      return [];
+    }
+    const msg: AgentMessage = {
+      type: 'assistant',
+      content: this.pendingText.content,
+      raw: null,
+    };
+    this.pendingText = null;
+    return [msg];
+  }
+
   private mapPartUpdated(event: OpenCodeEvent): AgentMessage[] {
     const part = event.properties?.part;
     if (!part) return [];
 
     switch (part.type) {
       case 'text':
-        return this.mapTextPart(part as TextPart, event);
+        return this.bufferTextPart(part as TextPart, event);
 
-      case 'tool':
-        return this.mapToolPart(part as ToolPart, event);
+      case 'tool': {
+        // Flush buffered text before emitting tool events
+        const messages = this.flushPendingText();
+        messages.push(...this.mapToolPart(part as ToolPart, event));
+        return messages;
+      }
 
-      // Skip internal parts
+      // Non-text parts flush any buffered text
       case 'reasoning':
       case 'step-start':
       case 'step-finish':
       case 'agent':
-        return [];
+        return this.flushPendingText();
 
       default:
-        return [];
+        return this.flushPendingText();
     }
   }
 
-  private mapTextPart(part: TextPart, event: OpenCodeEvent): AgentMessage[] {
-    // Delta is at event.properties.delta (not on the part itself)
-    const content = event.properties?.delta ?? part.text;
-    if (!content) return [];
+  private bufferTextPart(part: TextPart, event: OpenCodeEvent): AgentMessage[] {
+    const delta = event.properties?.delta;
+    const messages: AgentMessage[] = [];
 
-    return [{
-      type: 'assistant',
-      content,
-      raw: event,
-    }];
+    // If a different text part starts, flush the previous one
+    if (this.pendingText && this.pendingText.partId !== part.id) {
+      messages.push(...this.flushPendingText());
+    }
+
+    if (delta) {
+      // Append incremental delta to buffer
+      if (this.pendingText) {
+        this.pendingText.content += delta;
+      } else {
+        this.pendingText = { partId: part.id, content: delta };
+      }
+    } else if (part.text) {
+      // Full text replacement (no delta available)
+      this.pendingText = { partId: part.id, content: part.text };
+    }
+
+    return messages;
   }
 
   private mapToolPart(part: ToolPart, event: OpenCodeEvent): AgentMessage[] {

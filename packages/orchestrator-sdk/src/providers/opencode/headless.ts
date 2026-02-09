@@ -109,6 +109,11 @@ class OpenCodeHeadlessSession implements HeadlessSession {
           this.messageQueue.push(msg);
         }
       }
+
+      // Flush any remaining buffered text after stream ends
+      for (const msg of this.eventMapper.flush()) {
+        this.messageQueue.push(msg);
+      }
     } catch (error) {
       if (!this.closed) {
         this.messageQueue.push({

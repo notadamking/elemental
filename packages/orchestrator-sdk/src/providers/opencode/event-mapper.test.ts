@@ -19,54 +19,55 @@ describe('OpenCodeEventMapper', () => {
 
   describe('session ID filtering', () => {
     it('should pass events with matching session ID', () => {
-      const event: OpenCodeEvent = {
+      // Buffer a text event, then flush to verify it passed
+      mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
           sessionID: sessionId,
           delta: 'hello',
           part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'hello' },
         },
-      };
-      const messages = mapper.mapEvent(event, sessionId);
+      }, sessionId);
+      const messages = mapper.flush();
       expect(messages.length).toBe(1);
       expect(messages[0].type).toBe('assistant');
     });
 
     it('should filter events with different session ID', () => {
-      const event: OpenCodeEvent = {
+      mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
           sessionID: 'other-session',
           delta: 'hello',
           part: { type: 'text', id: 'p1', sessionID: 'other-session', text: 'hello' },
         },
-      };
-      const messages = mapper.mapEvent(event, sessionId);
+      }, sessionId);
+      const messages = mapper.flush();
       expect(messages.length).toBe(0);
     });
 
-    it('should pass events without session ID', () => {
-      const event: OpenCodeEvent = {
+    it('should pass events when part.sessionID matches', () => {
+      // No sessionID at properties level, part.sessionID matches
+      mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
           delta: 'hello',
           part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'hello' },
         },
-      };
-      // No sessionID at properties level, part.sessionID matches
-      const messages = mapper.mapEvent(event, sessionId);
+      }, sessionId);
+      const messages = mapper.flush();
       expect(messages.length).toBe(1);
     });
 
-    it('should extract session ID from part.sessionID', () => {
-      const event: OpenCodeEvent = {
+    it('should filter when part.sessionID differs', () => {
+      mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
           delta: 'hello',
           part: { type: 'text', id: 'p1', sessionID: 'other-session', text: 'hello' },
         },
-      };
-      const messages = mapper.mapEvent(event, sessionId);
+      }, sessionId);
+      const messages = mapper.flush();
       expect(messages.length).toBe(0);
     });
 
@@ -82,52 +83,134 @@ describe('OpenCodeEventMapper', () => {
     });
   });
 
-  describe('text parts', () => {
-    it('should map text delta to assistant message', () => {
-      const event: OpenCodeEvent = {
+  describe('text buffering', () => {
+    it('should buffer text deltas and flush on session.idle', () => {
+      // Send multiple deltas
+      mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
-          delta: 'Hello world',
+          delta: 'Hello ',
+          part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'Hello ' },
+        },
+      }, sessionId);
+      mapper.mapEvent({
+        type: 'message.part.updated',
+        properties: {
+          delta: 'world',
           part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'Hello world' },
         },
-      };
-      const messages = mapper.mapEvent(event, sessionId);
-      expect(messages.length).toBe(1);
+      }, sessionId);
+
+      // session.idle flushes buffered text + emits result
+      const messages = mapper.mapEvent({
+        type: 'session.idle',
+        properties: { sessionID: sessionId },
+      }, sessionId);
+      expect(messages.length).toBe(2);
       expect(messages[0].type).toBe('assistant');
       expect(messages[0].content).toBe('Hello world');
+      expect(messages[1].type).toBe('result');
     });
 
-    it('should prefer delta over full text', () => {
-      const event: OpenCodeEvent = {
+    it('should flush text when a tool event arrives', () => {
+      // Buffer text
+      mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
-          delta: 'delta only',
-          part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'Full text' },
+          delta: 'Let me read that file.',
+          part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'Let me read that file.' },
         },
-      };
-      const messages = mapper.mapEvent(event, sessionId);
-      expect(messages[0].content).toBe('delta only');
+      }, sessionId);
+
+      // Tool event flushes text
+      const messages = mapper.mapEvent({
+        type: 'message.part.updated',
+        properties: {
+          part: {
+            type: 'tool', id: 'tool-1', sessionID: sessionId, callID: 'call-1',
+            tool: 'read_file', state: { status: 'pending', input: { path: '/test' } },
+          },
+        },
+      }, sessionId);
+      expect(messages.length).toBe(2);
+      expect(messages[0].type).toBe('assistant');
+      expect(messages[0].content).toBe('Let me read that file.');
+      expect(messages[1].type).toBe('tool_use');
     });
 
-    it('should fall back to full text when no delta', () => {
-      const event: OpenCodeEvent = {
+    it('should accumulate multiple deltas into one message', () => {
+      // Multiple deltas for same text part
+      mapper.mapEvent({
+        type: 'message.part.updated',
+        properties: { delta: 'A', part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'A' } },
+      }, sessionId);
+      mapper.mapEvent({
+        type: 'message.part.updated',
+        properties: { delta: 'B', part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'AB' } },
+      }, sessionId);
+      mapper.mapEvent({
+        type: 'message.part.updated',
+        properties: { delta: 'C', part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'ABC' } },
+      }, sessionId);
+
+      const messages = mapper.flush();
+      expect(messages.length).toBe(1);
+      expect(messages[0].content).toBe('ABC');
+    });
+
+    it('should flush old text part when a new text part starts', () => {
+      // First text part
+      mapper.mapEvent({
+        type: 'message.part.updated',
+        properties: { delta: 'Part 1', part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'Part 1' } },
+      }, sessionId);
+
+      // Different text part ID — flushes the first
+      const messages = mapper.mapEvent({
+        type: 'message.part.updated',
+        properties: { delta: 'Part 2', part: { type: 'text', id: 'p2', sessionID: sessionId, text: 'Part 2' } },
+      }, sessionId);
+      expect(messages.length).toBe(1);
+      expect(messages[0].type).toBe('assistant');
+      expect(messages[0].content).toBe('Part 1');
+
+      // Flush the second
+      const remaining = mapper.flush();
+      expect(remaining.length).toBe(1);
+      expect(remaining[0].content).toBe('Part 2');
+    });
+
+    it('should use full text when no delta', () => {
+      mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
           part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'Full text' },
         },
-      };
-      const messages = mapper.mapEvent(event, sessionId);
+      }, sessionId);
+      const messages = mapper.flush();
       expect(messages[0].content).toBe('Full text');
     });
 
-    it('should skip text parts with empty text and no delta', () => {
-      const event: OpenCodeEvent = {
+    it('should not emit anything for empty text with no delta', () => {
+      mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
           part: { type: 'text', id: 'p1', sessionID: sessionId, text: '' },
         },
-      };
-      const messages = mapper.mapEvent(event, sessionId);
+      }, sessionId);
+      const messages = mapper.flush();
+      expect(messages.length).toBe(0);
+    });
+
+    it('should return empty for text delta events (buffered, not emitted)', () => {
+      const messages = mapper.mapEvent({
+        type: 'message.part.updated',
+        properties: {
+          delta: 'hello',
+          part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'hello' },
+        },
+      }, sessionId);
+      // Text is buffered, not emitted immediately
       expect(messages.length).toBe(0);
     });
   });
@@ -186,11 +269,9 @@ describe('OpenCodeEventMapper', () => {
       };
       mapper.mapEvent(event, sessionId);
 
-      // Same ID, still pending
       const messages2 = mapper.mapEvent(event, sessionId);
       expect(messages2.length).toBe(0);
 
-      // Same ID, now running
       const runningEvent: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
@@ -205,7 +286,6 @@ describe('OpenCodeEventMapper', () => {
     });
 
     it('should emit tool_result on completed state', () => {
-      // First emit tool_use
       mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
@@ -216,7 +296,6 @@ describe('OpenCodeEventMapper', () => {
         },
       }, sessionId);
 
-      // Now complete
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
@@ -284,7 +363,6 @@ describe('OpenCodeEventMapper', () => {
       };
       mapper.mapEvent(completedEvent, sessionId);
 
-      // Second completed event for same ID
       const messages = mapper.mapEvent(completedEvent, sessionId);
       expect(messages.length).toBe(0);
     });
@@ -344,6 +422,23 @@ describe('OpenCodeEventMapper', () => {
       };
       expect(mapper.mapEvent(event, sessionId).length).toBe(0);
     });
+
+    it('should flush buffered text when non-text part arrives', () => {
+      // Buffer some text
+      mapper.mapEvent({
+        type: 'message.part.updated',
+        properties: { delta: 'thinking...', part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'thinking...' } },
+      }, sessionId);
+
+      // step-start should flush the text
+      const messages = mapper.mapEvent({
+        type: 'message.part.updated',
+        properties: { part: { type: 'step-start', id: 's1', sessionID: sessionId } },
+      }, sessionId);
+      expect(messages.length).toBe(1);
+      expect(messages[0].type).toBe('assistant');
+      expect(messages[0].content).toBe('thinking...');
+    });
   });
 
   describe('session events', () => {
@@ -389,6 +484,22 @@ describe('OpenCodeEventMapper', () => {
       expect(messages[0].content).toBe('Unknown session error');
     });
 
+    it('should flush buffered text on session.error', () => {
+      mapper.mapEvent({
+        type: 'message.part.updated',
+        properties: { delta: 'partial text', part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'partial text' } },
+      }, sessionId);
+
+      const messages = mapper.mapEvent({
+        type: 'session.error',
+        properties: { error: 'Oops' },
+      }, sessionId);
+      expect(messages.length).toBe(2);
+      expect(messages[0].type).toBe('assistant');
+      expect(messages[0].content).toBe('partial text');
+      expect(messages[1].type).toBe('error');
+    });
+
     it('should skip session.status events', () => {
       const event: OpenCodeEvent = {
         type: 'session.status',
@@ -415,8 +526,12 @@ describe('OpenCodeEventMapper', () => {
   });
 
   describe('reset', () => {
-    it('should clear deduplication state', () => {
-      // Emit a tool_use
+    it('should clear deduplication state and text buffer', () => {
+      // Buffer text and emit a tool_use
+      mapper.mapEvent({
+        type: 'message.part.updated',
+        properties: { delta: 'buffered', part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'buffered' } },
+      }, sessionId);
       mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
@@ -430,6 +545,9 @@ describe('OpenCodeEventMapper', () => {
       // Reset
       mapper.reset();
 
+      // Text buffer should be cleared
+      expect(mapper.flush().length).toBe(0);
+
       // Same tool ID should emit again after reset
       const messages = mapper.mapEvent({
         type: 'message.part.updated',
@@ -442,6 +560,33 @@ describe('OpenCodeEventMapper', () => {
       }, sessionId);
       expect(messages.length).toBe(1);
       expect(messages[0].type).toBe('tool_use');
+    });
+  });
+
+  describe('flush', () => {
+    it('should emit buffered text on explicit flush', () => {
+      mapper.mapEvent({
+        type: 'message.part.updated',
+        properties: { delta: 'final text', part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'final text' } },
+      }, sessionId);
+
+      const messages = mapper.flush();
+      expect(messages.length).toBe(1);
+      expect(messages[0].type).toBe('assistant');
+      expect(messages[0].content).toBe('final text');
+    });
+
+    it('should return empty if nothing buffered', () => {
+      expect(mapper.flush().length).toBe(0);
+    });
+
+    it('should return empty on second flush', () => {
+      mapper.mapEvent({
+        type: 'message.part.updated',
+        properties: { delta: 'text', part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'text' } },
+      }, sessionId);
+      mapper.flush();
+      expect(mapper.flush().length).toBe(0);
     });
   });
 
