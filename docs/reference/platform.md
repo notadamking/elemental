@@ -506,6 +506,23 @@ app.route('/', createMyFeatureRoutes(services));
 | `/documents` | `DocumentsPage` | Document library |
 | `/editor` | `FileEditorPage` | Read-only file editor with Monaco, VSCode-style activity bar with file tree and search panel |
 
+### File Editor Features
+
+The Editor page (`/editor`) provides a read-only file viewer with the following features:
+
+**Folder Persistence:**
+- The last-opened folder is automatically saved per workspace to localStorage
+- When returning to the editor with the same workspace open, the folder tree automatically expands to the last-viewed location
+- If the saved folder no longer exists, the tree gracefully falls back to showing the root
+- Storage key: `elemental.editor.lastFolder` (JSON object keyed by workspace name)
+
+**Key Files:**
+
+| File | Purpose |
+|------|---------|
+| `components/editor/EditorFileTree.tsx` | File tree with folder persistence |
+| `lib/editor-storage.ts` | localStorage utilities for folder state |
+
 ### Document Library Drag-and-Drop
 
 The Documents page supports drag-and-drop for organizing documents and libraries:

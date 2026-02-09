@@ -3,6 +3,10 @@
  *
  * A performant tree view for displaying files and directories
  * using react-arborist for virtualization and improved UX.
+ *
+ * Features:
+ * - Automatic expansion of last-opened folder per workspace
+ * - Persists folder state to localStorage
  */
 
 import { useRef, useMemo, useCallback, useState, useEffect } from 'react';
@@ -32,6 +36,11 @@ import {
   isConfigFile,
   isDataFile,
 } from '../../lib/language-detection';
+import {
+  getLastOpenedFolder,
+  setLastOpenedFolder,
+  getAncestorPaths,
+} from '../../lib/editor-storage';
 
 // ============================================================================
 // Constants
@@ -321,6 +330,26 @@ interface EditorFileTreeProps {
   onSelectFile: (node: FileTreeNodeData) => void;
   /** Optional class name */
   className?: string;
+  /** Name of the current workspace (used for persisting folder state) */
+  workspaceName?: string | null;
+}
+
+/**
+ * Check if a folder path exists in the tree data
+ */
+function folderExistsInTree(
+  nodes: FileTreeNodeData[],
+  folderPath: string
+): boolean {
+  for (const node of nodes) {
+    if (node.path === folderPath && node.nodeType === 'folder') {
+      return true;
+    }
+    if (node.children && folderExistsInTree(node.children, folderPath)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function EditorFileTree({
@@ -330,6 +359,7 @@ export function EditorFileTree({
   selectedId,
   onSelectFile,
   className = '',
+  workspaceName = null,
 }: EditorFileTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<any>(null);
@@ -357,6 +387,77 @@ export function EditorFileTree({
     }
     return documents.map(documentToTreeNode);
   }, [source, workspaceEntries, documents]);
+
+  // Compute initial open state from last opened folder (for workspace mode)
+  const initialOpenState = useMemo(() => {
+    // Only apply for workspace mode with a valid workspace name
+    if (source !== 'workspace' || !workspaceName || treeData.length === 0) {
+      return {};
+    }
+
+    const lastFolder = getLastOpenedFolder(workspaceName);
+    if (!lastFolder) {
+      return {};
+    }
+
+    // Check if the folder still exists in the current tree
+    if (!folderExistsInTree(treeData, lastFolder)) {
+      // Folder no longer exists - gracefully show root instead
+      return {};
+    }
+
+    // Get all ancestor paths to expand
+    const pathsToExpand = getAncestorPaths(lastFolder);
+    const openMap: Record<string, boolean> = {};
+
+    for (const path of pathsToExpand) {
+      openMap[path] = true;
+    }
+
+    return openMap;
+  }, [source, workspaceName, treeData]);
+
+  // Handle folder toggle - persist the last opened folder
+  const handleToggle = useCallback(
+    (nodeId: string) => {
+      // Only persist for workspace mode
+      if (source !== 'workspace' || !workspaceName) {
+        return;
+      }
+
+      // Find the node to check if it's being opened
+      const findNode = (
+        nodes: FileTreeNodeData[],
+        id: string
+      ): FileTreeNodeData | null => {
+        for (const node of nodes) {
+          if (node.id === id) return node;
+          if (node.children) {
+            const found = findNode(node.children, id);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      const node = findNode(treeData, nodeId);
+      if (node && node.nodeType === 'folder') {
+        // The node is being toggled - we save it when opened
+        // react-arborist calls onToggle after the state change,
+        // so we check the tree ref to see the new state
+        const treeApi = treeRef.current;
+        if (treeApi) {
+          // Get the node from the tree API to check its current state
+          const treeNode = treeApi.get(nodeId);
+          if (treeNode && treeNode.isOpen) {
+            // Folder is now open - save it as the last opened folder
+            setLastOpenedFolder(workspaceName, node.path);
+          }
+        }
+      }
+    },
+    [source, workspaceName, treeData]
+  );
 
   // Handle node selection
   const handleSelect = useCallback(
@@ -398,9 +499,11 @@ export function EditorFileTree({
           indent={16}
           paddingTop={4}
           paddingBottom={4}
+          initialOpenState={initialOpenState}
           selection={selectedId ?? undefined}
           onSelect={handleSelect}
           onActivate={handleActivate}
+          onToggle={handleToggle}
           disableMultiSelection
           openByDefault={false}
         >

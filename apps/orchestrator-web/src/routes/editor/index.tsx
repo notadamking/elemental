@@ -654,6 +654,7 @@ export function FileEditorPage() {
                     source={fileSource}
                     selectedId={selectedId}
                     onSelectFile={handleSelectFile}
+                    workspaceName={workspaceName}
                   />
                 )}
               </div>

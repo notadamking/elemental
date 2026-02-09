@@ -49,3 +49,11 @@ export {
   isConfigFile,
   isDataFile,
 } from './language-detection';
+
+// Editor storage utilities
+export {
+  getLastOpenedFolder,
+  setLastOpenedFolder,
+  clearLastOpenedFolder,
+  getAncestorPaths,
+} from './editor-storage';
