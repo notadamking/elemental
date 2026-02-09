@@ -49,11 +49,11 @@ class OpenCodeHeadlessSession implements HeadlessSession {
   sendMessage(content: string): void {
     if (this.closed) return;
 
-    // Fire-and-forget: SSE events drive the message stream
+    // Fire-and-forget: promptAsync returns 204 immediately, SSE events drive the stream
     this.client.session
-      .prompt({
+      .promptAsync({
         path: { id: this.sessionId },
-        body: { content },
+        body: { parts: [{ type: 'text' as const, text: content }] },
       })
       .catch((error) => {
         this.messageQueue.push({

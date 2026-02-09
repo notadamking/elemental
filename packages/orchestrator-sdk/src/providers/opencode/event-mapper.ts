@@ -4,48 +4,86 @@
  * Maps OpenCode SSE events to the provider-agnostic AgentMessage interface.
  * Handles deduplication of tool_use/tool_result events and text delta streaming.
  *
+ * Types here mirror the real @opencode-ai/sdk event shapes:
+ * - ToolPart.state is an object with `status` + nested `input`/`output`/`error`
+ * - TextPart has `text` but delta comes from `event.properties.delta`
+ * - Tool name lives in `ToolPart.tool`, not `ToolPart.name`
+ *
  * @module
  */
 
 import type { AgentMessage } from '../types.js';
 
 // ============================================================================
-// OpenCode Event Types
+// OpenCode Event Types (matching @opencode-ai/sdk v1.x)
 // ============================================================================
+
+/** Tool state objects — the `state` field on ToolPart is a discriminated union */
+interface ToolStatePending {
+  status: 'pending';
+  input: Record<string, unknown>;
+}
+
+interface ToolStateRunning {
+  status: 'running';
+  input: Record<string, unknown>;
+  title?: string;
+}
+
+interface ToolStateCompleted {
+  status: 'completed';
+  input: Record<string, unknown>;
+  output: string;
+  title: string;
+}
+
+interface ToolStateError {
+  status: 'error';
+  input: Record<string, unknown>;
+  error: string;
+}
+
+type ToolState = ToolStatePending | ToolStateRunning | ToolStateCompleted | ToolStateError;
 
 /** Part types emitted by OpenCode */
 interface TextPart {
   type: 'text';
-  id?: string;
-  text?: string;
-  delta?: string;
-}
-
-interface ReasoningPart {
-  type: 'reasoning';
-  id?: string;
+  id: string;
+  sessionID: string;
+  text: string;
 }
 
 interface ToolPart {
   type: 'tool';
-  id?: string;
-  state?: 'pending' | 'running' | 'completed' | 'error';
-  name?: string;
-  input?: unknown;
-  output?: string;
-  error?: string;
+  id: string;
+  sessionID: string;
+  callID: string;
+  tool: string;
+  state: ToolState;
+}
+
+interface ReasoningPart {
+  type: 'reasoning';
+  id: string;
+  sessionID: string;
 }
 
 interface StepStartPart {
   type: 'step-start';
+  id: string;
+  sessionID: string;
 }
 
 interface StepFinishPart {
   type: 'step-finish';
+  id: string;
+  sessionID: string;
 }
 
 interface AgentPart {
   type: 'agent';
+  id: string;
+  sessionID: string;
 }
 
 type OpenCodePart = TextPart | ReasoningPart | ToolPart | StepStartPart | StepFinishPart | AgentPart;
@@ -55,10 +93,13 @@ export interface OpenCodeEvent {
   type: string;
   properties?: {
     sessionID?: string;
+    /** Incremental text delta (only on message.part.updated for TextPart) */
+    delta?: string;
     part?: OpenCodePart & { sessionID?: string };
     info?: { id?: string };
-    error?: string;
-    status?: string;
+    /** Structured error object (on session.error events) */
+    error?: { message?: string; type?: string } | string;
+    status?: unknown;
     [key: string]: unknown;
   };
 }
@@ -106,7 +147,7 @@ export class OpenCodeEventMapper {
       case 'session.error':
         return [{
           type: 'error',
-          content: event.properties?.error ?? 'Unknown session error',
+          content: this.extractErrorMessage(event.properties?.error),
           raw: event,
         }];
 
@@ -136,6 +177,17 @@ export class OpenCodeEventMapper {
       ?? event.properties?.info?.id;
   }
 
+  private extractErrorMessage(error: unknown): string {
+    if (!error) return 'Unknown session error';
+    if (typeof error === 'string') return error;
+    if (typeof error === 'object' && error !== null) {
+      const obj = error as Record<string, unknown>;
+      if (typeof obj.message === 'string') return obj.message;
+      if (typeof obj.type === 'string') return obj.type;
+    }
+    return String(error);
+  }
+
   private mapPartUpdated(event: OpenCodeEvent): AgentMessage[] {
     const part = event.properties?.part;
     if (!part) return [];
@@ -160,8 +212,8 @@ export class OpenCodeEventMapper {
   }
 
   private mapTextPart(part: TextPart, event: OpenCodeEvent): AgentMessage[] {
-    // Prefer delta (incremental) over full text
-    const content = part.delta ?? part.text;
+    // Delta is at event.properties.delta (not on the part itself)
+    const content = event.properties?.delta ?? part.text;
     if (!content) return [];
 
     return [{
@@ -175,28 +227,32 @@ export class OpenCodeEventMapper {
     const partId = part.id;
     if (!partId) return [];
 
+    const status = part.state?.status;
     const messages: AgentMessage[] = [];
 
     // Emit tool_use once when first seen (pending or running)
-    if ((part.state === 'pending' || part.state === 'running') && !this.emittedToolUses.has(partId)) {
+    if ((status === 'pending' || status === 'running') && !this.emittedToolUses.has(partId)) {
       this.emittedToolUses.add(partId);
       messages.push({
         type: 'tool_use',
         tool: {
-          name: part.name,
+          name: part.tool,
           id: partId,
-          input: part.input,
+          input: part.state?.input,
         },
         raw: event,
       });
     }
 
     // Emit tool_result once when completed or error
-    if ((part.state === 'completed' || part.state === 'error') && !this.emittedToolResults.has(partId)) {
+    if ((status === 'completed' || status === 'error') && !this.emittedToolResults.has(partId)) {
       this.emittedToolResults.add(partId);
+      const resultContent = status === 'error'
+        ? ((part.state as ToolStateError).error ?? 'Tool error')
+        : ((part.state as ToolStateCompleted).output ?? '');
       messages.push({
         type: 'tool_result',
-        content: part.state === 'error' ? (part.error ?? 'Tool error') : (part.output ?? ''),
+        content: resultContent,
         tool: { id: partId },
         raw: event,
       });

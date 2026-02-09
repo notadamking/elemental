@@ -2,6 +2,7 @@
  * OpenCode Event Mapper Tests
  *
  * Tests for mapping OpenCode SSE events to AgentMessage format.
+ * Test data matches the real @opencode-ai/sdk event shapes.
  */
 
 import { describe, it, expect, beforeEach } from 'bun:test';
@@ -22,7 +23,8 @@ describe('OpenCodeEventMapper', () => {
         type: 'message.part.updated',
         properties: {
           sessionID: sessionId,
-          part: { type: 'text', delta: 'hello' },
+          delta: 'hello',
+          part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'hello' },
         },
       };
       const messages = mapper.mapEvent(event, sessionId);
@@ -35,7 +37,8 @@ describe('OpenCodeEventMapper', () => {
         type: 'message.part.updated',
         properties: {
           sessionID: 'other-session',
-          part: { type: 'text', delta: 'hello' },
+          delta: 'hello',
+          part: { type: 'text', id: 'p1', sessionID: 'other-session', text: 'hello' },
         },
       };
       const messages = mapper.mapEvent(event, sessionId);
@@ -46,9 +49,11 @@ describe('OpenCodeEventMapper', () => {
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'text', delta: 'hello' },
+          delta: 'hello',
+          part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'hello' },
         },
       };
+      // No sessionID at properties level, part.sessionID matches
       const messages = mapper.mapEvent(event, sessionId);
       expect(messages.length).toBe(1);
     });
@@ -57,7 +62,8 @@ describe('OpenCodeEventMapper', () => {
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'text', delta: 'hello', sessionID: 'other-session' },
+          delta: 'hello',
+          part: { type: 'text', id: 'p1', sessionID: 'other-session', text: 'hello' },
         },
       };
       const messages = mapper.mapEvent(event, sessionId);
@@ -81,7 +87,8 @@ describe('OpenCodeEventMapper', () => {
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'text', delta: 'Hello world' },
+          delta: 'Hello world',
+          part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'Hello world' },
         },
       };
       const messages = mapper.mapEvent(event, sessionId);
@@ -94,7 +101,8 @@ describe('OpenCodeEventMapper', () => {
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'text', text: 'Full text', delta: 'delta only' },
+          delta: 'delta only',
+          part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'Full text' },
         },
       };
       const messages = mapper.mapEvent(event, sessionId);
@@ -105,18 +113,18 @@ describe('OpenCodeEventMapper', () => {
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'text', text: 'Full text' },
+          part: { type: 'text', id: 'p1', sessionID: sessionId, text: 'Full text' },
         },
       };
       const messages = mapper.mapEvent(event, sessionId);
       expect(messages[0].content).toBe('Full text');
     });
 
-    it('should skip text parts with no content', () => {
+    it('should skip text parts with empty text and no delta', () => {
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'text' },
+          part: { type: 'text', id: 'p1', sessionID: sessionId, text: '' },
         },
       };
       const messages = mapper.mapEvent(event, sessionId);
@@ -132,9 +140,10 @@ describe('OpenCodeEventMapper', () => {
           part: {
             type: 'tool',
             id: 'tool-1',
-            state: 'pending',
-            name: 'read_file',
-            input: { path: '/test' },
+            sessionID: sessionId,
+            callID: 'call-1',
+            tool: 'read_file',
+            state: { status: 'pending', input: { path: '/test' } },
           },
         },
       };
@@ -153,8 +162,10 @@ describe('OpenCodeEventMapper', () => {
           part: {
             type: 'tool',
             id: 'tool-2',
-            state: 'running',
-            name: 'bash',
+            sessionID: sessionId,
+            callID: 'call-2',
+            tool: 'bash',
+            state: { status: 'running', input: { command: 'ls' } },
           },
         },
       };
@@ -167,7 +178,10 @@ describe('OpenCodeEventMapper', () => {
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'tool', id: 'tool-3', state: 'pending', name: 'test' },
+          part: {
+            type: 'tool', id: 'tool-3', sessionID: sessionId, callID: 'call-3',
+            tool: 'test', state: { status: 'pending', input: {} },
+          },
         },
       };
       mapper.mapEvent(event, sessionId);
@@ -180,7 +194,10 @@ describe('OpenCodeEventMapper', () => {
       const runningEvent: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'tool', id: 'tool-3', state: 'running', name: 'test' },
+          part: {
+            type: 'tool', id: 'tool-3', sessionID: sessionId, callID: 'call-3',
+            tool: 'test', state: { status: 'running', input: {} },
+          },
         },
       };
       const messages3 = mapper.mapEvent(runningEvent, sessionId);
@@ -192,7 +209,10 @@ describe('OpenCodeEventMapper', () => {
       mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
-          part: { type: 'tool', id: 'tool-4', state: 'pending', name: 'test' },
+          part: {
+            type: 'tool', id: 'tool-4', sessionID: sessionId, callID: 'call-4',
+            tool: 'test', state: { status: 'pending', input: {} },
+          },
         },
       }, sessionId);
 
@@ -200,7 +220,11 @@ describe('OpenCodeEventMapper', () => {
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'tool', id: 'tool-4', state: 'completed', output: 'done' },
+          part: {
+            type: 'tool', id: 'tool-4', sessionID: sessionId, callID: 'call-4',
+            tool: 'test',
+            state: { status: 'completed', input: {}, output: 'done', title: 'test', metadata: {}, time: { start: 0, end: 1 } },
+          },
         },
       };
       const messages = mapper.mapEvent(event, sessionId);
@@ -214,14 +238,21 @@ describe('OpenCodeEventMapper', () => {
       mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
-          part: { type: 'tool', id: 'tool-5', state: 'running', name: 'test' },
+          part: {
+            type: 'tool', id: 'tool-5', sessionID: sessionId, callID: 'call-5',
+            tool: 'test', state: { status: 'running', input: {} },
+          },
         },
       }, sessionId);
 
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'tool', id: 'tool-5', state: 'error', error: 'Permission denied' },
+          part: {
+            type: 'tool', id: 'tool-5', sessionID: sessionId, callID: 'call-5',
+            tool: 'test',
+            state: { status: 'error', input: {}, error: 'Permission denied', time: { start: 0, end: 1 } },
+          },
         },
       };
       const messages = mapper.mapEvent(event, sessionId);
@@ -234,14 +265,21 @@ describe('OpenCodeEventMapper', () => {
       mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
-          part: { type: 'tool', id: 'tool-6', state: 'pending', name: 'test' },
+          part: {
+            type: 'tool', id: 'tool-6', sessionID: sessionId, callID: 'call-6',
+            tool: 'test', state: { status: 'pending', input: {} },
+          },
         },
       }, sessionId);
 
       const completedEvent: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'tool', id: 'tool-6', state: 'completed', output: 'ok' },
+          part: {
+            type: 'tool', id: 'tool-6', sessionID: sessionId, callID: 'call-6',
+            tool: 'test',
+            state: { status: 'completed', input: {}, output: 'ok', title: 'test', metadata: {}, time: { start: 0, end: 1 } },
+          },
         },
       };
       mapper.mapEvent(completedEvent, sessionId);
@@ -252,12 +290,15 @@ describe('OpenCodeEventMapper', () => {
     });
 
     it('should skip tool parts without an ID', () => {
-      const event: OpenCodeEvent = {
+      const event = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'tool', state: 'pending', name: 'test' },
+          part: {
+            type: 'tool' as const, id: '', sessionID: sessionId, callID: 'call-x',
+            tool: 'test', state: { status: 'pending' as const, input: {} },
+          },
         },
-      };
+      } satisfies OpenCodeEvent;
       const messages = mapper.mapEvent(event, sessionId);
       expect(messages.length).toBe(0);
     });
@@ -268,7 +309,7 @@ describe('OpenCodeEventMapper', () => {
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'reasoning' },
+          part: { type: 'reasoning', id: 'r1', sessionID: sessionId },
         },
       };
       expect(mapper.mapEvent(event, sessionId).length).toBe(0);
@@ -278,7 +319,7 @@ describe('OpenCodeEventMapper', () => {
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'step-start' },
+          part: { type: 'step-start', id: 's1', sessionID: sessionId },
         },
       };
       expect(mapper.mapEvent(event, sessionId).length).toBe(0);
@@ -288,7 +329,7 @@ describe('OpenCodeEventMapper', () => {
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'step-finish' },
+          part: { type: 'step-finish', id: 'sf1', sessionID: sessionId },
         },
       };
       expect(mapper.mapEvent(event, sessionId).length).toBe(0);
@@ -298,7 +339,7 @@ describe('OpenCodeEventMapper', () => {
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
-          part: { type: 'agent' },
+          part: { type: 'agent', id: 'a1', sessionID: sessionId },
         },
       };
       expect(mapper.mapEvent(event, sessionId).length).toBe(0);
@@ -309,7 +350,7 @@ describe('OpenCodeEventMapper', () => {
     it('should map session.idle to result message', () => {
       const event: OpenCodeEvent = {
         type: 'session.idle',
-        properties: {},
+        properties: { sessionID: sessionId },
       };
       const messages = mapper.mapEvent(event, sessionId);
       expect(messages.length).toBe(1);
@@ -317,7 +358,7 @@ describe('OpenCodeEventMapper', () => {
       expect(messages[0].subtype).toBe('success');
     });
 
-    it('should map session.error to error message', () => {
+    it('should map session.error with string to error message', () => {
       const event: OpenCodeEvent = {
         type: 'session.error',
         properties: { error: 'Something went wrong' },
@@ -326,6 +367,17 @@ describe('OpenCodeEventMapper', () => {
       expect(messages.length).toBe(1);
       expect(messages[0].type).toBe('error');
       expect(messages[0].content).toBe('Something went wrong');
+    });
+
+    it('should map session.error with object to error message', () => {
+      const event: OpenCodeEvent = {
+        type: 'session.error',
+        properties: { error: { type: 'provider_auth', message: 'Auth failed' } },
+      };
+      const messages = mapper.mapEvent(event, sessionId);
+      expect(messages.length).toBe(1);
+      expect(messages[0].type).toBe('error');
+      expect(messages[0].content).toBe('Auth failed');
     });
 
     it('should handle session.error with no error message', () => {
@@ -340,7 +392,7 @@ describe('OpenCodeEventMapper', () => {
     it('should skip session.status events', () => {
       const event: OpenCodeEvent = {
         type: 'session.status',
-        properties: { status: 'busy' },
+        properties: { sessionID: sessionId, status: { type: 'busy' } },
       };
       expect(mapper.mapEvent(event, sessionId).length).toBe(0);
     });
@@ -368,7 +420,10 @@ describe('OpenCodeEventMapper', () => {
       mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
-          part: { type: 'tool', id: 'tool-r1', state: 'pending', name: 'test' },
+          part: {
+            type: 'tool', id: 'tool-r1', sessionID: sessionId, callID: 'call-r1',
+            tool: 'test', state: { status: 'pending', input: {} },
+          },
         },
       }, sessionId);
 
@@ -379,7 +434,10 @@ describe('OpenCodeEventMapper', () => {
       const messages = mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
-          part: { type: 'tool', id: 'tool-r1', state: 'pending', name: 'test' },
+          part: {
+            type: 'tool', id: 'tool-r1', sessionID: sessionId, callID: 'call-r1',
+            tool: 'test', state: { status: 'pending', input: {} },
+          },
         },
       }, sessionId);
       expect(messages.length).toBe(1);

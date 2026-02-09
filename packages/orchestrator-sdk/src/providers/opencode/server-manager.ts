@@ -30,13 +30,19 @@ export interface SseSubscribeResult {
   stream: AsyncIterable<unknown>;
 }
 
+/** Text part input for prompts */
+export interface TextPartInput {
+  type: 'text';
+  text: string;
+}
+
 /** Minimal OpenCode client shape matching the real SDK response wrappers */
 export interface OpencodeClient {
   session: {
     create(opts: { body: { title?: string } }): Promise<SdkResponse<OpencodeSession>>;
     get(opts: { path: { id: string } }): Promise<SdkResponse<OpencodeSession>>;
     abort(opts: { path: { id: string } }): Promise<SdkResponse<unknown>>;
-    prompt(opts: { path: { id: string }; body: { content: string } }): Promise<SdkResponse<unknown>>;
+    promptAsync(opts: { path: { id: string }; body: { parts: TextPartInput[] } }): Promise<SdkResponse<void>>;
   };
   event: {
     subscribe(): Promise<SseSubscribeResult>;
