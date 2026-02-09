@@ -117,7 +117,12 @@ let inboxService: InboxService;
 let storageBackend: ReturnType<typeof createStorage>;
 
 try {
-  storageBackend = createStorage({ path: DB_PATH });
+  // Ensure the database directory exists (important for tests that start the server
+  // before the database is created)
+  const dbDir = dirname(DB_PATH);
+  await mkdir(dbDir, { recursive: true });
+
+  storageBackend = createStorage({ path: DB_PATH, create: true });
   initializeSchema(storageBackend);
   api = createElementalAPI(storageBackend);
   syncService = createSyncService(storageBackend);

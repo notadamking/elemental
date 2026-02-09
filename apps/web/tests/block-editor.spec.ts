@@ -9,7 +9,8 @@ test.describe('TB22: Block Editor', () => {
     // First get a list of documents
     const listResponse = await page.request.get('/api/documents?limit=10');
     expect(listResponse.ok()).toBe(true);
-    const documents = await listResponse.json();
+    const documentsResponse = await listResponse.json();
+    const documents = documentsResponse.items || documentsResponse;
 
     if (documents.length === 0) {
       test.skip();
@@ -38,7 +39,8 @@ test.describe('TB22: Block Editor', () => {
 
   test('PATCH /api/documents/:id endpoint updates document title', async ({ page }) => {
     const listResponse = await page.request.get('/api/documents?limit=10');
-    const documents = await listResponse.json();
+    const documentsResponse = await listResponse.json();
+    const documents = documentsResponse.items || documentsResponse;
 
     if (documents.length === 0) {
       test.skip();
@@ -74,7 +76,8 @@ test.describe('TB22: Block Editor', () => {
 
   test('PATCH /api/documents/:id validates contentType', async ({ page }) => {
     const listResponse = await page.request.get('/api/documents?limit=10');
-    const documents = await listResponse.json();
+    const documentsResponse = await listResponse.json();
+    const documents = documentsResponse.items || documentsResponse;
 
     if (documents.length === 0) {
       test.skip();
@@ -91,7 +94,8 @@ test.describe('TB22: Block Editor', () => {
 
   test('PATCH /api/documents/:id validates JSON content when contentType is json', async ({ page }) => {
     const listResponse = await page.request.get('/api/documents?limit=10');
-    const documents = await listResponse.json();
+    const documentsResponse = await listResponse.json();
+    const documents = documentsResponse.items || documentsResponse;
 
     // Find a JSON document or skip
     const jsonDoc = documents.find((d: { contentType: string }) => d.contentType === 'json');
@@ -115,7 +119,8 @@ test.describe('TB22: Block Editor', () => {
 
   test('document detail panel has edit button', async ({ page }) => {
     const response = await page.request.get('/api/documents?limit=10');
-    const documents = await response.json();
+    const documentsResponse = await response.json();
+    const documents = documentsResponse.items || documentsResponse;
 
     if (documents.length === 0) {
       test.skip();
@@ -153,7 +158,8 @@ test.describe('TB22: Block Editor', () => {
 
   test('clicking edit button shows editor and save/cancel buttons', async ({ page }) => {
     const response = await page.request.get('/api/documents?limit=10');
-    const documents = await response.json();
+    const documentsResponse = await response.json();
+    const documents = documentsResponse.items || documentsResponse;
 
     if (documents.length === 0) {
       test.skip();
@@ -208,7 +214,8 @@ test.describe('TB22: Block Editor', () => {
 
   test('clicking cancel button exits edit mode', async ({ page }) => {
     const response = await page.request.get('/api/documents?limit=10');
-    const documents = await response.json();
+    const documentsResponse = await response.json();
+    const documents = documentsResponse.items || documentsResponse;
 
     if (documents.length === 0) {
       test.skip();
@@ -263,7 +270,8 @@ test.describe('TB22: Block Editor', () => {
 
   test('title input is shown in edit mode', async ({ page }) => {
     const response = await page.request.get('/api/documents?limit=10');
-    const documents = await response.json();
+    const documentsResponse = await response.json();
+    const documents = documentsResponse.items || documentsResponse;
 
     if (documents.length === 0) {
       test.skip();
@@ -317,7 +325,8 @@ test.describe('TB22: Block Editor', () => {
 
   test('block editor toolbar is visible in edit mode', async ({ page }) => {
     const response = await page.request.get('/api/documents?limit=10');
-    const documents = await response.json();
+    const documentsResponse = await response.json();
+    const documents = documentsResponse.items || documentsResponse;
 
     if (documents.length === 0) {
       test.skip();
@@ -372,7 +381,8 @@ test.describe('TB22: Block Editor', () => {
 
   test('editor content area is focusable', async ({ page }) => {
     const response = await page.request.get('/api/documents?limit=10');
-    const documents = await response.json();
+    const documentsResponse = await response.json();
+    const documents = documentsResponse.items || documentsResponse;
 
     if (documents.length === 0) {
       test.skip();
@@ -434,7 +444,8 @@ test.describe('TB22: Block Editor', () => {
 
   test('saving document updates persists changes', async ({ page }) => {
     const response = await page.request.get('/api/documents?limit=10');
-    const documents = await response.json();
+    const documentsResponse = await response.json();
+    const documents = documentsResponse.items || documentsResponse;
 
     if (documents.length === 0) {
       test.skip();
@@ -509,7 +520,8 @@ test.describe('TB22: Block Editor', () => {
     // This test would require mocking the API to fail, which is complex in Playwright
     // For now, we'll test that the error display element exists by checking the component structure
     const response = await page.request.get('/api/documents?limit=10');
-    const documents = await response.json();
+    const documentsResponse = await response.json();
+    const documents = documentsResponse.items || documentsResponse;
 
     if (documents.length === 0) {
       test.skip();
