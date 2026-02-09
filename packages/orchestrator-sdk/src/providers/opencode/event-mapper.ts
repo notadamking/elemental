@@ -280,8 +280,9 @@ export class OpenCodeEventMapper {
     const status = part.state?.status;
     const messages: AgentMessage[] = [];
 
-    // Emit tool_use once when first seen (pending or running)
-    if ((status === 'pending' || status === 'running') && !this.emittedToolUses.has(partId)) {
+    // Emit tool_use once when running (pending state often has empty input {}).
+    // Also emit on completed/error if we never saw a running state.
+    if (!this.emittedToolUses.has(partId) && status !== 'pending') {
       this.emittedToolUses.add(partId);
       messages.push({
         type: 'tool_use',

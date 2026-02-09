@@ -216,7 +216,7 @@ describe('OpenCodeEventMapper', () => {
   });
 
   describe('tool parts', () => {
-    it('should emit tool_use on first pending state', () => {
+    it('should not emit tool_use on pending state (input may be empty)', () => {
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
@@ -231,14 +231,10 @@ describe('OpenCodeEventMapper', () => {
         },
       };
       const messages = mapper.mapEvent(event, sessionId);
-      expect(messages.length).toBe(1);
-      expect(messages[0].type).toBe('tool_use');
-      expect(messages[0].tool?.name).toBe('read_file');
-      expect(messages[0].tool?.id).toBe('tool-1');
-      expect(messages[0].tool?.input).toEqual({ path: '/test' });
+      expect(messages.length).toBe(0);
     });
 
-    it('should emit tool_use on first running state', () => {
+    it('should emit tool_use on first running state with input', () => {
       const event: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
@@ -255,10 +251,13 @@ describe('OpenCodeEventMapper', () => {
       const messages = mapper.mapEvent(event, sessionId);
       expect(messages.length).toBe(1);
       expect(messages[0].type).toBe('tool_use');
+      expect(messages[0].tool?.name).toBe('bash');
+      expect(messages[0].tool?.input).toEqual({ command: 'ls' });
     });
 
     it('should not duplicate tool_use for same part ID', () => {
-      const event: OpenCodeEvent = {
+      // pending does not emit
+      const pendingEvent: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
           part: {
@@ -267,25 +266,30 @@ describe('OpenCodeEventMapper', () => {
           },
         },
       };
-      mapper.mapEvent(event, sessionId);
+      const messages1 = mapper.mapEvent(pendingEvent, sessionId);
+      expect(messages1.length).toBe(0);
 
-      const messages2 = mapper.mapEvent(event, sessionId);
-      expect(messages2.length).toBe(0);
-
+      // running emits tool_use once
       const runningEvent: OpenCodeEvent = {
         type: 'message.part.updated',
         properties: {
           part: {
             type: 'tool', id: 'tool-3', sessionID: sessionId, callID: 'call-3',
-            tool: 'test', state: { status: 'running', input: {} },
+            tool: 'test', state: { status: 'running', input: { command: 'ls' } },
           },
         },
       };
+      const messages2 = mapper.mapEvent(runningEvent, sessionId);
+      expect(messages2.length).toBe(1);
+      expect(messages2[0].type).toBe('tool_use');
+
+      // second running does not duplicate
       const messages3 = mapper.mapEvent(runningEvent, sessionId);
       expect(messages3.length).toBe(0);
     });
 
-    it('should emit tool_result on completed state', () => {
+    it('should emit tool_use and tool_result on completed when running was skipped', () => {
+      // pending does not emit tool_use
       mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
@@ -302,24 +306,28 @@ describe('OpenCodeEventMapper', () => {
           part: {
             type: 'tool', id: 'tool-4', sessionID: sessionId, callID: 'call-4',
             tool: 'test',
-            state: { status: 'completed', input: {}, output: 'done', title: 'test', metadata: {}, time: { start: 0, end: 1 } },
+            state: { status: 'completed', input: { cmd: 'test' }, output: 'done', title: 'test' },
           },
         },
       };
       const messages = mapper.mapEvent(event, sessionId);
-      expect(messages.length).toBe(1);
-      expect(messages[0].type).toBe('tool_result');
-      expect(messages[0].content).toBe('done');
-      expect(messages[0].tool?.id).toBe('tool-4');
+      // completed emits both tool_use (deferred from pending) and tool_result
+      expect(messages.length).toBe(2);
+      expect(messages[0].type).toBe('tool_use');
+      expect(messages[0].tool?.input).toEqual({ cmd: 'test' });
+      expect(messages[1].type).toBe('tool_result');
+      expect(messages[1].content).toBe('done');
+      expect(messages[1].tool?.id).toBe('tool-4');
     });
 
     it('should emit tool_result with error content on error state', () => {
+      // running emits tool_use
       mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
           part: {
             type: 'tool', id: 'tool-5', sessionID: sessionId, callID: 'call-5',
-            tool: 'test', state: { status: 'running', input: {} },
+            tool: 'test', state: { status: 'running', input: { cmd: 'fail' } },
           },
         },
       }, sessionId);
@@ -330,7 +338,7 @@ describe('OpenCodeEventMapper', () => {
           part: {
             type: 'tool', id: 'tool-5', sessionID: sessionId, callID: 'call-5',
             tool: 'test',
-            state: { status: 'error', input: {}, error: 'Permission denied', time: { start: 0, end: 1 } },
+            state: { status: 'error', input: { cmd: 'fail' }, error: 'Permission denied' },
           },
         },
       };
@@ -341,12 +349,13 @@ describe('OpenCodeEventMapper', () => {
     });
 
     it('should not duplicate tool_result for same part ID', () => {
+      // running emits tool_use
       mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
           part: {
             type: 'tool', id: 'tool-6', sessionID: sessionId, callID: 'call-6',
-            tool: 'test', state: { status: 'pending', input: {} },
+            tool: 'test', state: { status: 'running', input: { cmd: 'ok' } },
           },
         },
       }, sessionId);
@@ -357,12 +366,16 @@ describe('OpenCodeEventMapper', () => {
           part: {
             type: 'tool', id: 'tool-6', sessionID: sessionId, callID: 'call-6',
             tool: 'test',
-            state: { status: 'completed', input: {}, output: 'ok', title: 'test', metadata: {}, time: { start: 0, end: 1 } },
+            state: { status: 'completed', input: { cmd: 'ok' }, output: 'ok', title: 'test' },
           },
         },
       };
-      mapper.mapEvent(completedEvent, sessionId);
+      // First completed emits tool_result only (tool_use already emitted from running)
+      const firstMessages = mapper.mapEvent(completedEvent, sessionId);
+      expect(firstMessages.length).toBe(1);
+      expect(firstMessages[0].type).toBe('tool_result');
 
+      // Duplicate completed emits nothing
       const messages = mapper.mapEvent(completedEvent, sessionId);
       expect(messages.length).toBe(0);
     });
