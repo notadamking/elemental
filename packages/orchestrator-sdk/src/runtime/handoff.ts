@@ -49,8 +49,8 @@ export interface HandoffContent {
   readonly reason?: string;
   /** Task IDs being transferred (for agent-agent handoff) */
   readonly taskIds?: string[];
-  /** Claude session ID for predecessor queries */
-  readonly claudeSessionId?: string;
+  /** Provider session ID for predecessor queries */
+  readonly providerSessionId?: string;
   /** Timestamp when handoff was initiated */
   readonly initiatedAt: Timestamp;
 }
@@ -143,7 +143,7 @@ export interface HandoffService {
    * This operation:
    * 1. Creates a handoff document with context summary
    * 2. Sends a handoff message to the agent's own channel
-   * 3. Suspends the current session (preserving Claude session ID)
+   * 3. Suspends the current session (preserving provider session ID)
    * 4. Terminates the process gracefully
    *
    * The new session can find the handoff note in its inbox and
@@ -278,7 +278,7 @@ export class HandoffServiceImpl implements HandoffService {
         contextSummary: options.contextSummary,
         nextSteps: options.nextSteps,
         reason: options.reason,
-        claudeSessionId: session.claudeSessionId,
+        providerSessionId: session.providerSessionId,
         initiatedAt: now,
       };
 
@@ -291,7 +291,7 @@ export class HandoffServiceImpl implements HandoffService {
         metadata: {
           handoffType: 'self',
           fromAgentId: agentId,
-          claudeSessionId: session.claudeSessionId,
+          providerSessionId: session.providerSessionId,
           ...options.metadata,
         },
       });
@@ -320,7 +320,7 @@ export class HandoffServiceImpl implements HandoffService {
       );
       const messageId = savedMessage.id as unknown as MessageId;
 
-      // Suspend the session (preserves Claude session ID for predecessor queries)
+      // Suspend the session (preserves provider session ID for predecessor queries)
       const suspendReason = options.reason
         ? `Self-handoff: ${options.reason}`
         : 'Self-handoff initiated';
@@ -411,7 +411,7 @@ export class HandoffServiceImpl implements HandoffService {
         nextSteps: options.nextSteps,
         reason: options.reason,
         taskIds: options.taskIds,
-        claudeSessionId: session.claudeSessionId,
+        providerSessionId: session.providerSessionId,
         initiatedAt: now,
       };
 
@@ -425,7 +425,7 @@ export class HandoffServiceImpl implements HandoffService {
           handoffType: 'agent-to-agent',
           fromAgentId,
           toAgentId,
-          claudeSessionId: session.claudeSessionId,
+          providerSessionId: session.providerSessionId,
           taskIds: options.taskIds,
           ...options.metadata,
         },

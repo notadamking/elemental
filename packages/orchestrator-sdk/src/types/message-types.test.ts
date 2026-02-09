@@ -311,7 +311,7 @@ describe('HandoffMessage', () => {
       contextSummary: 'Context info',
       nextSteps: 'Continue implementation',
       reason: 'Need specialist',
-      claudeSessionId: 'session-123',
+      providerSessionId: 'session-123',
       handoffDocumentId: 'doc-123',
     });
 

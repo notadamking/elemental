@@ -22,12 +22,12 @@ export interface StreamViewerProps {
   agentName: string;
   /** Current session ID for transcript storage */
   sessionId?: string;
-  /** Claude session ID for resuming a previous session */
-  claudeSessionId?: string;
+  /** Provider session ID for resuming a previous session */
+  providerSessionId?: string;
   /** Whether there's an active running session */
   hasActiveSession?: boolean;
   /** Callback to resume a session with a user message */
-  onResumeWithMessage?: (claudeSessionId: string, message: string) => Promise<void>;
+  onResumeWithMessage?: (providerSessionId: string, message: string) => Promise<void>;
   /** API URL for file uploads (defaults to orchestrator server) */
   apiUrl?: string;
   onStatusChange?: (status: PaneStatus) => void;
@@ -336,7 +336,7 @@ export function StreamViewer({
   agentId,
   agentName,
   sessionId,
-  claudeSessionId,
+  providerSessionId,
   hasActiveSession = false,
   onResumeWithMessage,
   apiUrl = DEFAULT_API_URL,
@@ -814,12 +814,12 @@ export function StreamViewer({
   // Send input to agent (or resume session if viewing historical session)
   const sendInput = useCallback(async (message: string) => {
     try {
-      // If no active session but we have a claudeSessionId, resume the session with this message
+      // If no active session but we have a providerSessionId, resume the session with this message
       // Don't add user message locally - it will be saved to DB and loaded when session starts
-      if (!hasActiveSession && claudeSessionId && onResumeWithMessage) {
+      if (!hasActiveSession && providerSessionId && onResumeWithMessage) {
         setIsWorking(true);
         resetWorkingTimeout(true);
-        await onResumeWithMessage(claudeSessionId, message);
+        await onResumeWithMessage(providerSessionId, message);
         return;
       }
 
@@ -863,7 +863,7 @@ export function StreamViewer({
       setIsWorking(false);
       throw err; // Re-throw so TerminalInput can restore input
     }
-  }, [agentId, hasActiveSession, claudeSessionId, onResumeWithMessage, resetWorkingTimeout]);
+  }, [agentId, hasActiveSession, providerSessionId, onResumeWithMessage, resetWorkingTimeout]);
 
   // File upload function - uses base64 encoding to avoid Bun's multipart binary corruption
   const uploadFile = useCallback(async (file: File): Promise<string | null> => {
@@ -1149,7 +1149,7 @@ export function StreamViewer({
 
       {/* Input area - enabled when connected OR when viewing a historical session that can be resumed */}
       <TerminalInput
-        isConnected={status === 'connected' || (!hasActiveSession && !!claudeSessionId && !!onResumeWithMessage)}
+        isConnected={status === 'connected' || (!hasActiveSession && !!providerSessionId && !!onResumeWithMessage)}
         onSend={sendInput}
         connectedPlaceholder={hasActiveSession ? undefined : 'Send a message to resume this session...'}
         data-testid="stream-input"

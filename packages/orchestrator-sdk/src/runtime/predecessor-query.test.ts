@@ -57,7 +57,7 @@ function createMockSessionManager(state: MockSessionManagerState): SessionManage
 
       const session: SessionRecord & { events: EventEmitter } = {
         id: sessionId,
-        claudeSessionId: `claude-${sessionId}`,
+        providerSessionId: `claude-${sessionId}`,
         agentId,
         agentRole: 'worker',
         status: 'running',
@@ -86,7 +86,7 @@ function createMockSessionManager(state: MockSessionManagerState): SessionManage
 
       const session: SessionRecord & { events: EventEmitter } = {
         id: sessionId,
-        claudeSessionId: options.claudeSessionId,
+        providerSessionId: options.providerSessionId,
         agentId,
         agentRole: 'worker',
         status: 'running',
@@ -136,7 +136,7 @@ function createMockSessionManager(state: MockSessionManagerState): SessionManage
 
     getMostRecentResumableSession(agentId: EntityId): SessionRecord | undefined {
       const agentSessions = Array.from(state.sessions.values())
-        .filter((s) => s.agentId === agentId && s.claudeSessionId)
+        .filter((s) => s.agentId === agentId && s.providerSessionId)
         .sort((a, b) => {
           const aTime = typeof a.createdAt === 'number' ? a.createdAt : new Date(a.createdAt).getTime();
           const bTime = typeof b.createdAt === 'number' ? b.createdAt : new Date(b.createdAt).getTime();
@@ -156,7 +156,7 @@ function createMockSessionManager(state: MockSessionManagerState): SessionManage
     async getPreviousSession(role: string): Promise<RoleSessionHistoryEntry | undefined> {
       const history = state.roleHistory.get(role) ?? [];
       return history.find(
-        (h) => (h.status === 'suspended' || h.status === 'terminated') && h.claudeSessionId
+        (h) => (h.status === 'suspended' || h.status === 'terminated') && h.providerSessionId
       );
     },
 
@@ -181,19 +181,19 @@ function createMockRoleHistoryEntry(
   role: 'director' | 'worker' | 'steward',
   options?: {
     agentId?: EntityId;
-    claudeSessionId?: string | null; // null means explicitly no Claude session ID
+    providerSessionId?: string | null; // null means explicitly no provider session ID
     status?: 'running' | 'suspended' | 'terminated';
   }
 ): RoleSessionHistoryEntry {
   const now = createTimestamp();
-  // If claudeSessionId is explicitly set to null or undefined, don't set it
-  const claudeSessionId = options?.claudeSessionId === null || options?.claudeSessionId === undefined
-    ? (options?.claudeSessionId === null ? undefined : `claude-session-${Date.now()}`)
-    : options.claudeSessionId;
+  // If providerSessionId is explicitly set to null or undefined, don't set it
+  const providerSessionId = options?.providerSessionId === null || options?.providerSessionId === undefined
+    ? (options?.providerSessionId === null ? undefined : `claude-session-${Date.now()}`)
+    : options.providerSessionId;
 
   return {
     id: `session-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    claudeSessionId,
+    providerSessionId,
     status: options?.status ?? 'suspended',
     workingDirectory: '/test/predecessor',
     startedAt: now,
@@ -228,23 +228,23 @@ describe('PredecessorQueryService', () => {
       expect(result).toBe(false);
     });
 
-    test('returns true when suspended session exists with Claude session ID', async () => {
+    test('returns true when suspended session exists with provider session ID', async () => {
       mockState.roleHistory.set('worker', [createMockRoleHistoryEntry('worker')]);
 
       const result = await service.hasPredecessor('worker');
       expect(result).toBe(true);
     });
 
-    test('returns false when sessions exist but no Claude session ID', async () => {
+    test('returns false when sessions exist but no provider session ID', async () => {
       mockState.roleHistory.set('worker', [
-        createMockRoleHistoryEntry('worker', { claudeSessionId: null }), // null means no Claude session ID
+        createMockRoleHistoryEntry('worker', { providerSessionId: null }), // null means no provider session ID
       ]);
 
       const result = await service.hasPredecessor('worker');
       expect(result).toBe(false);
     });
 
-    test('returns true for terminated session with Claude session ID', async () => {
+    test('returns true for terminated session with provider session ID', async () => {
       mockState.roleHistory.set('director', [
         createMockRoleHistoryEntry('director', { status: 'terminated' }),
       ]);
@@ -263,7 +263,7 @@ describe('PredecessorQueryService', () => {
     test('returns predecessor info when suspended session exists', async () => {
       const historyEntry = createMockRoleHistoryEntry('worker', {
         agentId: testAgentId,
-        claudeSessionId: 'claude-session-abc',
+        providerSessionId: 'claude-session-abc',
       });
       mockState.roleHistory.set('worker', [historyEntry]);
 
@@ -272,13 +272,13 @@ describe('PredecessorQueryService', () => {
       expect(result).toBeDefined();
       expect(result?.agentId).toBe(testAgentId);
       expect(result?.role).toBe('worker');
-      expect(result?.claudeSessionId).toBe('claude-session-abc');
+      expect(result?.providerSessionId).toBe('claude-session-abc');
       expect(result?.agentName).toBe('worker-agent');
     });
 
-    test('returns undefined when session has no Claude session ID', async () => {
+    test('returns undefined when session has no provider session ID', async () => {
       const historyEntry = createMockRoleHistoryEntry('worker', {
-        claudeSessionId: null, // null means no Claude session ID
+        providerSessionId: null, // null means no provider session ID
       });
       mockState.roleHistory.set('worker', [historyEntry]);
 
@@ -304,7 +304,7 @@ describe('PredecessorQueryService', () => {
     test('resumes predecessor session with correct options', async () => {
       const historyEntry = createMockRoleHistoryEntry('worker', {
         agentId: testAgentId,
-        claudeSessionId: 'claude-resume-test',
+        providerSessionId: 'claude-resume-test',
       });
       mockState.roleHistory.set('worker', [historyEntry]);
 
@@ -343,7 +343,7 @@ describe('PredecessorQueryService', () => {
       await queryPromise;
 
       expect(capturedOptions).toBeDefined();
-      expect(capturedOptions?.claudeSessionId).toBe('claude-resume-test');
+      expect(capturedOptions?.providerSessionId).toBe('claude-resume-test');
       expect(capturedOptions?.checkReadyQueue).toBe(false);
       expect(capturedOptions?.resumePrompt).toBe('What was your approach?');
     });
@@ -351,7 +351,7 @@ describe('PredecessorQueryService', () => {
     test('includes context in prompt when provided', async () => {
       const historyEntry = createMockRoleHistoryEntry('worker', {
         agentId: testAgentId,
-        claudeSessionId: 'claude-context-test',
+        providerSessionId: 'claude-context-test',
       });
       mockState.roleHistory.set('worker', [historyEntry]);
 
@@ -394,7 +394,7 @@ describe('PredecessorQueryService', () => {
     test('captures response from predecessor', async () => {
       const historyEntry = createMockRoleHistoryEntry('worker', {
         agentId: testAgentId,
-        claudeSessionId: 'claude-response-test',
+        providerSessionId: 'claude-response-test',
       });
       mockState.roleHistory.set('worker', [historyEntry]);
 
@@ -438,7 +438,7 @@ describe('PredecessorQueryService', () => {
     test('suspends predecessor after response by default', async () => {
       const historyEntry = createMockRoleHistoryEntry('worker', {
         agentId: testAgentId,
-        claudeSessionId: 'claude-suspend-test',
+        providerSessionId: 'claude-suspend-test',
       });
       mockState.roleHistory.set('worker', [historyEntry]);
 
@@ -477,7 +477,7 @@ describe('PredecessorQueryService', () => {
     test('does not suspend predecessor when suspendAfterResponse is false', async () => {
       const historyEntry = createMockRoleHistoryEntry('worker', {
         agentId: testAgentId,
-        claudeSessionId: 'claude-no-suspend-test',
+        providerSessionId: 'claude-no-suspend-test',
       });
       mockState.roleHistory.set('worker', [historyEntry]);
 
@@ -516,7 +516,7 @@ describe('PredecessorQueryService', () => {
     test('returns predecessor info in result', async () => {
       const historyEntry = createMockRoleHistoryEntry('director', {
         agentId: testAgentId,
-        claudeSessionId: 'claude-info-test',
+        providerSessionId: 'claude-info-test',
       });
       mockState.roleHistory.set('director', [historyEntry]);
 
@@ -548,13 +548,13 @@ describe('PredecessorQueryService', () => {
 
       expect(result.predecessor).toBeDefined();
       expect(result.predecessor?.role).toBe('director');
-      expect(result.predecessor?.claudeSessionId).toBe('claude-info-test');
+      expect(result.predecessor?.providerSessionId).toBe('claude-info-test');
     });
 
     test('handles error events from predecessor', async () => {
       const historyEntry = createMockRoleHistoryEntry('worker', {
         agentId: testAgentId,
-        claudeSessionId: 'claude-error-test',
+        providerSessionId: 'claude-error-test',
       });
       mockState.roleHistory.set('worker', [historyEntry]);
 
@@ -585,7 +585,7 @@ describe('PredecessorQueryService', () => {
     test('handles session exit with accumulated response', async () => {
       const historyEntry = createMockRoleHistoryEntry('worker', {
         agentId: testAgentId,
-        claudeSessionId: 'claude-exit-test',
+        providerSessionId: 'claude-exit-test',
       });
       mockState.roleHistory.set('worker', [historyEntry]);
 
@@ -619,7 +619,7 @@ describe('PredecessorQueryService', () => {
     test('handles session exit without response', async () => {
       const historyEntry = createMockRoleHistoryEntry('worker', {
         agentId: testAgentId,
-        claudeSessionId: 'claude-exit-no-response',
+        providerSessionId: 'claude-exit-no-response',
       });
       mockState.roleHistory.set('worker', [historyEntry]);
 
@@ -649,7 +649,7 @@ describe('PredecessorQueryService', () => {
     test('lists active queries', async () => {
       const historyEntry = createMockRoleHistoryEntry('worker', {
         agentId: testAgentId,
-        claudeSessionId: 'claude-active-test',
+        providerSessionId: 'claude-active-test',
       });
       mockState.roleHistory.set('worker', [historyEntry]);
 
@@ -684,7 +684,7 @@ describe('PredecessorQueryService', () => {
     test('gets active query by ID', async () => {
       const historyEntry = createMockRoleHistoryEntry('worker', {
         agentId: testAgentId,
-        claudeSessionId: 'claude-get-query-test',
+        providerSessionId: 'claude-get-query-test',
       });
       mockState.roleHistory.set('worker', [historyEntry]);
 
@@ -720,7 +720,7 @@ describe('PredecessorQueryService', () => {
     test('cancels active query', async () => {
       const historyEntry = createMockRoleHistoryEntry('worker', {
         agentId: testAgentId,
-        claudeSessionId: 'claude-cancel-test',
+        providerSessionId: 'claude-cancel-test',
       });
       mockState.roleHistory.set('worker', [historyEntry]);
 
@@ -790,7 +790,7 @@ describe('PredecessorQueryService', () => {
     test('tracks query status through lifecycle', async () => {
       const historyEntry = createMockRoleHistoryEntry('worker', {
         agentId: testAgentId,
-        claudeSessionId: 'claude-status-test',
+        providerSessionId: 'claude-status-test',
       });
       mockState.roleHistory.set('worker', [historyEntry]);
 

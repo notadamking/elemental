@@ -99,7 +99,7 @@ function createMockSpawnerService(): SpawnerService & { _mockEmitters: Map<strin
       const mode = options?.mode ?? 'headless';
       const session: SpawnedSession = {
         id: sessionId,
-        claudeSessionId: `claude-session-${sessionIdCounter}`,
+        providerSessionId: `claude-session-${sessionIdCounter}`,
         agentId,
         agentRole,
         workerMode: agentRole === 'worker' ? 'ephemeral' : undefined,
@@ -360,7 +360,7 @@ describe('SessionManager', () => {
       expect(result.session.agentId).toBe(testAgentId);
       expect(result.session.status).toBe('running');
       expect(result.session.agentRole).toBe('worker');
-      expect(result.session.claudeSessionId).toBeDefined();
+      expect(result.session.providerSessionId).toBeDefined();
       expect(result.events).toBeInstanceOf(EventEmitter);
     });
 
@@ -401,9 +401,9 @@ describe('SessionManager', () => {
   });
 
   describe('resumeSession', () => {
-    test('resumes a session with Claude session ID', async () => {
+    test('resumes a session with provider session ID', async () => {
       const options: ResumeSessionOptions = {
-        claudeSessionId: 'claude-session-previous',
+        providerSessionId: 'claude-session-previous',
         workingDirectory: '/resume/path',
       };
 
@@ -417,14 +417,14 @@ describe('SessionManager', () => {
     test('throws error for non-existent agent', async () => {
       const nonExistentId = 'el-nonexist' as EntityId;
       await expect(
-        sessionManager.resumeSession(nonExistentId, { claudeSessionId: 'test' })
+        sessionManager.resumeSession(nonExistentId, { providerSessionId: 'test' })
       ).rejects.toThrow('Agent not found');
     });
 
     test('throws error if agent already has active session', async () => {
       await sessionManager.startSession(testAgentId);
       await expect(
-        sessionManager.resumeSession(testAgentId, { claudeSessionId: 'test' })
+        sessionManager.resumeSession(testAgentId, { providerSessionId: 'test' })
       ).rejects.toThrow('already has an active session');
     });
 
@@ -436,7 +436,7 @@ describe('SessionManager', () => {
       const getReadyTasks = async (_agentId: EntityId, _limit: number) => mockReadyTasks;
 
       const result = await sessionManager.resumeSession(testAgentId, {
-        claudeSessionId: 'claude-session-previous',
+        providerSessionId: 'claude-session-previous',
         checkReadyQueue: true,
         getReadyTasks,
       });
@@ -453,7 +453,7 @@ describe('SessionManager', () => {
       const getReadyTasks = async (_agentId: EntityId, _limit: number) => [];
 
       const result = await sessionManager.resumeSession(testAgentId, {
-        claudeSessionId: 'claude-session-previous',
+        providerSessionId: 'claude-session-previous',
         checkReadyQueue: true,
         getReadyTasks,
       });
@@ -470,7 +470,7 @@ describe('SessionManager', () => {
       ];
 
       const result = await sessionManager.resumeSession(testAgentId, {
-        claudeSessionId: 'claude-session-previous',
+        providerSessionId: 'claude-session-previous',
         checkReadyQueue: false,
         getReadyTasks,
       });
@@ -480,7 +480,7 @@ describe('SessionManager', () => {
 
     test('skips UWP check when no callback provided', async () => {
       const result = await sessionManager.resumeSession(testAgentId, {
-        claudeSessionId: 'claude-session-previous',
+        providerSessionId: 'claude-session-previous',
         checkReadyQueue: true,
         // No getReadyTasks callback
       });
@@ -496,7 +496,7 @@ describe('SessionManager', () => {
       const getReadyTasks = async (_agentId: EntityId, _limit: number) => mockReadyTasks;
 
       const result = await sessionManager.resumeSession(testAgentId, {
-        claudeSessionId: 'claude-session-previous',
+        providerSessionId: 'claude-session-previous',
         // checkReadyQueue not specified, should default to true
         getReadyTasks,
       });
@@ -514,7 +514,7 @@ describe('SessionManager', () => {
       const getReadyTasks = async (_agentId: EntityId, _limit: number) => mockReadyTasks;
 
       const result = await sessionManager.resumeSession(testAgentId, {
-        claudeSessionId: 'claude-session-previous',
+        providerSessionId: 'claude-session-previous',
         resumePrompt: 'Continue where you left off',
         getReadyTasks,
       });
@@ -606,15 +606,15 @@ describe('SessionManager', () => {
       expect(meta?.sessionStatus).toBe('suspended');
     });
 
-    test('preserves Claude session ID for resumption', async () => {
+    test('preserves provider session ID for resumption', async () => {
       const { session } = await sessionManager.startSession(testAgentId);
-      const claudeSessionId = session.claudeSessionId;
+      const providerSessionId = session.providerSessionId;
 
       await sessionManager.suspendSession(session.id);
 
       const agent = await registry.getAgent(testAgentId);
       const meta = agent?.metadata?.agent as AgentMetadata;
-      expect(meta?.sessionId).toBe(claudeSessionId);
+      expect(meta?.sessionId).toBe(providerSessionId);
     });
   });
 
@@ -733,12 +733,12 @@ describe('SessionManager', () => {
       const resumableSessions = sessionManager.listSessions({ resumable: true });
 
       expect(resumableSessions).toHaveLength(2);
-      expect(resumableSessions.every((s) => s.claudeSessionId !== undefined)).toBe(true);
+      expect(resumableSessions.every((s) => s.providerSessionId !== undefined)).toBe(true);
     });
   });
 
   describe('getMostRecentResumableSession', () => {
-    test('returns most recent session with Claude session ID', async () => {
+    test('returns most recent session with provider session ID', async () => {
       const { session: session1 } = await sessionManager.startSession(testAgentId);
       await sessionManager.suspendSession(session1.id);
 
@@ -749,7 +749,7 @@ describe('SessionManager', () => {
 
       expect(mostRecent).toBeDefined();
       expect(mostRecent?.agentId).toBe(testAgentId);
-      expect(mostRecent?.claudeSessionId).toBeDefined();
+      expect(mostRecent?.providerSessionId).toBeDefined();
     });
 
     test('returns undefined when no sessions exist', () => {
@@ -876,7 +876,7 @@ describe('SessionManager', () => {
 
       const agent = await registry.getAgent(testAgentId);
       const meta = agent?.metadata?.agent as AgentMetadata;
-      expect(meta?.sessionId).toBe(session.claudeSessionId);
+      expect(meta?.sessionId).toBe(session.providerSessionId);
     });
 
     test('does nothing for non-existent session', async () => {
@@ -902,7 +902,7 @@ describe('SessionManager', () => {
       agentMeta.sessionHistory = [
         {
           id: 'session-old',
-          claudeSessionId: 'claude-suspended',
+          providerSessionId: 'claude-suspended',
           status: 'suspended',
           workingDirectory: '/old/path',
           startedAt: createTimestamp(),
@@ -1146,14 +1146,14 @@ describe('SessionManager', () => {
       expect(previousWorker?.role).toBe('worker');
     });
 
-    test('includes Claude session ID for resumption', async () => {
+    test('includes provider session ID for resumption', async () => {
       const { session } = await sessionManager.startSession(testAgentId);
-      const claudeSessionId = session.claudeSessionId;
+      const providerSessionId = session.providerSessionId;
       await sessionManager.suspendSession(session.id);
 
       const previous = await sessionManager.getPreviousSession('worker');
 
-      expect(previous?.claudeSessionId).toBe(claudeSessionId);
+      expect(previous?.providerSessionId).toBe(providerSessionId);
     });
   });
 

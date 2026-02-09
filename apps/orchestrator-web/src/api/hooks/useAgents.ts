@@ -14,6 +14,7 @@ import type {
   SessionsResponse,
   SessionMessagesResponse,
   CreateAgentInput,
+  ProvidersResponse,
 } from '../types';
 
 // ============================================================================
@@ -50,6 +51,17 @@ export function useAgents(role?: AgentRole) {
   return useQuery<AgentsResponse, Error>({
     queryKey: ['agents', role],
     queryFn: () => fetchApi<AgentsResponse>(role ? `/agents?role=${role}` : '/agents'),
+  });
+}
+
+/**
+ * Hook to fetch available providers
+ */
+export function useProviders() {
+  return useQuery<ProvidersResponse, Error>({
+    queryKey: ['providers'],
+    queryFn: () => fetchApi<ProvidersResponse>('/providers'),
+    staleTime: 60_000, // Cache for 1 minute (providers change rarely)
   });
 }
 
@@ -161,10 +173,10 @@ export function useDirector() {
     error: statusError
   } = useAgentStatus(director?.id);
 
-  // Find the most recent session with a claudeSessionId (resumable)
+  // Find the most recent session with a providerSessionId (resumable)
   const lastResumableSession = useMemo(() => {
     const history = statusData?.recentHistory ?? [];
-    return history.find((h) => !!h.claudeSessionId) ?? null;
+    return history.find((h) => !!h.providerSessionId) ?? null;
   }, [statusData?.recentHistory]);
 
   const hasResumableSession = lastResumableSession !== null;
@@ -288,11 +300,11 @@ export function useInterruptAgentSession() {
 export function useResumeAgentSession() {
   const queryClient = useQueryClient();
 
-  return useMutation<{ success: boolean; session: unknown }, Error, { agentId: string; claudeSessionId?: string; resumePrompt?: string }>({
-    mutationFn: async ({ agentId, claudeSessionId, resumePrompt }) => {
+  return useMutation<{ success: boolean; session: unknown }, Error, { agentId: string; providerSessionId?: string; resumePrompt?: string }>({
+    mutationFn: async ({ agentId, providerSessionId, resumePrompt }) => {
       return fetchApi(`/agents/${agentId}/resume`, {
         method: 'POST',
-        body: JSON.stringify({ claudeSessionId, resumePrompt }),
+        body: JSON.stringify({ providerSessionId, resumePrompt }),
       });
     },
     onSuccess: (_, { agentId }) => {
@@ -314,6 +326,26 @@ export function useRenameAgent() {
       return fetchApi<AgentResponse>(`/agents/${agentId}`, {
         method: 'PATCH',
         body: JSON.stringify({ name }),
+      });
+    },
+    onSuccess: (_, { agentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
+      queryClient.invalidateQueries({ queryKey: ['agent', agentId] });
+    },
+  });
+}
+
+/**
+ * Hook to change an agent's provider
+ */
+export function useChangeAgentProvider() {
+  const queryClient = useQueryClient();
+
+  return useMutation<AgentResponse, Error, { agentId: string; provider: string }>({
+    mutationFn: async ({ agentId, provider }) => {
+      return fetchApi<AgentResponse>(`/agents/${agentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ provider }),
       });
     },
     onSuccess: (_, { agentId }) => {

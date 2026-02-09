@@ -113,7 +113,7 @@ async function main() {
     console.log(`[orchestrator] Attempting to auto-resume director session ${directorSessionId}`);
     try {
       const { session, events } = await services.sessionManager.resumeSession(directorId, {
-        claudeSessionId: directorSessionId,
+        providerSessionId: directorSessionId,
         resumePrompt: 'Server restarted. You have been automatically reconnected to your previous session. Check your inbox for any pending messages.',
       });
 

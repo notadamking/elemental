@@ -467,7 +467,7 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
     try {
       const agentId = c.req.param('id') as EntityId;
       const body = (await c.req.json().catch(() => ({}))) as {
-        claudeSessionId?: string;
+        providerSessionId?: string;
         workingDirectory?: string;
         worktree?: string;
         resumePrompt?: string;
@@ -490,17 +490,17 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
         );
       }
 
-      let claudeSessionId = body.claudeSessionId;
-      if (!claudeSessionId) {
+      let providerSessionId = body.providerSessionId;
+      if (!providerSessionId) {
         const resumable = sessionManager.getMostRecentResumableSession(agentId);
-        if (!resumable?.claudeSessionId) {
+        if (!resumable?.providerSessionId) {
           return c.json({ error: { code: 'NO_RESUMABLE_SESSION', message: 'No resumable session found' } }, 404);
         }
-        claudeSessionId = resumable.claudeSessionId;
+        providerSessionId = resumable.providerSessionId;
       }
 
       const { session, events, uwpCheck } = await sessionManager.resumeSession(agentId, {
-        claudeSessionId,
+        providerSessionId,
         workingDirectory: body.workingDirectory,
         worktree: body.worktree,
         resumePrompt: body.resumePrompt,
@@ -734,7 +734,7 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
 
   // GET /api/sessions/:id/messages
   // Retrieve all messages for a session (for transcript restoration)
-  // Also loads messages from related sessions (those with the same claudeSessionId)
+  // Also loads messages from related sessions (those with the same providerSessionId)
   // to support viewing full history of resumed sessions
   app.get('/api/sessions/:id/messages', async (c) => {
     try {
@@ -742,13 +742,13 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
       const url = new URL(c.req.url);
       const afterId = url.searchParams.get('after');
 
-      // Get the session to check for claudeSessionId
+      // Get the session to check for providerSessionId
       // First check in-memory sessions, then check persisted session history
-      let claudeSessionId: string | undefined;
+      let providerSessionId: string | undefined;
 
       const inMemorySession = sessionManager.getSession(sessionId);
-      if (inMemorySession?.claudeSessionId) {
-        claudeSessionId = inMemorySession.claudeSessionId;
+      if (inMemorySession?.providerSessionId) {
+        providerSessionId = inMemorySession.providerSessionId;
       } else {
         // Session not in memory - check persisted session history for all agents
         // This is needed when viewing historical sessions after server restart
@@ -756,23 +756,23 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
         for (const agent of agents) {
           const history = await sessionManager.getSessionHistory(agent.id as unknown as EntityId, 50);
           const historyEntry = history.find(h => h.id === sessionId);
-          if (historyEntry?.claudeSessionId) {
-            claudeSessionId = historyEntry.claudeSessionId;
+          if (historyEntry?.providerSessionId) {
+            providerSessionId = historyEntry.providerSessionId;
             break;
           }
         }
       }
 
-      // If we found a claudeSessionId, find all related sessions and load their messages
-      if (claudeSessionId) {
-        // Collect all session IDs with the same claudeSessionId
+      // If we found a providerSessionId, find all related sessions and load their messages
+      if (providerSessionId) {
+        // Collect all session IDs with the same providerSessionId
         const relatedSessionIds = new Set<string>();
         relatedSessionIds.add(sessionId); // Always include the requested session
 
         // Check in-memory sessions
         const allSessions = sessionManager.listSessions({});
         for (const s of allSessions) {
-          if (s.claudeSessionId === claudeSessionId) {
+          if (s.providerSessionId === providerSessionId) {
             relatedSessionIds.add(s.id);
           }
         }
@@ -782,7 +782,7 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
         for (const agent of agents) {
           const history = await sessionManager.getSessionHistory(agent.id as unknown as EntityId, 50);
           for (const entry of history) {
-            if (entry.claudeSessionId === claudeSessionId) {
+            if (entry.providerSessionId === providerSessionId) {
               relatedSessionIds.add(entry.id);
             }
           }

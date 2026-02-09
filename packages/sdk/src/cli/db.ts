@@ -13,6 +13,7 @@ import { createElementalAPI } from '../api/elemental-api.js';
 import type { ElementalAPI } from '../api/types.js';
 import type { EntityId } from '@elemental/core';
 import { OPERATOR_ENTITY_ID } from './commands/init.js';
+import { findElementalDir } from '../config/file.js';
 
 // ============================================================================
 // Constants
@@ -42,11 +43,12 @@ export function resolveDatabasePath(options: GlobalOptions, requireExists: boole
     return options.db;
   }
 
-  // Look for .elemental directory
-  const elementalDir = join(process.cwd(), ELEMENTAL_DIR);
-  if (existsSync(elementalDir)) {
+  // Find .elemental directory via ELEMENTAL_ROOT env or walk-up search.
+  // This supports agents running in git worktrees where the database
+  // lives in the main workspace root, not in the worktree itself.
+  const elementalDir = findElementalDir(process.cwd());
+  if (elementalDir) {
     const dbPath = join(elementalDir, DEFAULT_DB_NAME);
-    // For read operations, verify the database actually exists
     if (requireExists && !existsSync(dbPath)) {
       return null;
     }

@@ -403,6 +403,7 @@ interface AgentRegisterOptions {
   reportsTo?: string;
   roleDef?: string;
   trigger?: string;
+  provider?: string;
 }
 
 const agentRegisterOptions: CommandOption[] = [
@@ -449,6 +450,11 @@ const agentRegisterOptions: CommandOption[] = [
   {
     name: 'trigger',
     description: 'Steward cron trigger (e.g., "0 2 * * *")',
+    hasValue: true,
+  },
+  {
+    name: 'provider',
+    description: 'Agent provider (e.g., claude, opencode)',
     hasValue: true,
   },
 ];
@@ -498,6 +504,7 @@ async function agentRegisterHandler(
           maxConcurrentTasks,
           tags,
           roleDefinitionRef,
+          provider: options.provider,
         });
         break;
 
@@ -518,6 +525,7 @@ async function agentRegisterHandler(
           tags,
           reportsTo,
           roleDefinitionRef,
+          provider: options.provider,
         });
         break;
       }
@@ -545,6 +553,7 @@ async function agentRegisterHandler(
           tags,
           reportsTo,
           roleDefinitionRef,
+          provider: options.provider,
         });
         break;
       }
@@ -588,6 +597,7 @@ Options:
   --reportsTo <id>        Manager entity ID (for workers/stewards)
   --roleDef <id>          Role definition document ID
   --trigger <cron>        Steward cron trigger (e.g., "0 2 * * *")
+  --provider <name>       Agent provider (e.g., claude, opencode)
 
 Examples:
   el agent register MyWorker --role worker --mode ephemeral
@@ -595,7 +605,8 @@ Examples:
   el agent register HealthChecker --role steward --focus health
   el agent register MyWorker --role worker --tags "frontend,urgent"
   el agent register TeamWorker --role worker --reportsTo el-director123
-  el agent register DailyChecker --role steward --focus health --trigger "0 9 * * *"`,
+  el agent register DailyChecker --role steward --focus health --trigger "0 9 * * *"
+  el agent register OcWorker --role worker --provider opencode`,
   options: agentRegisterOptions,
   handler: agentRegisterHandler as Command['handler'],
 };
@@ -774,6 +785,7 @@ interface AgentStartOptions {
   env?: string;
   taskId?: string;
   stream?: boolean;
+  provider?: string;
 }
 
 const agentStartOptions: CommandOption[] = [
@@ -792,7 +804,7 @@ const agentStartOptions: CommandOption[] = [
   {
     name: 'resume',
     short: 'r',
-    description: 'Claude session ID to resume',
+    description: 'Provider session ID to resume',
     hasValue: true,
   },
   {
@@ -831,6 +843,11 @@ const agentStartOptions: CommandOption[] = [
   {
     name: 'stream',
     description: 'Stream agent output after spawning',
+  },
+  {
+    name: 'provider',
+    description: 'Override agent provider for this session',
+    hasValue: true,
   },
 ];
 
@@ -930,7 +947,7 @@ async function agentStartHandler(
     if (mode === 'json') {
       return success({
         sessionId: result.session.id,
-        claudeSessionId: result.session.claudeSessionId,
+        providerSessionId: result.session.providerSessionId,
         agentId: id,
         status: result.session.status,
         mode: result.session.mode,
@@ -946,7 +963,7 @@ async function agentStartHandler(
     const lines = [
       `Spawned agent ${id}`,
       `  Session ID:  ${result.session.id}`,
-      `  Claude ID:   ${result.session.claudeSessionId ?? '-'}`,
+      `  Provider ID: ${result.session.providerSessionId ?? '-'}`,
       `  Status:      ${result.session.status}`,
       `  Mode:        ${result.session.mode}`,
       `  PID:         ${result.session.pid ?? '-'}`,
@@ -964,9 +981,9 @@ async function agentStartHandler(
 
 export const agentStartCommand: Command = {
   name: 'start',
-  description: 'Start a Claude Code process for an agent',
+  description: 'Start an agent process',
   usage: 'el agent start <id> [options]',
-  help: `Start a new Claude Code process for an agent.
+  help: `Start a new agent process.
 
 Arguments:
   id    Agent identifier
@@ -974,7 +991,7 @@ Arguments:
 Options:
   -p, --prompt <text>      Initial prompt to send to the agent
   -m, --mode <mode>        Start mode: headless, interactive
-  -r, --resume <id>        Resume a previous Claude session
+  -r, --resume <id>        Resume a previous session
   -w, --workdir <path>     Working directory for the agent
   --cols <n>               Terminal columns for interactive mode (default: 120)
   --rows <n>               Terminal rows for interactive mode (default: 30)
@@ -982,6 +999,7 @@ Options:
   -e, --env <KEY=VALUE>    Environment variable to set
   -t, --taskId <id>        Task ID to assign to this agent
   --stream                 Stream agent output after starting
+  --provider <name>        Override agent provider for this session
 
 Examples:
   el agent start el-abc123
@@ -991,7 +1009,8 @@ Examples:
   el agent start el-abc123 --resume prev-session-id
   el agent start el-abc123 --env MY_VAR=value
   el agent start el-abc123 --taskId el-task456
-  el agent start el-abc123 --stream`,
+  el agent start el-abc123 --stream
+  el agent start el-abc123 --provider opencode`,
   options: agentStartOptions,
   handler: agentStartHandler as Command['handler'],
 };
@@ -1010,7 +1029,7 @@ Subcommands:
   list      List all registered agents
   show      Show agent details
   register  Register a new agent
-  start     Start a Claude Code process for an agent
+  start     Start an agent process
   stop      Stop an agent session
   stream    Get agent channel for streaming
 

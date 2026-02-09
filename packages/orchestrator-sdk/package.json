@@ -42,6 +42,12 @@
       "import": "./dist/testing/index.js",
       "default": "./dist/testing/index.js"
     },
+    "./providers": {
+      "types": "./dist/providers/index.d.ts",
+      "bun": "./src/providers/index.ts",
+      "import": "./dist/providers/index.js",
+      "default": "./dist/providers/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -83,6 +89,9 @@
     "@elemental/sdk": "workspace:*",
     "@elemental/storage": "workspace:*",
     "node-pty": "^1.1.0"
+  },
+  "optionalDependencies": {
+    "@opencode-ai/sdk": "^1.1.53"
   },
   "devDependencies": {
     "@types/bun": "latest",

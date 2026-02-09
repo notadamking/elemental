@@ -77,7 +77,7 @@ describe('Agent Command Structure', () => {
 
     it('should have all registration options', () => {
       expect(agentRegisterCommand.options).toBeDefined();
-      expect(agentRegisterCommand.options!.length).toBe(8);
+      expect(agentRegisterCommand.options!.length).toBe(9);
 
       // Required role option
       const roleOption = agentRegisterCommand.options![0];
@@ -124,14 +124,14 @@ describe('Agent Command Structure', () => {
   describe('agentStartCommand', () => {
     it('should have correct structure', () => {
       expect(agentStartCommand.name).toBe('start');
-      expect(agentStartCommand.description).toBe('Start a Claude Code process for an agent');
+      expect(agentStartCommand.description).toBe('Start an agent process');
       expect(agentStartCommand.usage).toBe('el agent start <id> [options]');
       expect(typeof agentStartCommand.handler).toBe('function');
     });
 
     it('should have all start options', () => {
       expect(agentStartCommand.options).toBeDefined();
-      expect(agentStartCommand.options!.length).toBe(10);
+      expect(agentStartCommand.options!.length).toBe(11);
       expect(agentStartCommand.options![0].name).toBe('prompt');
       expect(agentStartCommand.options![1].name).toBe('mode');
       expect(agentStartCommand.options![2].name).toBe('resume');

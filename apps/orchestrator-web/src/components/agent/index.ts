@@ -7,5 +7,7 @@ export { DeleteAgentDialog } from './DeleteAgentDialog';
 export type { DeleteAgentDialogProps } from './DeleteAgentDialog';
 export { RenameAgentDialog } from './RenameAgentDialog';
 export type { RenameAgentDialogProps } from './RenameAgentDialog';
+export { ChangeProviderDialog } from './ChangeProviderDialog';
+export type { ChangeProviderDialogProps } from './ChangeProviderDialog';
 export { StartAgentDialog } from './StartAgentDialog';
 export type { StartAgentDialogProps } from './StartAgentDialog';

@@ -31,7 +31,7 @@ import type {
   CreateAgentInput,
   Agent,
 } from '../../api/types';
-import { useCreateAgent, useAgents } from '../../api/hooks/useAgents';
+import { useCreateAgent, useAgents, useProviders } from '../../api/hooks/useAgents';
 
 export interface CreateAgentDialogProps {
   isOpen: boolean;
@@ -154,10 +154,10 @@ interface FormState {
   // Steward fields
   stewardFocus: StewardFocus;
   triggers: StewardTrigger[];
-  // Settings
-  maxConcurrentTasks: number;
   // Tags
   tags: string;
+  // Provider
+  provider: string;
 }
 
 const defaultState: FormState = {
@@ -166,8 +166,8 @@ const defaultState: FormState = {
   workerMode: 'ephemeral',
   stewardFocus: 'merge',
   triggers: [],
-  maxConcurrentTasks: 1,
   tags: '',
+  provider: 'claude',
 };
 
 export function CreateAgentDialog({
@@ -181,6 +181,11 @@ export function CreateAgentDialog({
   // Fetch existing agents to determine sequential naming
   const { data: agentsData } = useAgents();
   const existingAgents = useMemo(() => agentsData?.agents ?? [], [agentsData?.agents]);
+
+  // Fetch available providers
+  const { data: providersData } = useProviders();
+  const providers = useMemo(() => providersData?.providers ?? [], [providersData?.providers]);
+  const hasMultipleProviders = providers.length > 1;
 
   const [form, setForm] = useState<FormState>({
     ...defaultState,
@@ -243,7 +248,7 @@ export function CreateAgentDialog({
       name: form.name.trim(),
       role: form.role,
       tags: form.tags.trim() ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
-      maxConcurrentTasks: form.maxConcurrentTasks,
+      provider: form.provider !== 'claude' ? form.provider : undefined,
     };
 
     // Add role-specific fields
@@ -638,28 +643,6 @@ export function CreateAgentDialog({
               {showCapabilities && (
                 <div className="space-y-3 pl-6">
                   <div className="space-y-1">
-                    <label htmlFor="agent-max-tasks" className="text-xs font-medium text-[var(--color-text-secondary)]">
-                      Max Concurrent Tasks
-                    </label>
-                    <input
-                      id="agent-max-tasks"
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={form.maxConcurrentTasks}
-                      onChange={e => setForm(prev => ({ ...prev, maxConcurrentTasks: parseInt(e.target.value, 10) || 1 }))}
-                      className="
-                        w-20 px-3 py-1.5
-                        text-sm
-                        bg-[var(--color-surface)]
-                        border border-[var(--color-border)]
-                        rounded-lg
-                        focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30
-                      "
-                      data-testid="agent-max-tasks"
-                    />
-                  </div>
-                  <div className="space-y-1">
                     <label htmlFor="agent-tags" className="text-xs font-medium text-[var(--color-text-secondary)]">
                       Tags (comma-separated)
                     </label>
@@ -681,6 +664,37 @@ export function CreateAgentDialog({
                       data-testid="agent-tags"
                     />
                   </div>
+                  {hasMultipleProviders && (
+                    <div className="space-y-1">
+                      <label htmlFor="agent-provider" className="text-xs font-medium text-[var(--color-text-secondary)]">
+                        Provider
+                      </label>
+                      <div className="relative">
+                        <select
+                          id="agent-provider"
+                          value={form.provider}
+                          onChange={e => setForm(prev => ({ ...prev, provider: e.target.value }))}
+                          className="
+                            w-full px-3 py-1.5 pr-8
+                            text-sm
+                            bg-[var(--color-surface)]
+                            border border-[var(--color-border)]
+                            rounded-lg
+                            appearance-none
+                            focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30
+                          "
+                          data-testid="agent-provider"
+                        >
+                          {providers.map(p => (
+                            <option key={p.name} value={p.name} disabled={!p.available}>
+                              {p.name}{!p.available ? ' (not installed)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)] pointer-events-none" />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

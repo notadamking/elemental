@@ -86,8 +86,8 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
   const [isFocused, setIsFocused] = useState(false);
   // Track the current session ID, persisting even after session ends for transcript display
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(undefined);
-  // Track the Claude session ID for resuming (separate from internal session ID)
-  const [currentClaudeSessionId, setCurrentClaudeSessionId] = useState<string | undefined>(undefined);
+  // Track the provider session ID for resuming (separate from internal session ID)
+  const [currentProviderSessionId, setCurrentProviderSessionId] = useState<string | undefined>(undefined);
   // Track if we're viewing a session that has ended (for showing transcript without overlay)
   const [viewingEndedSession, setViewingEndedSession] = useState(false);
   const terminalRef = useRef<XTerminalHandle>(null);
@@ -102,17 +102,17 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
 
   const hasActiveSession = statusData?.hasActiveSession ?? false;
 
-  // Update currentSessionId and claudeSessionId when active session changes
+  // Update currentSessionId and providerSessionId when active session changes
   useEffect(() => {
     if (statusData?.activeSession?.id) {
       setCurrentSessionId(statusData.activeSession.id);
-      setCurrentClaudeSessionId(statusData.activeSession.claudeSessionId);
+      setCurrentProviderSessionId(statusData.activeSession.providerSessionId);
       setViewingEndedSession(false);
     } else if (currentSessionId && !hasActiveSession) {
       // Session just ended, keep the IDs for transcript display and potential resume
       setViewingEndedSession(true);
     }
-  }, [statusData?.activeSession?.id, statusData?.activeSession?.claudeSessionId, hasActiveSession, currentSessionId]);
+  }, [statusData?.activeSession?.id, statusData?.activeSession?.providerSessionId, hasActiveSession, currentSessionId]);
 
   const handleStartSession = useCallback(async () => {
     try {
@@ -128,31 +128,35 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
   const handleStopSession = useCallback(async () => {
     try {
       await stopSession.mutateAsync({ agentId: pane.agentId, graceful: true });
+      // After explicit stop, reset to idle state instead of showing the dead terminal
+      setCurrentSessionId(undefined);
+      setCurrentProviderSessionId(undefined);
+      setViewingEndedSession(false);
     } catch (err) {
       console.error('Failed to stop session:', err);
     }
   }, [pane.agentId, stopSession]);
 
   // View a session's transcript (can be resumed by sending a message)
-  const handleViewSession = useCallback((sessionId: string, claudeSessionId?: string) => {
+  const handleViewSession = useCallback((sessionId: string, providerSessionId?: string) => {
     setCurrentSessionId(sessionId);
-    setCurrentClaudeSessionId(claudeSessionId);
+    setCurrentProviderSessionId(providerSessionId);
     setViewingEndedSession(true);
     setShowHistory(false);
   }, []);
 
   // Resume a session when user sends a message from the chat input
-  const handleResumeWithMessage = useCallback(async (claudeSessionId: string, message: string) => {
+  const handleResumeWithMessage = useCallback(async (providerSessionId: string, message: string) => {
     try {
       setViewingEndedSession(false);
       await resumeSession.mutateAsync({
         agentId: pane.agentId,
-        claudeSessionId,
+        providerSessionId,
         resumePrompt: message,
       });
     } catch (err) {
       console.error('Failed to resume session:', err);
-      // Don't try to start a fresh session - the issue is likely with the stored claudeSessionId
+      // Don't try to start a fresh session - the issue is likely with the stored providerSessionId
       setViewingEndedSession(true);
       throw err;
     }
@@ -582,7 +586,7 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
             agentId={pane.agentId}
             agentName={pane.agentName}
             sessionId={currentSessionId}
-            claudeSessionId={currentClaudeSessionId}
+            providerSessionId={currentProviderSessionId}
             hasActiveSession={hasActiveSession}
             onResumeWithMessage={handleResumeWithMessage}
             onStatusChange={handleStatusChange}

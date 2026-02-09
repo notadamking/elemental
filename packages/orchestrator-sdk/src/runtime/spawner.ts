@@ -1,29 +1,32 @@
 /**
  * Spawner Service
  *
- * This service manages spawning and lifecycle of Claude Code processes
+ * This service manages spawning and lifecycle of agent processes
  * for AI agents in the orchestration system.
  *
  * Key features:
- * - Spawn headless agents (ephemeral workers, stewards) with stream-json output
- * - Spawn interactive agents (Director, persistent workers) with PTY
- * - Resume existing sessions with `--resume {session_id}`
+ * - Spawn headless agents (ephemeral workers, stewards) via provider abstraction
+ * - Spawn interactive agents (Director, persistent workers) via provider abstraction
+ * - Resume existing sessions with provider session IDs
  * - Parse stream-json events (assistant, tool_use, tool_result, error)
  * - Track session metadata for cross-restart resumption
+ * - Provider-agnostic: supports Claude Code, OpenCode, and future providers
  *
  * @module
  */
 
-import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import type { EntityId, Timestamp } from '@elemental/core';
 import { createTimestamp } from '@elemental/core';
 import type { AgentRole, WorkerMode } from '../types/agent.js';
-import * as pty from 'node-pty';
-import type { IPty } from 'node-pty';
-import { query as sdkQuery } from '@anthropic-ai/claude-agent-sdk';
-import type { Query as SDKQuery, SDKMessage, SDKUserMessage, Options as SDKOptions } from '@anthropic-ai/claude-agent-sdk';
+import type {
+  AgentProvider,
+  HeadlessSession,
+  InteractiveSession,
+  AgentMessage,
+} from '../providers/types.js';
+import { ClaudeAgentProvider } from '../providers/claude/index.js';
 
 /**
  * Shell-quotes a string for safe inclusion in a bash command.
@@ -31,66 +34,6 @@ import type { Query as SDKQuery, SDKMessage, SDKUserMessage, Options as SDKOptio
  */
 export function shellQuote(s: string): string {
   return "'" + s.replace(/'/g, "'\\''") + "'";
-}
-
-/**
- * Message queue for SDK streaming input mode.
- * Allows pushing messages that will be sent to the SDK query.
- */
-class SDKInputQueue implements AsyncIterable<SDKUserMessage> {
-  private queue: SDKUserMessage[] = [];
-  private waitingResolve: ((result: IteratorResult<SDKUserMessage>) => void) | null = null;
-  private closed = false;
-  private sessionId = '';
-
-  setSessionId(id: string): void {
-    this.sessionId = id;
-  }
-
-  push(content: string): void {
-    if (this.closed) return;
-
-    const message: SDKUserMessage = {
-      type: 'user',
-      message: {
-        role: 'user',
-        content: content,
-      },
-      parent_tool_use_id: null,
-      session_id: this.sessionId,
-    };
-
-    if (this.waitingResolve) {
-      this.waitingResolve({ value: message, done: false });
-      this.waitingResolve = null;
-    } else {
-      this.queue.push(message);
-    }
-  }
-
-  close(): void {
-    this.closed = true;
-    if (this.waitingResolve) {
-      this.waitingResolve({ value: undefined as unknown as SDKUserMessage, done: true });
-      this.waitingResolve = null;
-    }
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<SDKUserMessage> {
-    return {
-      next: (): Promise<IteratorResult<SDKUserMessage>> => {
-        if (this.queue.length > 0) {
-          return Promise.resolve({ value: this.queue.shift()!, done: false });
-        }
-        if (this.closed) {
-          return Promise.resolve({ value: undefined as unknown as SDKUserMessage, done: true });
-        }
-        return new Promise((resolve) => {
-          this.waitingResolve = resolve;
-        });
-      },
-    };
-  }
 }
 
 // ============================================================================
@@ -106,7 +49,9 @@ export type SpawnMode = 'headless' | 'interactive';
  * Configuration for spawn behavior
  */
 export interface SpawnConfig {
-  /** The Claude Code executable path (defaults to 'claude') */
+  /** Agent provider to use (defaults to Claude) */
+  readonly provider?: AgentProvider;
+  /** @deprecated Use provider instead. The Claude Code executable path. */
   readonly claudePath?: string;
   /** Working directory for the agent */
   readonly workingDirectory?: string;
@@ -122,7 +67,7 @@ export interface SpawnConfig {
  * Options for spawning an agent session
  */
 export interface SpawnOptions extends SpawnConfig {
-  /** Claude Code session ID to resume (if any) */
+  /** Provider session ID to resume (if any) */
   readonly resumeSessionId?: string;
   /** Initial prompt to send to the agent */
   readonly initialPrompt?: string;
@@ -217,8 +162,8 @@ export const SessionStatusTransitions: Record<SessionStatus, SessionStatus[]> = 
 export interface SpawnedSession {
   /** Internal session ID (unique per spawn) */
   readonly id: string;
-  /** Claude Code session ID (for resume) */
-  readonly claudeSessionId?: string;
+  /** Provider session ID (for resume) */
+  readonly providerSessionId?: string;
   /** Agent entity ID this session belongs to */
   readonly agentId: EntityId;
   /** Agent role */
@@ -249,12 +194,10 @@ export interface SpawnedSession {
 interface InternalSession extends SpawnedSession {
   /** Child process handle (for headless mode - legacy) */
   process?: ChildProcess;
-  /** PTY handle (for interactive mode) */
-  pty?: IPty;
-  /** SDK Query handle (for headless mode with Agent SDK) */
-  sdkQuery?: SDKQuery;
-  /** SDK input queue for sending follow-up messages */
-  sdkInputQueue?: SDKInputQueue;
+  /** Provider headless session handle */
+  headlessSession?: HeadlessSession;
+  /** Provider interactive session handle */
+  interactiveSession?: InteractiveSession;
   /** Event emitter for session events */
   events: EventEmitter;
   /** Buffer for incomplete JSON lines */
@@ -320,7 +263,7 @@ export interface SpawnerService {
   // ----------------------------------------
 
   /**
-   * Spawns a new Claude Code session for an agent.
+   * Spawns a new agent session.
    *
    * @param agentId - The agent entity ID
    * @param agentRole - The agent's role
@@ -496,7 +439,7 @@ export interface UWPTaskInfo {
  * Options for building headless CLI arguments
  */
 export interface HeadlessArgsOptions {
-  /** Claude Code session ID to resume */
+  /** Provider session ID to resume */
   resumeSessionId?: string;
   /** Initial prompt to send */
   initialPrompt?: string;
@@ -537,10 +480,12 @@ export function buildHeadlessArgs(options?: HeadlessArgsOptions): string[] {
 
 /**
  * Implementation of the Spawner Service.
+ * Uses the provider abstraction to spawn and manage agent processes.
  */
 export class SpawnerServiceImpl implements SpawnerService {
   private readonly sessions: Map<string, InternalSession> = new Map();
   private readonly defaultConfig: SpawnConfig;
+  private readonly provider: AgentProvider;
   private sessionCounter = 0;
 
   constructor(config?: SpawnConfig) {
@@ -551,6 +496,9 @@ export class SpawnerServiceImpl implements SpawnerService {
       elementalRoot: config?.elementalRoot,
       environmentVariables: config?.environmentVariables,
     };
+
+    // Use injected provider or default to Claude
+    this.provider = config?.provider ?? new ClaudeAgentProvider(config?.claudePath ?? 'claude');
   }
 
   // ----------------------------------------
@@ -614,24 +562,20 @@ export class SpawnerServiceImpl implements SpawnerService {
 
     this.transitionStatus(session, 'terminating');
 
-    // Handle PTY sessions
-    if (session.pty) {
+    // Handle provider interactive sessions
+    if (session.interactiveSession) {
       if (graceful) {
-        // Send exit command to shell
-        session.pty.write('exit\r');
+        session.interactiveSession.write('exit\r');
 
-        // Wait for graceful shutdown with timeout
         await new Promise<void>((resolve) => {
           const timeout = setTimeout(() => {
             clearInterval(checkInterval);
-            if (session.pty) {
-              session.pty.kill();
+            if (session.interactiveSession) {
+              session.interactiveSession.kill();
             }
             resolve();
           }, 5000);
 
-          // PTY exit is handled by onExit callback which was set up during spawn
-          // We just need to wait for the timeout or the process to exit
           const checkInterval = setInterval(() => {
             if ((session.status as SessionStatus) === 'terminated') {
               clearInterval(checkInterval);
@@ -641,22 +585,20 @@ export class SpawnerServiceImpl implements SpawnerService {
           }, 100);
         });
       } else {
-        session.pty.kill();
+        session.interactiveSession.kill();
       }
     }
 
-    // Handle SDK-based headless sessions
-    if (session.sdkInputQueue) {
-      session.sdkInputQueue.close();
+    // Handle provider headless sessions
+    if (session.headlessSession) {
+      session.headlessSession.close();
     }
 
     // Handle headless process sessions (legacy)
     if (session.process) {
       if (graceful) {
-        // Try graceful shutdown first
         session.process.kill('SIGTERM');
 
-        // Wait for graceful shutdown with timeout
         await new Promise<void>((resolve) => {
           const timeout = setTimeout(() => {
             if (session.process && !session.process.killed) {
@@ -675,14 +617,12 @@ export class SpawnerServiceImpl implements SpawnerService {
       }
     }
 
-    // Only transition if not already terminated (process may have exited during graceful shutdown)
-    // The exit handler can race with this code and transition to 'terminated' first
+    // Only transition if not already terminated
     if ((session.status as SessionStatus) !== 'terminated') {
       this.transitionStatus(session, 'terminated');
       session.endedAt = createTimestamp();
     }
 
-    // Schedule cleanup of terminated session from memory (M-1)
     this.scheduleTerminatedSessionCleanup(sessionId);
   }
 
@@ -696,15 +636,18 @@ export class SpawnerServiceImpl implements SpawnerService {
       throw new Error(`Cannot suspend session in status: ${session.status}`);
     }
 
-    // For headless, we terminate the process but mark as suspended
-    // The claudeSessionId can be used to resume later
+    // For headless, close the session but mark as suspended
+    // The providerSessionId can be used to resume later
+    if (session.headlessSession) {
+      session.headlessSession.close();
+    }
     if (session.process) {
       session.process.kill('SIGTERM');
     }
 
-    // For interactive, we kill the PTY but mark as suspended
-    if (session.pty) {
-      session.pty.kill();
+    // For interactive, kill the PTY but mark as suspended
+    if (session.interactiveSession) {
+      session.interactiveSession.kill();
     }
 
     this.transitionStatus(session, 'suspended');
@@ -721,9 +664,9 @@ export class SpawnerServiceImpl implements SpawnerService {
       throw new Error(`Cannot interrupt session in status: ${session.status}`);
     }
 
-    // For SDK-based headless sessions, use the SDK's interrupt method
-    if (session.sdkQuery) {
-      await session.sdkQuery.interrupt();
+    // For provider headless sessions, use interrupt
+    if (session.headlessSession) {
+      await session.headlessSession.interrupt();
     }
     // For legacy process-based headless sessions, send SIGINT
     else if (session.process) {
@@ -731,9 +674,8 @@ export class SpawnerServiceImpl implements SpawnerService {
     }
 
     // For interactive PTY sessions, send Escape key
-    if (session.pty) {
-      // Send Escape key (ASCII 27)
-      session.pty.write('\x1b');
+    if (session.interactiveSession) {
+      session.interactiveSession.write('\x1b');
     }
 
     session.lastActivityAt = createTimestamp();
@@ -764,7 +706,6 @@ export class SpawnerServiceImpl implements SpawnerService {
     const agentSessions = Array.from(this.sessions.values())
       .filter((s) => s.agentId === agentId)
       .sort((a, b) => {
-        // Sort by createdAt descending
         const aTime = typeof a.createdAt === 'number' ? a.createdAt : new Date(a.createdAt).getTime();
         const bTime = typeof b.createdAt === 'number' ? b.createdAt : new Date(b.createdAt).getTime();
         return bTime - aTime;
@@ -791,9 +732,9 @@ export class SpawnerServiceImpl implements SpawnerService {
       throw new Error(`Cannot send input to session in status: ${session.status}`);
     }
 
-    // For SDK-based sessions, use the input queue
-    if (session.sdkInputQueue) {
-      session.sdkInputQueue.push(input);
+    // For provider headless sessions, use sendMessage
+    if (session.headlessSession) {
+      session.headlessSession.sendMessage(input);
       session.lastActivityAt = createTimestamp();
       return;
     }
@@ -803,8 +744,6 @@ export class SpawnerServiceImpl implements SpawnerService {
       throw new Error('Session stdin is not writable');
     }
 
-    // Format as stream-json user message
-    // Format: {"type":"user","message":{"role":"user","content":"..."}}
     const message = {
       type: 'user',
       message: {
@@ -835,11 +774,11 @@ export class SpawnerServiceImpl implements SpawnerService {
       throw new Error(`Cannot write to PTY in status: ${session.status}`);
     }
 
-    if (!session.pty) {
+    if (!session.interactiveSession) {
       throw new Error('Session PTY is not available');
     }
 
-    session.pty.write(data);
+    session.interactiveSession.write(data);
     session.lastActivityAt = createTimestamp();
   }
 
@@ -853,27 +792,23 @@ export class SpawnerServiceImpl implements SpawnerService {
       throw new Error('resize is only supported for interactive sessions');
     }
 
-    if (!session.pty) {
+    if (!session.interactiveSession) {
       throw new Error('Session PTY is not available');
     }
 
-    // Check if session is still running before attempting resize
     if (session.status !== 'running') {
       throw new Error(`Cannot resize session in ${session.status} state`);
     }
 
     try {
-      session.pty.resize(cols, rows);
+      session.interactiveSession.resize(cols, rows);
       session.cols = cols;
       session.rows = rows;
       session.lastActivityAt = createTimestamp();
     } catch (error) {
-      // EBADF can occur if the PTY is closed or the process has exited
-      // This is often a race condition during session startup/shutdown
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('EBADF') || errorMessage.includes('ioctl')) {
         console.warn(`[spawner] Resize failed for session ${sessionId} (PTY may be closed): ${errorMessage}`);
-        // Don't throw - this is a recoverable condition
         return;
       }
       throw error;
@@ -899,8 +834,6 @@ export class SpawnerServiceImpl implements SpawnerService {
   ): Promise<UWPCheckResult> {
     const limit = options?.limit ?? 1;
 
-    // If no getReadyTasks callback provided, return empty result
-    // The callback allows integration with TaskAssignmentService without circular deps
     if (!options?.getReadyTasks) {
       return {
         hasReadyTask: false,
@@ -908,7 +841,6 @@ export class SpawnerServiceImpl implements SpawnerService {
       };
     }
 
-    // Query for ready tasks assigned to this agent
     const readyTasks = await options.getReadyTasks(agentId, limit);
 
     if (readyTasks.length === 0) {
@@ -918,7 +850,6 @@ export class SpawnerServiceImpl implements SpawnerService {
       };
     }
 
-    // Take the first task (highest priority should come first)
     const task = readyTasks[0];
 
     const result: UWPCheckResult = {
@@ -929,12 +860,8 @@ export class SpawnerServiceImpl implements SpawnerService {
       autoStarted: false,
     };
 
-    // Auto-start is handled by the caller using TaskAssignmentService
-    // We just report what we found - the caller can then decide to start the task
     if (options.autoStart) {
       result.autoStarted = true;
-      // Note: Actual task status update should be done by the caller
-      // using TaskAssignmentService.startTask() to avoid circular dependencies
     }
 
     return result;
@@ -945,51 +872,28 @@ export class SpawnerServiceImpl implements SpawnerService {
   // ----------------------------------------
 
   private async spawnHeadless(session: InternalSession, options?: SpawnOptions): Promise<void> {
-    const initialPrompt = options?.initialPrompt ?? 'You are an AI agent. Await further instructions.';
-    const env = this.buildEnvironment(session, options);
-
-    // Create input queue for streaming input mode (enables interrupt support)
-    const inputQueue = new SDKInputQueue();
-    session.sdkInputQueue = inputQueue;
+    const headlessProvider = options?.provider?.headless ?? this.provider.headless;
 
     try {
-      // Build SDK options
-      const sdkOptions: SDKOptions = {
-        cwd: session.workingDirectory,
-        env: env as Record<string, string>,
-        permissionMode: 'bypassPermissions',
-        allowDangerouslySkipPermissions: true,
-      };
-
-      // Resume if we have a session ID
-      if (options?.resumeSessionId) {
-        sdkOptions.resume = options.resumeSessionId;
-        // For resumed sessions, set the session ID on the queue immediately
-        // so the first message includes the correct session_id
-        inputQueue.setSessionId(options.resumeSessionId);
-      }
-
-      // Create the SDK query with streaming input (enables interrupt support)
-      const queryResult = sdkQuery({
-        prompt: inputQueue,
-        options: sdkOptions,
+      const headlessSession = await headlessProvider.spawn({
+        workingDirectory: session.workingDirectory,
+        initialPrompt: options?.initialPrompt,
+        resumeSessionId: options?.resumeSessionId,
+        environmentVariables: {
+          ...this.defaultConfig.environmentVariables,
+          ...options?.environmentVariables,
+        },
+        elementalRoot: options?.elementalRoot ?? this.defaultConfig.elementalRoot,
+        timeout: options?.timeout ?? this.defaultConfig.timeout,
       });
 
-      session.sdkQuery = queryResult;
+      session.headlessSession = headlessSession;
 
-      // Process SDK messages in the background
-      this.processSDKMessages(session, queryResult);
+      // Process messages from the provider in the background
+      this.processProviderMessages(session, headlessSession);
 
-      // Push the initial prompt to start the conversation
-      inputQueue.push(initialPrompt);
-
-      // Wait for the init event to get the Claude session ID
+      // Wait for the init event to get the provider session ID
       await this.waitForInit(session, options?.timeout ?? this.defaultConfig.timeout!);
-
-      // Update the queue with the session ID for future messages (for new sessions)
-      if (session.claudeSessionId && !options?.resumeSessionId) {
-        inputQueue.setSessionId(session.claudeSessionId);
-      }
     } catch (error) {
       this.transitionStatus(session, 'terminated');
       session.endedAt = createTimestamp();
@@ -998,26 +902,26 @@ export class SpawnerServiceImpl implements SpawnerService {
   }
 
   /**
-   * Process SDK messages and emit them as session events
+   * Process provider messages and emit them as session events.
    */
-  private async processSDKMessages(
+  private async processProviderMessages(
     session: InternalSession,
-    queryResult: SDKQuery
+    headlessSession: HeadlessSession
   ): Promise<void> {
     let resumeErrorDetected = false;
     try {
-      for await (const message of queryResult) {
-        const subtype = 'subtype' in message ? (message as { subtype?: string }).subtype : undefined;
+      for await (const message of headlessSession) {
+        if (session.status === 'terminated') {
+          break;
+        }
 
-        // Check for resume failure (session not found)
-        if (message.type === 'result' && subtype === 'error_during_execution') {
-          const resultMsg = message as { errors?: string[] };
-          const errors = resultMsg.errors || [];
-          const sessionNotFoundError = errors.find(e => e.includes('No conversation found with session ID'));
-
+        // Check for resume failure
+        if (message.type === 'result' && message.subtype === 'error_during_execution') {
+          const raw = message.raw as { errors?: string[] };
+          const errors = raw?.errors || [];
+          const sessionNotFoundError = errors.find((e: string) => e.includes('No conversation found with session ID'));
           if (sessionNotFoundError) {
             resumeErrorDetected = true;
-            // Emit a specific event so the session manager can handle this
             session.events.emit('resume_failed', {
               reason: 'session_not_found',
               message: sessionNotFoundError,
@@ -1025,42 +929,33 @@ export class SpawnerServiceImpl implements SpawnerService {
           }
         }
 
-        if (session.status === 'terminated') {
-          break;
-        }
-
-        // Convert SDK message to SpawnedSessionEvent
-        const event = this.convertSDKMessageToEvent(message);
+        // Convert AgentMessage to SpawnedSessionEvent
+        const event = this.convertAgentMessageToEvent(message);
         if (event) {
           session.events.emit('event', event);
 
-          // Extract Claude session ID from system init message
-          if (message.type === 'system' && 'subtype' in message && message.subtype === 'init') {
-            (session as { claudeSessionId: string }).claudeSessionId = message.session_id;
+          // Extract provider session ID from system init message
+          if (message.type === 'system' && message.subtype === 'init' && message.sessionId) {
+            (session as { providerSessionId: string }).providerSessionId = message.sessionId;
           }
         }
       }
     } catch (error) {
-      // Check if this is an abort error (from interrupt)
       if (error instanceof Error && error.name === 'AbortError') {
         session.events.emit('interrupt');
         return;
       }
-      // Don't emit error event if this was a resume failure (already handled above)
       if (!resumeErrorDetected) {
         session.events.emit('error', error);
       }
     } finally {
-      // Session has ended
       if (session.status !== 'suspended' && session.status !== 'terminated') {
         this.transitionStatus(session, 'terminated');
       }
       if (!session.endedAt) {
         session.endedAt = createTimestamp();
       }
-      // Emit exit with code 1 if resume failed, otherwise 0
       session.events.emit('exit', resumeErrorDetected ? 1 : 0, null);
-      // Schedule cleanup of terminated session from memory (M-1)
       if (session.status === 'terminated') {
         this.scheduleTerminatedSessionCleanup(session.id);
       }
@@ -1068,243 +963,100 @@ export class SpawnerServiceImpl implements SpawnerService {
   }
 
   /**
-   * Convert an SDK message to a SpawnedSessionEvent
+   * Convert a provider AgentMessage to a SpawnedSessionEvent.
    */
-  private convertSDKMessageToEvent(message: SDKMessage): SpawnedSessionEvent | null {
+  private convertAgentMessageToEvent(message: AgentMessage): SpawnedSessionEvent | null {
     const receivedAt = createTimestamp();
+    // Build a raw event from the AgentMessage
+    const raw: StreamJsonEvent = {
+      type: message.type,
+      subtype: message.subtype,
+      session_id: message.sessionId,
+      message: message.content,
+      ...(message.tool ? {
+        tool: message.tool.name,
+        tool_use_id: message.tool.id,
+        tool_input: message.tool.input,
+      } : {}),
+    };
 
-    switch (message.type) {
-      case 'system':
-        return {
-          type: 'system',
-          subtype: 'subtype' in message ? message.subtype : undefined,
-          receivedAt,
-          raw: message,
-        };
-
-      case 'assistant':
-        return {
-          type: 'assistant',
-          receivedAt,
-          raw: message,
-          message: this.extractTextFromMessage((message as { message?: unknown }).message),
-        };
-
-      case 'user':
-        return {
-          type: 'user',
-          receivedAt,
-          raw: message,
-          message: this.extractTextFromMessage((message as { message?: unknown }).message),
-        };
-
-      case 'result':
-        return {
-          type: 'result',
-          receivedAt,
-          raw: message,
-          message: 'result' in message ? (message as { result?: string }).result : undefined,
-        };
-
-      default:
-        return null;
-    }
-  }
-
-  /**
-   * Extract text content from an API message
-   */
-  private extractTextFromMessage(apiMessage: unknown): string | undefined {
-    if (!apiMessage || typeof apiMessage !== 'object') return undefined;
-
-    const msg = apiMessage as { content?: unknown };
-    if (typeof msg.content === 'string') {
-      return msg.content;
-    }
-
-    if (Array.isArray(msg.content)) {
-      const textParts = msg.content
-        .filter((block: unknown): block is { type: 'text'; text: string } =>
-          typeof block === 'object' && block !== null && 'type' in block && block.type === 'text' && 'text' in block
-        )
-        .map((block) => block.text);
-      return textParts.length > 0 ? textParts.join('') : undefined;
-    }
-
-    return undefined;
+    return {
+      type: message.type,
+      subtype: message.subtype,
+      receivedAt,
+      raw,
+      message: message.content,
+      tool: message.tool,
+    };
   }
 
   private async spawnInteractive(
     session: InternalSession,
     options?: SpawnOptions
   ): Promise<void> {
-    const args = this.buildInteractiveArgs(options);
-    const env = this.buildEnvironment(session, options);
+    const interactiveProvider = options?.provider?.interactive ?? this.provider.interactive;
 
-    // Default terminal dimensions
-    const cols = options?.cols ?? 120;
-    const rows = options?.rows ?? 30;
-
-    // Get shell based on platform
-    const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/bash';
-    const shellArgs = process.platform === 'win32' ? [] : ['-l'];
-
-    // Build the command to run claude inside the shell
-    const claudeCommand = [shellQuote(this.defaultConfig.claudePath!), ...args].join(' ');
-
-    let ptyProcess: IPty;
     try {
-      // Spawn PTY with the shell
-      ptyProcess = pty.spawn(shell, shellArgs, {
-        name: 'xterm-256color',
-        cols,
-        rows,
-        cwd: session.workingDirectory,
-        env: env as Record<string, string>,
+      const interactiveSession = await interactiveProvider.spawn({
+        workingDirectory: session.workingDirectory,
+        initialPrompt: options?.initialPrompt,
+        resumeSessionId: options?.resumeSessionId,
+        environmentVariables: {
+          ...this.defaultConfig.environmentVariables,
+          ...options?.environmentVariables,
+        },
+        elementalRoot: options?.elementalRoot ?? this.defaultConfig.elementalRoot,
+        cols: options?.cols,
+        rows: options?.rows,
       });
+
+      session.interactiveSession = interactiveSession;
+      session.cols = options?.cols ?? 120;
+      session.rows = options?.rows ?? 30;
+      (session as { pid?: number }).pid = interactiveSession.pid;
+
+      // Handle data output
+      interactiveSession.onData((data: string) => {
+        session.lastActivityAt = createTimestamp();
+        session.events.emit('pty-data', data);
+
+        // Check for provider session ID in output
+        if (!session.providerSessionId) {
+          const detectedId = interactiveSession.getSessionId();
+          if (detectedId) {
+            (session as { providerSessionId?: string }).providerSessionId = detectedId;
+          }
+        }
+      });
+
+      // Handle exit
+      interactiveSession.onExit((code: number, signal?: number) => {
+        if (session.status !== 'suspended' && session.status !== 'terminated') {
+          this.transitionStatus(session, 'terminated');
+        }
+        if (!session.endedAt) {
+          session.endedAt = createTimestamp();
+        }
+        session.events.emit('exit', code, signal);
+        if (session.status === 'terminated') {
+          this.scheduleTerminatedSessionCleanup(session.id);
+        }
+      });
+
+      // Transition to running state
+      this.transitionStatus(session, 'running');
+      session.startedAt = createTimestamp();
     } catch (error) {
       this.transitionStatus(session, 'terminated');
       session.endedAt = createTimestamp();
       throw error;
     }
-
-    session.pty = ptyProcess;
-    session.cols = cols;
-    session.rows = rows;
-    (session as { pid?: number }).pid = ptyProcess.pid;
-
-    // Track if we've started claude
-    let claudeStarted = false;
-
-    // Handle PTY data output
-    ptyProcess.onData((data: string) => {
-      session.lastActivityAt = createTimestamp();
-
-      // Emit PTY data for WebSocket forwarding
-      session.events.emit('pty-data', data);
-
-      // Check for Claude session ID in output for interactive mode
-      // Claude outputs session info that we can parse
-      if (!session.claudeSessionId) {
-        // Try to extract session ID from output - Claude typically shows session info
-        const sessionMatch = data.match(/Session:\s*([a-zA-Z0-9-]+)/);
-        if (sessionMatch) {
-          (session as { claudeSessionId?: string }).claudeSessionId = sessionMatch[1];
-        }
-      }
-    });
-
-    // Handle PTY exit
-    // Note: onExit may fire multiple times (e.g., from different streams in node-pty)
-    // so we make this handler idempotent
-    ptyProcess.onExit((e: { exitCode: number; signal?: number }) => {
-      // Only transition if not already terminated or suspended
-      if (session.status !== 'suspended' && session.status !== 'terminated') {
-        this.transitionStatus(session, 'terminated');
-      }
-      // Only set endedAt once
-      if (!session.endedAt) {
-        session.endedAt = createTimestamp();
-      }
-      session.events.emit('exit', e.exitCode, e.signal);
-      // Schedule cleanup of terminated session from memory (M-1)
-      if (session.status === 'terminated') {
-        this.scheduleTerminatedSessionCleanup(session.id);
-      }
-    });
-
-    // Transition to running state
-    this.transitionStatus(session, 'running');
-    session.startedAt = createTimestamp();
-
-    // Wait for shell to be ready, then start claude
-    await new Promise<void>((resolve) => {
-      const startClaude = () => {
-        if (!claudeStarted) {
-          claudeStarted = true;
-          // Send the claude command to the shell
-          ptyProcess.write(claudeCommand + '\r');
-          resolve();
-        }
-      };
-
-      // Give the shell a moment to initialize before running claude
-      setTimeout(startClaude, 100);
-    });
-
-    // If there's an initial prompt, send it as user input after Claude starts.
-    // This avoids shell quoting issues that corrupt large multi-line prompts
-    // when passed as CLI arguments through PTY.
-    if (options?.initialPrompt) {
-      console.log('[spawner] Has initial prompt, length:', options.initialPrompt.length);
-
-      // Wait for Claude to fully initialize before sending prompt.
-      // Timing is important - too early and Claude won't be ready.
-      const prompt = options.initialPrompt;
-      setTimeout(() => {
-        console.log('[spawner] Sending initial prompt to PTY...');
-        // Write the prompt content first
-        ptyProcess.write(prompt);
-        // Wait for Claude to process the pasted content before sending Enter.
-        // Use a longer delay to ensure large prompts are fully received.
-        setTimeout(() => {
-          console.log('[spawner] Sending Enter...');
-          ptyProcess.write('\r');
-          console.log('[spawner] Initial prompt sent');
-        }, 500);
-      }, 3000);
-    } else {
-      console.log('[spawner] No initial prompt provided');
-    }
-  }
-
-  private buildHeadlessArgs(options?: SpawnOptions): string[] {
-    // Delegate to the exported function for testability
-    return buildHeadlessArgs({
-      resumeSessionId: options?.resumeSessionId,
-      initialPrompt: options?.initialPrompt,
-    });
-  }
-
-  private buildInteractiveArgs(options?: SpawnOptions): string[] {
-    const args: string[] = [
-      '--dangerously-skip-permissions',
-    ];
-
-    if (options?.resumeSessionId) {
-      args.push('--resume', shellQuote(options.resumeSessionId));
-    }
-
-    // NOTE: initialPrompt is NOT added as a CLI argument here.
-    // Large multi-line prompts get corrupted when passed through shell quoting
-    // and PTY write operations. Instead, the prompt is sent as user input
-    // after Claude starts. See spawnInteractive() for implementation.
-
-    return args;
-  }
-
-  private buildEnvironment(
-    session: InternalSession,
-    options?: SpawnOptions
-  ): NodeJS.ProcessEnv {
-    const env: NodeJS.ProcessEnv = {
-      ...process.env,
-      ...this.defaultConfig.environmentVariables,
-      ...options?.environmentVariables,
-    };
-
-    // Set ELEMENTAL_ROOT for worktree root-finding
-    if (options?.elementalRoot ?? this.defaultConfig.elementalRoot) {
-      env.ELEMENTAL_ROOT = options?.elementalRoot ?? this.defaultConfig.elementalRoot;
-    }
-
-    return env;
   }
 
   private async waitForInit(session: InternalSession, timeout: number): Promise<void> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new Error(`Timeout waiting for Claude Code init (${timeout}ms)`));
+        reject(new Error(`Timeout waiting for agent init (${timeout}ms)`));
       }, timeout);
 
       const onEvent = (event: SpawnedSessionEvent) => {
@@ -1312,9 +1064,9 @@ export class SpawnerServiceImpl implements SpawnerService {
           clearTimeout(timer);
           session.events.off('event', onEvent);
 
-          // Extract Claude session ID from init event
+          // Extract provider session ID from init event
           if (event.raw.session_id) {
-            (session as { claudeSessionId?: string }).claudeSessionId = event.raw.session_id;
+            (session as { providerSessionId?: string }).providerSessionId = event.raw.session_id;
           }
 
           this.transitionStatus(session, 'running');
@@ -1328,7 +1080,7 @@ export class SpawnerServiceImpl implements SpawnerService {
   }
 
   // ----------------------------------------
-  // Private Helpers - Output Parsing
+  // Private Helpers - Output Parsing (legacy)
   // ----------------------------------------
 
   private handleHeadlessOutput(session: InternalSession, data: Buffer): void {
@@ -1336,9 +1088,8 @@ export class SpawnerServiceImpl implements SpawnerService {
     session.jsonBuffer += text;
     session.lastActivityAt = createTimestamp();
 
-    // Parse complete JSON lines
     const lines = session.jsonBuffer.split('\n');
-    session.jsonBuffer = lines.pop() ?? ''; // Keep incomplete line in buffer
+    session.jsonBuffer = lines.pop() ?? '';
 
     for (const line of lines) {
       if (line.trim()) {
@@ -1349,16 +1100,11 @@ export class SpawnerServiceImpl implements SpawnerService {
 
   private parseAndEmitEvent(session: InternalSession, line: string): void {
     try {
-      // Parse as unknown first to handle dynamic content structures
       const parsed = JSON.parse(line) as Record<string, unknown>;
       const rawEvent = parsed as StreamJsonEvent;
 
       const parsedMessage = parsed.message as Record<string, unknown> | undefined;
 
-      // Extract string content from potentially complex structures
-      // Claude CLI can output content as string, array of content blocks, or nested objects
-      // For result events, content is in the 'result' field
-      // Claude SDK format has content at message.content
       let message: string | undefined;
       let toolFromContent: { name?: string; id?: string; input?: unknown } | undefined;
       let effectiveType = rawEvent.type as StreamJsonEventType;
@@ -1367,7 +1113,6 @@ export class SpawnerServiceImpl implements SpawnerService {
       if (typeof rawContent === 'string') {
         message = rawContent;
       } else if (Array.isArray(rawContent)) {
-        // Handle Claude API content array: [{type: "text", text: "..."}, {type: "tool_use", ...}]
         const textBlocks: string[] = [];
         for (const item of rawContent) {
           if (typeof item === 'object' && item !== null && 'type' in item) {
@@ -1375,16 +1120,13 @@ export class SpawnerServiceImpl implements SpawnerService {
             if (block.type === 'text' && typeof block.text === 'string') {
               textBlocks.push(block.text);
             } else if (block.type === 'tool_use' && block.name) {
-              // Extract tool_use block info
               toolFromContent = {
                 name: block.name,
                 id: block.id,
                 input: block.input,
               };
-              // Override type to tool_use if we found a tool_use block
               effectiveType = 'tool_use';
             } else if (block.type === 'tool_result') {
-              // Extract tool_result block info
               toolFromContent = {
                 id: block.tool_use_id,
               };
@@ -1398,7 +1140,6 @@ export class SpawnerServiceImpl implements SpawnerService {
         }
       } else if (typeof rawContent === 'object' && rawContent !== null) {
         const contentObj = rawContent as Record<string, unknown>;
-        // Handle object with content or text field
         if ('content' in contentObj && typeof contentObj.content === 'string') {
           message = contentObj.content;
         } else if ('text' in contentObj && typeof contentObj.text === 'string') {
@@ -1406,7 +1147,6 @@ export class SpawnerServiceImpl implements SpawnerService {
         }
       }
 
-      // Build tool info from direct fields or extracted from content array
       const tool = rawEvent.tool
         ? {
             name: rawEvent.tool,
@@ -1426,7 +1166,6 @@ export class SpawnerServiceImpl implements SpawnerService {
 
       session.events.emit('event', event);
     } catch (error) {
-      // Not valid JSON, emit as raw output
       session.events.emit('raw', line);
     }
   }
@@ -1448,12 +1187,11 @@ export class SpawnerServiceImpl implements SpawnerService {
       return requestedMode;
     }
 
-    // Default mode based on role
     switch (agentRole) {
       case 'director':
         return 'interactive';
       case 'worker':
-        return 'headless'; // Default to headless, can be overridden for persistent
+        return 'headless';
       case 'steward':
         return 'headless';
       default:
@@ -1468,8 +1206,6 @@ export class SpawnerServiceImpl implements SpawnerService {
     if (agentRole !== 'worker') {
       return undefined;
     }
-    // Worker mode is typically determined by the agent metadata
-    // For spawn, we can infer from the requested mode
     const mode = requestedMode ?? this.determineSpawnMode(agentRole);
     return mode === 'interactive' ? 'persistent' : 'ephemeral';
   }
@@ -1504,10 +1240,9 @@ export class SpawnerServiceImpl implements SpawnerService {
   }
 
   private toPublicSession(session: InternalSession): SpawnedSession {
-    // Return a copy without internal fields
     return {
       id: session.id,
-      claudeSessionId: session.claudeSessionId,
+      providerSessionId: session.providerSessionId,
       agentId: session.agentId,
       agentRole: session.agentRole,
       workerMode: session.workerMode,

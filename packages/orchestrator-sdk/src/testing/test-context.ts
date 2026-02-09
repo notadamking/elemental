@@ -616,11 +616,11 @@ export function createMockSessionManager(
       mockSessions.set(id, mockSession);
 
       // Simulate Claude session ID
-      const claudeSessionId = `claude-${id}`;
-      sessions.set(id, { ...session, claudeSessionId });
+      const providerSessionId = `claude-${id}`;
+      sessions.set(id, { ...session, providerSessionId });
 
       // Update agent status
-      await agentRegistry.updateAgentSession(agentId, claudeSessionId, 'running');
+      await agentRegistry.updateAgentSession(agentId, providerSessionId, 'running');
 
       return { session: sessions.get(id)!, events };
     },
@@ -678,7 +678,7 @@ export function createMockSessionManager(
       agentSessions.delete(session.agentId);
       await agentRegistry.updateAgentSession(
         session.agentId,
-        session.claudeSessionId,
+        session.providerSessionId,
         'suspended'
       );
     },
@@ -723,7 +723,7 @@ export function createMockSessionManager(
 
     getMostRecentResumableSession(agentId: EntityId): SessionRecord | undefined {
       const agentSessionList = Array.from(sessions.values())
-        .filter(s => s.agentId === agentId && s.claudeSessionId)
+        .filter(s => s.agentId === agentId && s.providerSessionId)
         .sort((a, b) => {
           const aTime = typeof a.createdAt === 'number' ? a.createdAt : new Date(a.createdAt).getTime();
           const bTime = typeof b.createdAt === 'number' ? b.createdAt : new Date(b.createdAt).getTime();
@@ -738,7 +738,7 @@ export function createMockSessionManager(
         .slice(0, limit)
         .map(s => ({
           id: s.id,
-          claudeSessionId: s.claudeSessionId,
+          providerSessionId: s.providerSessionId,
           status: s.status,
           workingDirectory: s.workingDirectory,
           worktree: s.worktree,
@@ -754,7 +754,7 @@ export function createMockSessionManager(
         .slice(0, limit)
         .map(s => ({
           id: s.id,
-          claudeSessionId: s.claudeSessionId,
+          providerSessionId: s.providerSessionId,
           status: s.status,
           workingDirectory: s.workingDirectory,
           worktree: s.worktree,

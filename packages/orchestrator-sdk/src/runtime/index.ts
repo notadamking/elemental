@@ -115,3 +115,29 @@ export {
   mapToolResultToEvent,
   mapSDKMessagesToEvents,
 } from './message-mapper.js';
+
+// Provider Abstraction Layer
+export {
+  // Core types
+  type ProviderSessionId,
+  type AgentProviderConfig,
+  type AgentMessage,
+  type HeadlessSession,
+  type HeadlessSpawnOptions,
+  type HeadlessProvider,
+  type InteractiveSession,
+  type InteractiveSpawnOptions,
+  type InteractiveProvider,
+  type AgentProvider,
+  // Registry
+  AgentProviderRegistry,
+  getProviderRegistry,
+  // Claude provider (default)
+  ClaudeAgentProvider,
+  ClaudeHeadlessProvider,
+  ClaudeInteractiveProvider,
+  // OpenCode provider (stubs)
+  OpenCodeAgentProvider,
+  OpenCodeHeadlessProvider,
+  OpenCodeInteractiveProvider,
+} from '../providers/index.js';

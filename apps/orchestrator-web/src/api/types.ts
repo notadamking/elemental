@@ -44,8 +44,8 @@ export interface BaseAgentMetadata {
   worktree?: string;
   sessionStatus?: SessionStatus;
   lastActivityAt?: Timestamp;
-  maxConcurrentTasks?: number;
   roleDefinitionRef?: ElementId;
+  provider?: string;
 }
 
 export interface DirectorMetadata extends BaseAgentMetadata {
@@ -92,7 +92,7 @@ export interface Agent {
 
 export interface SessionRecord {
   id: string;
-  claudeSessionId?: string;
+  providerSessionId?: string;
   agentId: EntityId;
   agentRole: AgentRole;
   workerMode?: WorkerMode;
@@ -183,12 +183,27 @@ export interface CreateAgentInput {
   name: string;
   role: AgentRole;
   tags?: string[];
-  maxConcurrentTasks?: number;
   // Worker-specific
   workerMode?: WorkerMode;
   // Steward-specific
   stewardFocus?: StewardFocus;
   triggers?: StewardTrigger[];
+  // Provider
+  provider?: string;
+}
+
+// ============================================================================
+// Provider Types
+// ============================================================================
+
+export interface ProviderInfo {
+  name: string;
+  available: boolean;
+  installInstructions: string;
+}
+
+export interface ProvidersResponse {
+  providers: ProviderInfo[];
 }
 
 // ============================================================================
