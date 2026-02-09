@@ -4,6 +4,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDebounce } from '../../hooks/useDebounce';
+import { removeElementFromCache } from './useAllElements';
 import type {
   Channel,
   Message,
@@ -188,9 +189,12 @@ export function useDeleteChannel() {
       return response.json();
     },
     onSuccess: (_, { channelId }) => {
-      // Remove channel from all caches
+      // Directly remove the channel from the in-memory cache for immediate UI update
+      // This is required because useAllChannels uses staleTime: Infinity
+      removeElementFromCache(queryClient, 'channel', channelId);
+
+      // Also invalidate other channel-related caches
       queryClient.invalidateQueries({ queryKey: ['channels'] });
-      queryClient.invalidateQueries({ queryKey: ['elements', 'channels'] });
       queryClient.invalidateQueries({ queryKey: ['channels', channelId] });
       queryClient.invalidateQueries({ queryKey: ['channels', channelId, 'messages'] });
       queryClient.invalidateQueries({ queryKey: ['channels', channelId, 'members'] });
