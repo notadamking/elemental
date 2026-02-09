@@ -558,9 +558,33 @@ export function removeElementFromCache(
 ): void {
   const queryKey = getQueryKeyForType(type);
 
+  // Update the individual type cache
   queryClient.setQueryData<Element[]>(queryKey, (old) => {
     if (!old) return [];
     return old.filter((el) => el.id !== elementId);
+  });
+
+  // Also update the ALL_ELEMENTS_KEY cache to keep it in sync
+  // This prevents useAllElements from re-populating the individual cache with stale data
+  queryClient.setQueryData<AllElementsResponse>(ALL_ELEMENTS_KEY, (old) => {
+    if (!old) return old;
+
+    const typeKey = type as keyof AllElementsResponse['data'];
+    const typeData = old.data[typeKey];
+    if (!typeData) return old;
+
+    return {
+      ...old,
+      data: {
+        ...old.data,
+        [typeKey]: {
+          ...typeData,
+          items: typeData.items.filter((el) => el.id !== elementId),
+          total: typeData.total - 1,
+        },
+      },
+      totalElements: old.totalElements - 1,
+    };
   });
 }
 
