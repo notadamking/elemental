@@ -574,13 +574,22 @@ export class DispatchDaemonImpl implements DispatchDaemon {
                 processed++;
               } else {
                 // Item was not processed (deferred for triage)
-                // Check if agent has no active session (idle) — eligible for triage
-                const activeSession = this.sessionManager.getActiveSession(agentId);
-                if (!activeSession) {
-                  if (!deferredItems.has(agentId)) {
-                    deferredItems.set(agentId, { agent, items: [] });
+                // Only ephemeral workers and stewards get triage sessions.
+                // Persistent agents (directors, persistent workers) leave messages
+                // unread until their session starts — spawning a headless triage
+                // session for them would confuse the UI and mark messages as read
+                // before the agent can actually process them.
+                const isPersistentAgent = meta.agentRole === 'director' ||
+                  (meta.agentRole === 'worker' && (meta as WorkerMetadata).workerMode === 'persistent');
+
+                if (!isPersistentAgent) {
+                  const activeSession = this.sessionManager.getActiveSession(agentId);
+                  if (!activeSession) {
+                    if (!deferredItems.has(agentId)) {
+                      deferredItems.set(agentId, { agent, items: [] });
+                    }
+                    deferredItems.get(agentId)!.items.push(item);
                   }
-                  deferredItems.get(agentId)!.items.push(item);
                 }
               }
             } catch (error) {
