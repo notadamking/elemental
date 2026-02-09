@@ -920,13 +920,14 @@ Arguments:
   status     New merge status value
 
 Valid status values:
-  pending      Task completed, awaiting merge
-  testing      Steward is running tests on the branch
-  merging      Tests passed, merge in progress
-  merged       Successfully merged
-  conflict     Merge conflict detected
-  test_failed  Tests failed, needs attention
-  failed       Merge failed for other reason
+  pending         Task completed, awaiting merge
+  testing         Steward is running tests on the branch
+  merging         Tests passed, merge in progress
+  merged          Successfully merged
+  conflict        Merge conflict detected
+  test_failed     Tests failed, needs attention
+  failed          Merge failed for other reason
+  not_applicable  No merge needed (issue already fixed on master)
 
 Examples:
   el task merge-status el-abc123 merged
