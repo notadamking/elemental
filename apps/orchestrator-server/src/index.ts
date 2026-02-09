@@ -6,6 +6,8 @@
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import type { EntityId } from '@elemental/core';
+import { getAgentMetadata } from '@elemental/orchestrator-sdk';
 import { CORS_ORIGINS } from './config.js';
 import { initializeServices } from './services.js';
 import {
@@ -34,12 +36,34 @@ import {
   createPlanRoutes,
 } from '@elemental/shared-routes';
 import { notifyClientsOfNewSession } from './websocket.js';
+import { attachSessionEventSaver } from './routes/sessions.js';
 import { startServer } from './server.js';
 import { shouldDaemonAutoStart, saveDaemonState } from './daemon-state.js';
 
 // Main entry point - async to allow service initialization
 async function main() {
   const services = await initializeServices();
+
+  // Before reconciliation, capture director's session info if it was running
+  // This allows us to auto-resume the director after server restart
+  let directorSessionId: string | undefined;
+  const director = await services.agentRegistry.getDirector();
+  if (director) {
+    const meta = getAgentMetadata(director);
+    if (meta?.sessionStatus === 'running' && meta?.sessionId) {
+      directorSessionId = meta.sessionId;
+      console.log(`[orchestrator] Director was running with session ${directorSessionId} before restart`);
+    }
+  }
+
+  // Reconcile stale sessions: reset agents marked 'running' to 'idle' if process is dead
+  const reconcileResult = await services.sessionManager.reconcileOnStartup();
+  if (reconcileResult.reconciled > 0) {
+    console.log(`[orchestrator] Reconciled ${reconcileResult.reconciled} stale agent session(s)`);
+  }
+  if (reconcileResult.errors.length > 0) {
+    console.warn('[orchestrator] Reconciliation errors:', reconcileResult.errors);
+  }
 
   const app = new Hono();
 
@@ -81,6 +105,31 @@ async function main() {
   app.route('/', createPlanRoutes(collaborateServices));
 
   startServer(app, services);
+
+  // Auto-resume director session if it was running before server restart
+  // This must happen after startServer() so HTTP/WS infrastructure is ready for clients
+  if (directorSessionId && director) {
+    const directorId = director.id as unknown as EntityId;
+    console.log(`[orchestrator] Attempting to auto-resume director session ${directorSessionId}`);
+    try {
+      const { session, events } = await services.sessionManager.resumeSession(directorId, {
+        claudeSessionId: directorSessionId,
+        resumePrompt: 'Server restarted. You have been automatically reconnected to your previous session. Check your inbox for any pending messages.',
+      });
+
+      // Attach event saver to capture all agent events
+      attachSessionEventSaver(events, session.id, directorId, services.sessionMessageService);
+
+      // Notify WebSocket clients of the resumed session
+      notifyClientsOfNewSession(directorId, session, events);
+
+      console.log(`[orchestrator] Director session auto-resumed successfully (session: ${session.id})`);
+    } catch (error) {
+      // Resume failed - director will stay idle and can be started manually via UI
+      console.warn('[orchestrator] Failed to auto-resume director session:', error instanceof Error ? error.message : String(error));
+      console.log('[orchestrator] Director will remain idle - can be started manually via UI');
+    }
+  }
 
   // Auto-start dispatch daemon based on persisted state and environment variable
   // Priority: DAEMON_AUTO_START=false disables auto-start entirely
