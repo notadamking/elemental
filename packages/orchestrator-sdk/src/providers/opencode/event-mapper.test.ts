@@ -122,20 +122,19 @@ describe('OpenCodeEventMapper', () => {
         },
       }, sessionId);
 
-      // Tool event flushes text
+      // Tool event flushes text (pending doesn't emit tool_use, but still flushes)
       const messages = mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
           part: {
             type: 'tool', id: 'tool-1', sessionID: sessionId, callID: 'call-1',
-            tool: 'read_file', state: { status: 'pending', input: { path: '/test' } },
+            tool: 'read_file', state: { status: 'pending', input: {} },
           },
         },
       }, sessionId);
-      expect(messages.length).toBe(2);
+      expect(messages.length).toBe(1);
       expect(messages[0].type).toBe('assistant');
       expect(messages[0].content).toBe('Let me read that file.');
-      expect(messages[1].type).toBe('tool_use');
     });
 
     it('should accumulate multiple deltas into one message', () => {
@@ -561,13 +560,13 @@ describe('OpenCodeEventMapper', () => {
       // Text buffer should be cleared
       expect(mapper.flush().length).toBe(0);
 
-      // Same tool ID should emit again after reset
+      // Same tool ID should emit again after reset (use running to get tool_use)
       const messages = mapper.mapEvent({
         type: 'message.part.updated',
         properties: {
           part: {
             type: 'tool', id: 'tool-r1', sessionID: sessionId, callID: 'call-r1',
-            tool: 'test', state: { status: 'pending', input: {} },
+            tool: 'test', state: { status: 'running', input: { cmd: 'test' } },
           },
         },
       }, sessionId);
