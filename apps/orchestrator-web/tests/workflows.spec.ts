@@ -1260,35 +1260,14 @@ test.describe('TB-O32: Workflows Page', () => {
           }
         });
 
-        await page.route('**/api/playbooks/pb-1/create', async (route) => {
-          route.fulfill({
-            status: 201,
-            contentType: 'application/json',
-            body: JSON.stringify({
-              workflow: {
-                id: 'wf-new-1',
-                type: 'workflow',
-                title: 'Deploy Playbook - Run',
-                status: 'pending',
-                playbookId: 'pb-1',
-                ephemeral: false,
-                variables: {},
-                tags: ['created'],
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                createdBy: 'system',
-              },
-            }),
-          });
-        });
-
         await page.route('**/api/workflows*', async (route) => {
-          route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({
-              workflows: [
-                {
+          if (route.request().method() === 'POST') {
+            // Create workflow from playbook
+            route.fulfill({
+              status: 201,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                workflow: {
                   id: 'wf-new-1',
                   type: 'workflow',
                   title: 'Deploy Playbook - Run',
@@ -1301,10 +1280,33 @@ test.describe('TB-O32: Workflows Page', () => {
                   updatedAt: new Date().toISOString(),
                   createdBy: 'system',
                 },
-              ],
-              total: 1,
-            }),
-          });
+              }),
+            });
+          } else {
+            // GET workflows list
+            route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                workflows: [
+                  {
+                    id: 'wf-new-1',
+                    type: 'workflow',
+                    title: 'Deploy Playbook - Run',
+                    status: 'pending',
+                    playbookId: 'pb-1',
+                    ephemeral: false,
+                    variables: {},
+                    tags: ['created'],
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    createdBy: 'system',
+                  },
+                ],
+                total: 1,
+              }),
+            });
+          }
         });
 
         await page.goto('/workflows');
@@ -1376,14 +1378,27 @@ test.describe('TB-O32: Workflows Page', () => {
           }
         });
 
-        await page.route('**/api/playbooks/pb-1/create', async (route) => {
-          route.fulfill({
-            status: 500,
-            contentType: 'application/json',
-            body: JSON.stringify({
-              error: { code: 'CREATE_ERROR', message: 'Database connection failed' },
-            }),
-          });
+        await page.route('**/api/workflows*', async (route) => {
+          if (route.request().method() === 'POST') {
+            // Create workflow from playbook - return error
+            route.fulfill({
+              status: 500,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                error: { code: 'CREATE_ERROR', message: 'Database connection failed' },
+              }),
+            });
+          } else {
+            // GET workflows list - return empty
+            route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                workflows: [],
+                total: 0,
+              }),
+            });
+          }
         });
 
         await page.goto('/workflows');
