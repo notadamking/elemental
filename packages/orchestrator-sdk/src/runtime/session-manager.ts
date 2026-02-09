@@ -29,6 +29,7 @@ import type {
   UWPTaskInfo,
 } from './spawner.js';
 import type { AgentRegistry } from '../services/agent-registry.js';
+import { getProviderRegistry } from '../providers/registry.js';
 
 // ============================================================================
 // Types
@@ -500,15 +501,24 @@ export class SessionManagerImpl implements SessionManager {
       (meta.agentRole === 'worker' && (meta as { workerMode?: WorkerMode }).workerMode === 'persistent');
     const useInteractive = options?.interactive ?? isInteractiveByRole;
 
+    // Resolve provider from agent metadata
+    const providerName = (meta as { provider?: string }).provider;
+    let providerOverride: import('../providers/types.js').AgentProvider | undefined;
+    if (providerName && providerName !== 'claude') {
+      const registry = getProviderRegistry();
+      providerOverride = await registry.getOrThrow(providerName);
+    }
+
     // Build spawn options
     const spawnOptions: SpawnOptions = {
       workingDirectory: options?.workingDirectory,
       initialPrompt: options?.initialPrompt,
       environmentVariables: options?.environmentVariables,
       mode: useInteractive ? 'interactive' : 'headless',
+      provider: providerOverride,
     };
 
-    console.log('[session-manager] Starting session for agent', agentId, 'mode:', spawnOptions.mode, 'prompt length:', options?.initialPrompt?.length ?? 0);
+    console.log('[session-manager] Starting session for agent', agentId, 'mode:', spawnOptions.mode, 'provider:', providerName ?? 'claude', 'prompt length:', options?.initialPrompt?.length ?? 0);
 
     // Spawn the session
     const result = await this.spawner.spawn(agentId, meta.agentRole, spawnOptions);
@@ -603,11 +613,20 @@ export class SessionManagerImpl implements SessionManager {
       }
     }
 
+    // Resolve provider from agent metadata
+    const providerName = (meta as { provider?: string }).provider;
+    let providerOverride: import('../providers/types.js').AgentProvider | undefined;
+    if (providerName && providerName !== 'claude') {
+      const registry = getProviderRegistry();
+      providerOverride = await registry.getOrThrow(providerName);
+    }
+
     // Build spawn options with resume
     const spawnOptions: SpawnOptions = {
       workingDirectory,
       resumeSessionId: options.providerSessionId,
       initialPrompt: effectivePrompt,
+      provider: providerOverride,
     };
 
     // Spawn the session with resume

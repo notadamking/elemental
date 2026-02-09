@@ -1,5 +1,5 @@
 /**
- * OpenCode Agent Provider (Stub)
+ * OpenCode Agent Provider
  *
  * Combines the OpenCode headless and interactive providers
  * into a single AgentProvider implementation.
@@ -13,6 +13,15 @@ import { OpenCodeInteractiveProvider } from './interactive.js';
 
 export { OpenCodeHeadlessProvider } from './headless.js';
 export { OpenCodeInteractiveProvider } from './interactive.js';
+export { OpenCodeEventMapper } from './event-mapper.js';
+export type { OpenCodeEvent } from './event-mapper.js';
+export { AsyncQueue } from './async-queue.js';
+export { serverManager } from './server-manager.js';
+
+export interface OpenCodeProviderConfig {
+  executablePath?: string;
+  port?: number;
+}
 
 /**
  * OpenCode Agent Provider - alternative provider using OpenCode CLI and SDK.
@@ -22,9 +31,9 @@ export class OpenCodeAgentProvider implements AgentProvider {
   readonly headless: HeadlessProvider;
   readonly interactive: InteractiveProvider;
 
-  constructor() {
-    this.headless = new OpenCodeHeadlessProvider();
-    this.interactive = new OpenCodeInteractiveProvider();
+  constructor(config?: OpenCodeProviderConfig) {
+    this.headless = new OpenCodeHeadlessProvider({ port: config?.port });
+    this.interactive = new OpenCodeInteractiveProvider(config?.executablePath);
   }
 
   async isAvailable(): Promise<boolean> {

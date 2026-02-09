@@ -90,12 +90,22 @@ export function AgentCard({
               showLabel={false}
             />
           </div>
-          <AgentRoleBadge
-            role={agentMeta?.agentRole ?? 'worker'}
-            workerMode={workerMeta?.workerMode}
-            stewardFocus={stewardMeta?.stewardFocus}
-            size="sm"
-          />
+          <div className="flex items-center gap-1.5">
+            <AgentRoleBadge
+              role={agentMeta?.agentRole ?? 'worker'}
+              workerMode={workerMeta?.workerMode}
+              stewardFocus={stewardMeta?.stewardFocus}
+              size="sm"
+            />
+            {agentMeta?.provider && agentMeta.provider !== 'claude' && (
+              <span
+                className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-[var(--color-surface-elevated)] text-[var(--color-text-tertiary)] border border-[var(--color-border)]"
+                data-testid={`agent-provider-${agent.id}`}
+              >
+                {agentMeta.provider}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Actions dropdown */}

@@ -14,6 +14,7 @@ import type {
   SessionsResponse,
   SessionMessagesResponse,
   CreateAgentInput,
+  ProvidersResponse,
 } from '../types';
 
 // ============================================================================
@@ -50,6 +51,17 @@ export function useAgents(role?: AgentRole) {
   return useQuery<AgentsResponse, Error>({
     queryKey: ['agents', role],
     queryFn: () => fetchApi<AgentsResponse>(role ? `/agents?role=${role}` : '/agents'),
+  });
+}
+
+/**
+ * Hook to fetch available providers
+ */
+export function useProviders() {
+  return useQuery<ProvidersResponse, Error>({
+    queryKey: ['providers'],
+    queryFn: () => fetchApi<ProvidersResponse>('/providers'),
+    staleTime: 60_000, // Cache for 1 minute (providers change rarely)
   });
 }
 

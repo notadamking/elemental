@@ -6,6 +6,7 @@
 
 import { Hono } from 'hono';
 import type { EntityId } from '@elemental/core';
+import { getProviderRegistry } from '@elemental/orchestrator-sdk/providers';
 import type { Services } from '../services.js';
 import { formatSessionRecord } from '../formatters.js';
 
@@ -39,6 +40,7 @@ export function createAgentRoutes(services: Services) {
         triggers?: Array<{ type: 'cron'; schedule: string } | { type: 'event'; event: string; condition?: string }>;
         reportsTo?: string;
         createdBy?: string;
+        provider?: string;
       };
 
       if (!body.role || !body.name) {
@@ -55,6 +57,7 @@ export function createAgentRoutes(services: Services) {
             createdBy,
             tags: body.tags,
             maxConcurrentTasks: body.maxConcurrentTasks,
+            provider: body.provider,
           });
           break;
 
@@ -69,6 +72,7 @@ export function createAgentRoutes(services: Services) {
             tags: body.tags,
             maxConcurrentTasks: body.maxConcurrentTasks,
             reportsTo: body.reportsTo as EntityId | undefined,
+            provider: body.provider,
           });
           break;
 
@@ -84,6 +88,7 @@ export function createAgentRoutes(services: Services) {
             tags: body.tags,
             maxConcurrentTasks: body.maxConcurrentTasks,
             reportsTo: body.reportsTo as EntityId | undefined,
+            provider: body.provider,
           });
           break;
 
@@ -342,6 +347,28 @@ export function createAgentRoutes(services: Services) {
       return c.json({ agentId, agentName: agent.name, workload, hasCapacity, maxConcurrentTasks });
     } catch (error) {
       console.error('[orchestrator] Failed to get agent workload:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  // GET /api/providers
+  app.get('/api/providers', async (c) => {
+    try {
+      const registry = getProviderRegistry();
+      const names = registry.list();
+      const providers = await Promise.all(
+        names.map(async (name) => {
+          const p = registry.get(name)!;
+          return {
+            name,
+            available: await p.isAvailable(),
+            installInstructions: p.getInstallInstructions(),
+          };
+        })
+      );
+      return c.json({ providers });
+    } catch (error) {
+      console.error('[orchestrator] Failed to list providers:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
     }
   });

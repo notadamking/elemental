@@ -34,9 +34,11 @@ export {
   ClaudeInteractiveProvider,
 } from './claude/index.js';
 
-// OpenCode provider (stubs)
+// OpenCode provider
 export {
   OpenCodeAgentProvider,
   OpenCodeHeadlessProvider,
   OpenCodeInteractiveProvider,
+  OpenCodeEventMapper,
+  AsyncQueue,
 } from './opencode/index.js';

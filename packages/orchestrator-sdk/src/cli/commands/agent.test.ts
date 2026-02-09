@@ -77,7 +77,7 @@ describe('Agent Command Structure', () => {
 
     it('should have all registration options', () => {
       expect(agentRegisterCommand.options).toBeDefined();
-      expect(agentRegisterCommand.options!.length).toBe(8);
+      expect(agentRegisterCommand.options!.length).toBe(9);
 
       // Required role option
       const roleOption = agentRegisterCommand.options![0];
@@ -131,7 +131,7 @@ describe('Agent Command Structure', () => {
 
     it('should have all start options', () => {
       expect(agentStartCommand.options).toBeDefined();
-      expect(agentStartCommand.options!.length).toBe(10);
+      expect(agentStartCommand.options!.length).toBe(11);
       expect(agentStartCommand.options![0].name).toBe('prompt');
       expect(agentStartCommand.options![1].name).toBe('mode');
       expect(agentStartCommand.options![2].name).toBe('resume');

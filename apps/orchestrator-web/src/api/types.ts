@@ -46,6 +46,7 @@ export interface BaseAgentMetadata {
   lastActivityAt?: Timestamp;
   maxConcurrentTasks?: number;
   roleDefinitionRef?: ElementId;
+  provider?: string;
 }
 
 export interface DirectorMetadata extends BaseAgentMetadata {
@@ -189,6 +190,22 @@ export interface CreateAgentInput {
   // Steward-specific
   stewardFocus?: StewardFocus;
   triggers?: StewardTrigger[];
+  // Provider
+  provider?: string;
+}
+
+// ============================================================================
+// Provider Types
+// ============================================================================
+
+export interface ProviderInfo {
+  name: string;
+  available: boolean;
+  installInstructions: string;
+}
+
+export interface ProvidersResponse {
+  providers: ProviderInfo[];
 }
 
 // ============================================================================

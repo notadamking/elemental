@@ -128,6 +128,10 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
   const handleStopSession = useCallback(async () => {
     try {
       await stopSession.mutateAsync({ agentId: pane.agentId, graceful: true });
+      // After explicit stop, reset to idle state instead of showing the dead terminal
+      setCurrentSessionId(undefined);
+      setCurrentProviderSessionId(undefined);
+      setViewingEndedSession(false);
     } catch (err) {
       console.error('Failed to stop session:', err);
     }

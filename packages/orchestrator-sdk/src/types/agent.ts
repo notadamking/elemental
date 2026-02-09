@@ -181,6 +181,8 @@ export interface BaseAgentMetadata {
    * uses default behavior.
    */
   readonly roleDefinitionRef?: ElementId;
+  /** Agent provider name (e.g., 'claude', 'opencode'). Defaults to 'claude'. */
+  readonly provider?: string;
 }
 
 /**
@@ -260,6 +262,8 @@ export interface RegisterDirectorInput {
   readonly maxConcurrentTasks?: number;
   /** Optional reference to a role definition for system prompt and behaviors */
   readonly roleDefinitionRef?: ElementId;
+  /** Agent provider (e.g., 'claude', 'opencode'). Defaults to 'claude'. */
+  readonly provider?: string;
 }
 
 /**
@@ -280,6 +284,8 @@ export interface RegisterWorkerInput {
   readonly maxConcurrentTasks?: number;
   /** Optional reference to a role definition for system prompt and behaviors */
   readonly roleDefinitionRef?: ElementId;
+  /** Agent provider (e.g., 'claude', 'opencode'). Defaults to 'claude'. */
+  readonly provider?: string;
 }
 
 /**
@@ -302,6 +308,8 @@ export interface RegisterStewardInput {
   readonly maxConcurrentTasks?: number;
   /** Optional reference to a role definition for system prompt and behaviors */
   readonly roleDefinitionRef?: ElementId;
+  /** Agent provider (e.g., 'claude', 'opencode'). Defaults to 'claude'. */
+  readonly provider?: string;
 }
 
 // ============================================================================
