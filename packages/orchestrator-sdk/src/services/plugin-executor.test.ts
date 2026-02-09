@@ -236,7 +236,7 @@ describe('Built-in Plugins', () => {
     it('should define health-check-agents plugin', () => {
       expect(HealthCheckAgentsPlugin.type).toBe('command');
       expect(HealthCheckAgentsPlugin.name).toBe('health-check-agents');
-      expect(HealthCheckAgentsPlugin.command).toContain('el entity');
+      expect(HealthCheckAgentsPlugin.command).toContain('el agent list');
     });
   });
 
