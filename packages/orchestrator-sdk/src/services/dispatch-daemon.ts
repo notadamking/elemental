@@ -120,8 +120,9 @@ export interface DispatchDaemonConfig {
 
   /**
    * Whether closed-but-unmerged task reconciliation is enabled.
-   * Detects tasks with status=CLOSED but mergeStatus not 'merged'
-   * and moves them back to REVIEW so merge stewards can pick them up.
+   * Detects tasks with status=CLOSED but mergeStatus not in a terminal state
+   * ('merged' or 'not_applicable') and moves them back to REVIEW so merge
+   * stewards can pick them up.
    * Default: true
    */
   readonly closedUnmergedReconciliationEnabled?: boolean;
@@ -276,8 +277,9 @@ export interface DispatchDaemon {
 
   /**
    * Manually triggers closed-but-unmerged task reconciliation.
-   * Detects tasks with status=CLOSED but mergeStatus not 'merged'
-   * and moves them back to REVIEW so merge stewards can pick them up.
+   * Detects tasks with status=CLOSED but mergeStatus not in a terminal state
+   * ('merged' or 'not_applicable') and moves them back to REVIEW so merge
+   * stewards can pick them up.
    */
   reconcileClosedUnmergedTasks(): Promise<PollResult>;
 
@@ -857,8 +859,8 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
         // Find REVIEW tasks assigned to this steward that still need processing.
         // Only recover tasks with 'pending' or 'testing' mergeStatus - tasks with
-        // 'test_failed', 'conflict', 'failed', or 'merged' have already been processed
-        // and should NOT be re-spawned (prevents infinite retry loops on pre-existing failures).
+        // 'test_failed', 'conflict', 'failed', 'merged', or 'not_applicable' have already
+        // been processed and should NOT be re-spawned (prevents infinite retry loops).
         const stewardTasks = await this.taskAssignment.getAgentTasks(stewardId, {
           taskStatus: [TaskStatus.REVIEW],
           mergeStatus: ['pending', 'testing'],
@@ -910,7 +912,9 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     this.emitter.emit('poll:start', 'closed-unmerged-reconciliation');
 
     try {
-      // Find tasks that are CLOSED but have a non-merged mergeStatus
+      // Find tasks that are CLOSED but have a non-terminal mergeStatus.
+      // Terminal statuses ('merged', 'not_applicable') are intentionally excluded -
+      // those tasks are properly closed and should not be re-opened.
       const stuckTasks = await this.taskAssignment.listAssignments({
         taskStatus: [TaskStatus.CLOSED],
         mergeStatus: ['pending', 'testing', 'merging', 'conflict', 'test_failed', 'failed'],

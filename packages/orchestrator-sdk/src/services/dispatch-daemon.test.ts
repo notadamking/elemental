@@ -1186,6 +1186,241 @@ describe('reconcileClosedUnmergedTasks', () => {
     const updatedTask = await api.get<Task>(task.id);
     expect(updatedTask!.status).toBe(TaskStatus.CLOSED);
   });
+
+  test('skips tasks with mergeStatus=not_applicable (terminal state)', async () => {
+    // not_applicable is a terminal state like 'merged' - tasks with this status
+    // should NOT be re-opened for reconciliation
+    await createClosedUnmergedTask('Task with not_applicable status', {
+      mergeStatus: 'not_applicable',
+    });
+
+    const result = await daemon.reconcileClosedUnmergedTasks();
+
+    // not_applicable tasks are NOT queried (filter excludes them), so processed=0
+    expect(result.processed).toBe(0);
+  });
+});
+
+describe('recoverStuckMergeTasks', () => {
+  let api: ElementalAPI;
+  let inboxService: InboxService;
+  let agentRegistry: AgentRegistry;
+  let taskAssignment: TaskAssignmentService;
+  let dispatchService: DispatchService;
+  let sessionManager: SessionManager;
+  let worktreeManager: WorktreeManager;
+  let stewardScheduler: StewardScheduler;
+  let daemon: DispatchDaemon;
+  let testDbPath: string;
+  let systemEntity: EntityId;
+
+  beforeEach(async () => {
+    testDbPath = `/tmp/dispatch-daemon-stuck-merge-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`;
+    const storage = createStorage({ path: testDbPath, create: true });
+    initializeSchema(storage);
+
+    api = createElementalAPI(storage);
+    inboxService = createInboxService(storage);
+    agentRegistry = createAgentRegistry(api);
+    taskAssignment = createTaskAssignmentService(api);
+    dispatchService = createDispatchService(api, taskAssignment, agentRegistry);
+    sessionManager = createMockSessionManager();
+    worktreeManager = createMockWorktreeManager();
+    stewardScheduler = createMockStewardScheduler();
+
+    const { createEntity, EntityTypeValue } = await import('@elemental/core');
+    const entity = await createEntity({
+      name: 'test-system',
+      entityType: EntityTypeValue.SYSTEM,
+      createdBy: 'system:test' as EntityId,
+    });
+    const saved = await api.create(entity as unknown as Record<string, unknown> & { createdBy: EntityId });
+    systemEntity = saved.id as unknown as EntityId;
+
+    const config: DispatchDaemonConfig = {
+      pollIntervalMs: 100,
+      workerAvailabilityPollEnabled: false,
+      inboxPollEnabled: false,
+      stewardTriggerPollEnabled: false,
+      workflowTaskPollEnabled: false,
+      orphanRecoveryEnabled: false,
+      closedUnmergedReconciliationEnabled: false,
+      stuckMergeRecoveryEnabled: true,
+      stuckMergeRecoveryGracePeriodMs: 1, // 1ms for tests - task will always be past grace period
+    };
+
+    daemon = createDispatchDaemon(
+      api,
+      agentRegistry,
+      sessionManager,
+      dispatchService,
+      worktreeManager,
+      taskAssignment,
+      stewardScheduler,
+      inboxService,
+      config
+    );
+  });
+
+  afterEach(async () => {
+    await daemon.stop();
+    if (fs.existsSync(testDbPath)) {
+      fs.unlinkSync(testDbPath);
+    }
+  });
+
+  /** Creates a REVIEW task with orchestrator metadata including mergeStatus */
+  async function createStuckMergeTask(
+    title: string,
+    opts?: {
+      mergeStatus?: string;
+      stuckMergeRecoveryCount?: number;
+      assignedAgent?: EntityId;
+    }
+  ): Promise<Task> {
+    const task = await createTask({
+      title,
+      createdBy: systemEntity,
+      status: TaskStatus.REVIEW,
+    });
+    const saved = await api.create(task as unknown as Record<string, unknown> & { createdBy: EntityId }) as Task;
+
+    // Note: updatedAt is automatically set to 'now' by the API on update.
+    // We use a very short grace period (1ms) so tasks are always past the grace period.
+    await api.update<Task>(saved.id, {
+      metadata: updateOrchestratorTaskMeta(undefined, {
+        mergeStatus: (opts?.mergeStatus ?? 'merging') as import('../types/task-meta.js').MergeStatus,
+        branch: 'agent/worker/task-branch',
+        stuckMergeRecoveryCount: opts?.stuckMergeRecoveryCount,
+        assignedAgent: opts?.assignedAgent,
+      }),
+    });
+    return (await api.get<Task>(saved.id))!;
+  }
+
+  test('recovers a task stuck in merging status past the grace period', async () => {
+    const task = await createStuckMergeTask('Task stuck in merging');
+
+    // Wait a bit to ensure the task is past the 1ms grace period
+    await new Promise((r) => setTimeout(r, 5));
+
+    const result = await daemon.recoverStuckMergeTasks();
+
+    expect(result.pollType).toBe('stuck-merge-recovery');
+    expect(result.processed).toBe(1);
+    expect(result.errors).toBe(0);
+
+    // Verify task's mergeStatus was reset to 'pending'
+    const updatedTask = await api.get<Task>(task.id);
+    const meta = getOrchestratorTaskMeta(updatedTask!.metadata as Record<string, unknown> | undefined);
+    expect(meta!.mergeStatus).toBe('pending');
+  });
+
+  test('recovers a task stuck in testing status past the grace period', async () => {
+    const task = await createStuckMergeTask('Task stuck in testing', {
+      mergeStatus: 'testing',
+    });
+
+    // Wait a bit to ensure the task is past the 1ms grace period
+    await new Promise((r) => setTimeout(r, 5));
+
+    const result = await daemon.recoverStuckMergeTasks();
+
+    expect(result.processed).toBe(1);
+
+    const updatedTask = await api.get<Task>(task.id);
+    const meta = getOrchestratorTaskMeta(updatedTask!.metadata as Record<string, unknown> | undefined);
+    expect(meta!.mergeStatus).toBe('pending');
+  });
+
+  test('skips tasks within the grace period (updated recently)', async () => {
+    // Set a long grace period so the task is definitely within it
+    daemon.updateConfig({ stuckMergeRecoveryGracePeriodMs: 600_000 }); // 10 minutes
+
+    await createStuckMergeTask('Recently updated task');
+
+    const result = await daemon.recoverStuckMergeTasks();
+
+    expect(result.processed).toBe(0);
+
+    // Reset for other tests
+    daemon.updateConfig({ stuckMergeRecoveryGracePeriodMs: 1 });
+  });
+
+  test('skips tasks with mergeStatus=not_applicable (not a stuck state)', async () => {
+    // not_applicable is a terminal state - tasks with this status
+    // should NOT be considered "stuck" in merge
+    await createStuckMergeTask('Task with not_applicable status', {
+      mergeStatus: 'not_applicable',
+    });
+
+    const result = await daemon.recoverStuckMergeTasks();
+
+    // not_applicable tasks are NOT queried (filter only looks for 'merging' and 'testing')
+    expect(result.processed).toBe(0);
+  });
+
+  test('skips tasks with mergeStatus=merged (not a stuck state)', async () => {
+    await createStuckMergeTask('Task already merged', {
+      mergeStatus: 'merged',
+    });
+
+    const result = await daemon.recoverStuckMergeTasks();
+
+    expect(result.processed).toBe(0);
+  });
+
+  test('skips steward with active session', async () => {
+    const steward = await agentRegistry.registerSteward({
+      name: 'active-merge-steward-stuck',
+      stewardFocus: 'merge',
+      createdBy: systemEntity,
+      maxConcurrentTasks: 1,
+    });
+    const stewardId = steward.id as unknown as EntityId;
+
+    // Start a session for this steward
+    await sessionManager.startSession(stewardId, {});
+
+    await createStuckMergeTask('Task with active steward session', {
+      assignedAgent: stewardId,
+    });
+
+    const result = await daemon.recoverStuckMergeTasks();
+
+    // Steward has active session, so task is not considered stuck
+    expect(result.processed).toBe(0);
+  });
+
+  test('increments stuckMergeRecoveryCount in metadata', async () => {
+    const task = await createStuckMergeTask('Task to count stuck recovery', {
+      stuckMergeRecoveryCount: 1,
+    });
+
+    // Wait a bit to ensure the task is past the 1ms grace period
+    await new Promise((r) => setTimeout(r, 5));
+
+    await daemon.recoverStuckMergeTasks();
+
+    const updatedTask = await api.get<Task>(task.id);
+    const meta = getOrchestratorTaskMeta(updatedTask!.metadata as Record<string, unknown> | undefined);
+    expect(meta!.stuckMergeRecoveryCount).toBe(2);
+  });
+
+  test('stops recovering after 3 attempts (safety valve)', async () => {
+    const task = await createStuckMergeTask('Task at safety limit', {
+      stuckMergeRecoveryCount: 3,
+    });
+
+    const result = await daemon.recoverStuckMergeTasks();
+
+    expect(result.processed).toBe(0);
+
+    // Task should still have merging status (not reset)
+    const updatedTask = await api.get<Task>(task.id);
+    const meta = getOrchestratorTaskMeta(updatedTask!.metadata as Record<string, unknown> | undefined);
+    expect(meta!.mergeStatus).toBe('merging');
+  });
 });
 
 describe('E2E Orchestration Flow', () => {
