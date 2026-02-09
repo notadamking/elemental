@@ -35,6 +35,7 @@ export function createAgentRoutes(services: Services) {
         name: string;
         workerMode?: 'ephemeral' | 'persistent';
         stewardFocus?: 'merge' | 'health' | 'reminder' | 'ops';
+        maxConcurrentTasks?: number;
         tags?: string[];
         triggers?: Array<{ type: 'cron'; schedule: string } | { type: 'event'; event: string; condition?: string }>;
         reportsTo?: string;
@@ -55,6 +56,7 @@ export function createAgentRoutes(services: Services) {
             name: body.name,
             createdBy,
             tags: body.tags,
+            maxConcurrentTasks: body.maxConcurrentTasks,
             provider: body.provider,
           });
           break;
@@ -68,6 +70,7 @@ export function createAgentRoutes(services: Services) {
             workerMode: body.workerMode,
             createdBy,
             tags: body.tags,
+            maxConcurrentTasks: body.maxConcurrentTasks,
             reportsTo: body.reportsTo as EntityId | undefined,
             provider: body.provider,
           });
@@ -83,6 +86,7 @@ export function createAgentRoutes(services: Services) {
             triggers: body.triggers,
             createdBy,
             tags: body.tags,
+            maxConcurrentTasks: body.maxConcurrentTasks,
             reportsTo: body.reportsTo as EntityId | undefined,
             provider: body.provider,
           });
@@ -108,6 +112,7 @@ export function createAgentRoutes(services: Services) {
     try {
       const body = (await c.req.json()) as {
         name: string;
+        maxConcurrentTasks?: number;
         tags?: string[];
         createdBy?: string;
       };
@@ -120,6 +125,7 @@ export function createAgentRoutes(services: Services) {
         name: body.name,
         createdBy: (body.createdBy ?? 'el-0000') as EntityId,
         tags: body.tags,
+        maxConcurrentTasks: body.maxConcurrentTasks,
       });
 
       return c.json({ agent }, 201);
@@ -139,6 +145,7 @@ export function createAgentRoutes(services: Services) {
       const body = (await c.req.json()) as {
         name: string;
         workerMode: 'ephemeral' | 'persistent';
+        maxConcurrentTasks?: number;
         tags?: string[];
         reportsTo?: string;
         createdBy?: string;
@@ -159,6 +166,7 @@ export function createAgentRoutes(services: Services) {
         workerMode: body.workerMode,
         createdBy: (body.createdBy ?? 'el-0000') as EntityId,
         tags: body.tags,
+        maxConcurrentTasks: body.maxConcurrentTasks,
         reportsTo: body.reportsTo as EntityId | undefined,
       });
 
@@ -180,6 +188,7 @@ export function createAgentRoutes(services: Services) {
         name: string;
         stewardFocus: 'merge' | 'health' | 'reminder' | 'ops';
         triggers?: Array<{ type: 'cron'; schedule: string } | { type: 'event'; event: string; condition?: string }>;
+        maxConcurrentTasks?: number;
         tags?: string[];
         reportsTo?: string;
         createdBy?: string;
@@ -219,6 +228,7 @@ export function createAgentRoutes(services: Services) {
         triggers: body.triggers,
         createdBy: (body.createdBy ?? 'el-0000') as EntityId,
         tags: body.tags,
+        maxConcurrentTasks: body.maxConcurrentTasks,
         reportsTo: body.reportsTo as EntityId | undefined,
       });
 
@@ -345,8 +355,10 @@ export function createAgentRoutes(services: Services) {
 
       const workload = await taskAssignmentService.getAgentWorkload(agentId);
       const hasCapacity = await taskAssignmentService.agentHasCapacity(agentId);
+      const agentMeta = (agent.metadata as { agent?: { capabilities?: { maxConcurrentTasks?: number } } })?.agent;
+      const maxConcurrentTasks = agentMeta?.capabilities?.maxConcurrentTasks ?? 3;
 
-      return c.json({ agentId, agentName: agent.name, workload, hasCapacity });
+      return c.json({ agentId, agentName: agent.name, workload, hasCapacity, maxConcurrentTasks });
     } catch (error) {
       console.error('[orchestrator] Failed to get agent workload:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
