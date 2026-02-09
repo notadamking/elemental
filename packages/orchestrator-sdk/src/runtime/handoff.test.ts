@@ -76,7 +76,7 @@ function createMockSession(
   const now = createTimestamp();
   return {
     id: `session-mock-${sessionIdCounter}`,
-    claudeSessionId: `claude-session-${sessionIdCounter}`,
+    providerSessionId: `claude-session-${sessionIdCounter}`,
     agentId,
     agentRole: 'worker',
     workerMode: 'ephemeral',
@@ -152,7 +152,7 @@ function createMockSessionManager(sessions: Map<string, SessionRecord>): Session
 
     getMostRecentResumableSession(agentId: EntityId): SessionRecord | undefined {
       const agentSessions = Array.from(sessions.values())
-        .filter((s) => s.agentId === agentId && s.claudeSessionId)
+        .filter((s) => s.agentId === agentId && s.providerSessionId)
         .sort((a, b) => {
           const aTime = typeof a.createdAt === 'number' ? a.createdAt : new Date(a.createdAt).getTime();
           const bTime = typeof b.createdAt === 'number' ? b.createdAt : new Date(b.createdAt).getTime();
@@ -429,7 +429,7 @@ describe('HandoffService', () => {
       expect(content.contextSummary).toBe('Test context summary');
       expect(content.nextSteps).toBe('Test next steps');
       expect(content.reason).toBe('Test reason');
-      expect(content.claudeSessionId).toBe(session.claudeSessionId);
+      expect(content.providerSessionId).toBe(session.providerSessionId);
     });
 
     test('creates handoff message in agent channel', async () => {
@@ -531,7 +531,7 @@ describe('HandoffService', () => {
       expect(result.error).toContain('has no channel');
     });
 
-    test('includes Claude session ID for predecessor queries', async () => {
+    test('includes provider session ID for predecessor queries', async () => {
       const session = createMockSession(testAgentId, 'running');
       sessions.set(session.id, session);
 
@@ -545,13 +545,13 @@ describe('HandoffService', () => {
 
       const doc = savedDocuments.get(result.handoffDocumentId as string);
       const content = JSON.parse(doc?.content ?? '{}');
-      expect(content.claudeSessionId).toBe(session.claudeSessionId);
+      expect(content.providerSessionId).toBe(session.providerSessionId);
     });
 
-    test('preserves Claude session ID in suspended session', async () => {
+    test('preserves provider session ID in suspended session', async () => {
       const session = createMockSession(testAgentId, 'running');
       sessions.set(session.id, session);
-      const originalClaudeSessionId = session.claudeSessionId;
+      const originalClaudeSessionId = session.providerSessionId;
 
       const options: SelfHandoffOptions = {
         contextSummary: 'Test context',
@@ -560,7 +560,7 @@ describe('HandoffService', () => {
       const result = await handoffService.selfHandoff(testAgentId, session.id, options);
 
       expect(result.success).toBe(true);
-      expect(result.suspendedSession?.claudeSessionId).toBe(originalClaudeSessionId);
+      expect(result.suspendedSession?.providerSessionId).toBe(originalClaudeSessionId);
     });
   });
 

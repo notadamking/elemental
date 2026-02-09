@@ -86,7 +86,7 @@ describe('SpawnerService Integration', () => {
     expect(result.session.agentRole).toBe('worker');
     expect(result.session.mode).toBe('headless');
     expect(result.session.status).toBe('running');
-    expect(result.session.claudeSessionId).toBeDefined();
+    expect(result.session.providerSessionId).toBeDefined();
 
     // Verify the session is tracked
     const session = service.getSession(result.session.id);

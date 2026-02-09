@@ -92,7 +92,7 @@ export interface Agent {
 
 export interface SessionRecord {
   id: string;
-  claudeSessionId?: string;
+  providerSessionId?: string;
   agentId: EntityId;
   agentRole: AgentRole;
   workerMode?: WorkerMode;

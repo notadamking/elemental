@@ -42,6 +42,12 @@
       "import": "./dist/testing/index.js",
       "default": "./dist/testing/index.js"
     },
+    "./providers": {
+      "types": "./dist/providers/index.d.ts",
+      "bun": "./src/providers/index.ts",
+      "import": "./dist/providers/index.js",
+      "default": "./dist/providers/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

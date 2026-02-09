@@ -282,8 +282,8 @@ export interface HandoffMessage extends BaseMessageMeta {
   readonly nextSteps?: string;
   /** Reason for handoff */
   readonly reason?: string;
-  /** Claude session ID for predecessor queries */
-  readonly claudeSessionId?: string;
+  /** Provider session ID for predecessor queries */
+  readonly providerSessionId?: string;
   /** Reference to handoff document */
   readonly handoffDocumentId?: string;
   /** Whether this is a self-handoff */
@@ -322,7 +322,7 @@ export function createHandoffMessage(
     contextSummary: input.contextSummary,
     nextSteps: input.nextSteps,
     reason: input.reason,
-    claudeSessionId: input.claudeSessionId,
+    providerSessionId: input.providerSessionId,
     handoffDocumentId: input.handoffDocumentId,
     isSelfHandoff: input.isSelfHandoff ?? (input.toAgent === undefined),
     correlationId: input.correlationId,

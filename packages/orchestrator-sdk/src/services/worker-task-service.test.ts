@@ -76,7 +76,7 @@ function createMockAgent(overrides: Partial<Entity> = {}): AgentEntity {
 function createMockSessionRecord(overrides: Partial<SessionRecord> = {}): SessionRecord {
   return {
     id: 'session-001',
-    claudeSessionId: 'claude-session-abc123',
+    providerSessionId: 'claude-session-abc123',
     agentId: 'agent-worker-001' as EntityId,
     agentRole: 'worker',
     workerMode: 'ephemeral',

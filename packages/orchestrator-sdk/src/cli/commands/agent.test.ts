@@ -124,7 +124,7 @@ describe('Agent Command Structure', () => {
   describe('agentStartCommand', () => {
     it('should have correct structure', () => {
       expect(agentStartCommand.name).toBe('start');
-      expect(agentStartCommand.description).toBe('Start a Claude Code process for an agent');
+      expect(agentStartCommand.description).toBe('Start an agent process');
       expect(agentStartCommand.usage).toBe('el agent start <id> [options]');
       expect(typeof agentStartCommand.handler).toBe('function');
     });

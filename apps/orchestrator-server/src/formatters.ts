@@ -55,7 +55,7 @@ export function formatTaskResponse(task: Task, hydratedDescription?: string | nu
 export function formatSessionRecord(session: SessionRecord) {
   return {
     id: session.id,
-    claudeSessionId: session.claudeSessionId,
+    providerSessionId: session.providerSessionId,
     agentId: session.agentId,
     agentRole: session.agentRole,
     workerMode: session.workerMode,

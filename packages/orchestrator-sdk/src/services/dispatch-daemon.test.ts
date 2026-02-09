@@ -492,7 +492,7 @@ describe('recoverOrphanedAssignments', () => {
     expect(sessionManager.resumeSession).toHaveBeenCalledWith(
       workerId,
       expect.objectContaining({
-        claudeSessionId: 'prev-session-123',
+        providerSessionId: 'prev-session-123',
         checkReadyQueue: false,
       })
     );
@@ -901,7 +901,7 @@ describe('recoverOrphanedAssignments - merge steward recovery', () => {
     expect(sessionManager.resumeSession).toHaveBeenCalledWith(
       stewardId,
       expect.objectContaining({
-        claudeSessionId: 'steward-prev-session',
+        providerSessionId: 'steward-prev-session',
         checkReadyQueue: false,
       })
     );

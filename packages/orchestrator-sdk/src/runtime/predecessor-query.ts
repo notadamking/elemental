@@ -70,8 +70,8 @@ export interface PredecessorInfo {
   readonly agentName?: string;
   /** The role of the predecessor */
   readonly role: AgentRole;
-  /** The Claude session ID used for resume */
-  readonly claudeSessionId: string;
+  /** The provider session ID used for resume */
+  readonly providerSessionId: string;
   /** The internal session ID */
   readonly sessionId: string;
   /** The working directory of the predecessor session */
@@ -275,7 +275,7 @@ export class PredecessorQueryServiceImpl implements PredecessorQueryService {
       const { session, events } = await this.sessionManager.resumeSession(
         predecessor.agentId,
         {
-          claudeSessionId: predecessor.claudeSessionId,
+          providerSessionId: predecessor.providerSessionId,
           workingDirectory: options?.workingDirectory ?? predecessor.workingDirectory,
           resumePrompt: prompt,
           checkReadyQueue: false, // Don't check UWP for predecessor queries
@@ -345,8 +345,8 @@ export class PredecessorQueryServiceImpl implements PredecessorQueryService {
       return undefined;
     }
 
-    // Must have a Claude session ID to be resumable
-    if (!previousSession.claudeSessionId) {
+    // Must have a provider session ID to be resumable
+    if (!previousSession.providerSessionId) {
       return undefined;
     }
 
@@ -354,7 +354,7 @@ export class PredecessorQueryServiceImpl implements PredecessorQueryService {
       agentId: previousSession.agentId,
       agentName: previousSession.agentName,
       role: previousSession.role,
-      claudeSessionId: previousSession.claudeSessionId,
+      providerSessionId: previousSession.providerSessionId,
       sessionId: previousSession.id,
       workingDirectory: previousSession.workingDirectory,
       originalStartedAt: previousSession.startedAt,

@@ -161,10 +161,10 @@ export function useDirector() {
     error: statusError
   } = useAgentStatus(director?.id);
 
-  // Find the most recent session with a claudeSessionId (resumable)
+  // Find the most recent session with a providerSessionId (resumable)
   const lastResumableSession = useMemo(() => {
     const history = statusData?.recentHistory ?? [];
-    return history.find((h) => !!h.claudeSessionId) ?? null;
+    return history.find((h) => !!h.providerSessionId) ?? null;
   }, [statusData?.recentHistory]);
 
   const hasResumableSession = lastResumableSession !== null;
@@ -288,11 +288,11 @@ export function useInterruptAgentSession() {
 export function useResumeAgentSession() {
   const queryClient = useQueryClient();
 
-  return useMutation<{ success: boolean; session: unknown }, Error, { agentId: string; claudeSessionId?: string; resumePrompt?: string }>({
-    mutationFn: async ({ agentId, claudeSessionId, resumePrompt }) => {
+  return useMutation<{ success: boolean; session: unknown }, Error, { agentId: string; providerSessionId?: string; resumePrompt?: string }>({
+    mutationFn: async ({ agentId, providerSessionId, resumePrompt }) => {
       return fetchApi(`/agents/${agentId}/resume`, {
         method: 'POST',
-        body: JSON.stringify({ claudeSessionId, resumePrompt }),
+        body: JSON.stringify({ providerSessionId, resumePrompt }),
       });
     },
     onSuccess: (_, { agentId }) => {

@@ -45,7 +45,7 @@ const result = await spawner.spawn(agentId, 'worker', {
 
 // Access session info
 console.log(result.session.id);              // Internal session ID
-console.log(result.session.claudeSessionId); // Claude Code session ID (for resume)
+console.log(result.session.providerSessionId); // Provider session ID (for resume)
 console.log(result.session.status);          // 'running'
 console.log(result.session.mode);            // 'headless'
 
@@ -198,7 +198,7 @@ events.on('exit', (code, signal) => console.log(`Exited: ${code}`));
 
 ```typescript
 const { session, events, uwpCheck } = await sessionManager.resumeSession(agentId, {
-  claudeSessionId: 'previous-claude-session-id',
+  providerSessionId: 'previous-provider-session-id',
   workingDirectory: '/path/to/worktree',
   resumePrompt: 'Continue where you left off',
   checkReadyQueue: true,   // Enable UWP check (default)

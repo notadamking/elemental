@@ -36,7 +36,7 @@ export interface SessionHistoryModalProps {
   agentName: string;
   sessions: SessionRecord[];
   /** Called when user wants to view a session's transcript (can be resumed by sending a message) */
-  onViewSession?: (sessionId: string, claudeSessionId?: string) => void;
+  onViewSession?: (sessionId: string, providerSessionId?: string) => void;
 }
 
 /** Get transcript from localStorage */
@@ -463,15 +463,15 @@ export function SessionHistoryModal({
     };
   }, [isOpen, sessions]);
 
-  // Filter to only sessions with transcripts, and group by claudeSessionId
-  // When multiple sessions share the same claudeSessionId (from resume), show only the most recent one
+  // Filter to only sessions with transcripts, and group by providerSessionId
+  // When multiple sessions share the same providerSessionId (from resume), show only the most recent one
   const sessionsWithTranscripts = useMemo(() => {
     const withTranscripts = sessions.filter(s => (transcriptCache[s.id]?.length || 0) > 0);
 
-    // Group by claudeSessionId - sessions with same claudeSessionId are the same conversation
+    // Group by providerSessionId - sessions with same providerSessionId are the same conversation
     const grouped = new Map<string, SessionRecord>();
     for (const session of withTranscripts) {
-      const key = session.claudeSessionId || session.id; // Use id as fallback if no claudeSessionId
+      const key = session.providerSessionId || session.id; // Use id as fallback if no providerSessionId
       const existing = grouped.get(key);
       if (!existing) {
         grouped.set(key, session);
@@ -566,7 +566,7 @@ export function SessionHistoryModal({
                     isSelected={session.id === selectedSessionId}
                     onClick={() => setSelectedSessionId(session.id)}
                     onDelete={() => handleDeleteTranscript(session.id)}
-                    onOpen={onViewSession ? () => onViewSession(session.id, session.claudeSessionId) : undefined}
+                    onOpen={onViewSession ? () => onViewSession(session.id, session.providerSessionId) : undefined}
                   />
                 ))}
               </div>
@@ -585,7 +585,7 @@ export function SessionHistoryModal({
                         {onViewSession && (
                           <button
                             onClick={() => {
-                              onViewSession(selectedSession!.id, selectedSession!.claudeSessionId);
+                              onViewSession(selectedSession!.id, selectedSession!.providerSessionId);
                               onClose();
                             }}
                             className="flex items-center gap-1.5 px-2.5 py-1 rounded text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors"

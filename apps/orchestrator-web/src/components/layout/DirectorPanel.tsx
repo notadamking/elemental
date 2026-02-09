@@ -148,18 +148,18 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
   }, [director?.id, startSession]);
 
   const handleResumeSession = useCallback(async () => {
-    if (!director?.id || !lastResumableSession?.claudeSessionId) return;
+    if (!director?.id || !lastResumableSession?.providerSessionId) return;
     setResumeError(null);
     try {
       await resumeSession.mutateAsync({
         agentId: director.id,
-        claudeSessionId: lastResumableSession.claudeSessionId,
+        providerSessionId: lastResumableSession.providerSessionId,
       });
     } catch (err) {
       console.error('Failed to resume director session:', err);
       setResumeError(err instanceof Error ? err.message : 'Resume failed');
     }
-  }, [director?.id, lastResumableSession?.claudeSessionId, resumeSession]);
+  }, [director?.id, lastResumableSession?.providerSessionId, resumeSession]);
 
   const handleStopSession = useCallback(async () => {
     if (!director?.id) return;

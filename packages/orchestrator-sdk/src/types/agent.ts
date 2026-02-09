@@ -162,7 +162,7 @@ export interface BaseAgentMetadata {
   readonly agentRole: AgentRole;
   /** Direct channel ID for receiving messages */
   readonly channelId?: ChannelId;
-  /** Claude Code session ID for resumption */
+  /** Provider session ID for resumption */
   readonly sessionId?: string;
   /** Path to the agent's worktree (for workers) */
   readonly worktree?: string;

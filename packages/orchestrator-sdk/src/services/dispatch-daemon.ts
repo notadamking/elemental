@@ -1271,7 +1271,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
   /**
    * Recovers a single orphaned task by re-spawning a session for the worker.
-   * Tries to resume the previous Claude session first (preserves context),
+   * Tries to resume the previous provider session first (preserves context),
    * falls back to a fresh spawn if no sessionId or resume fails.
    */
   private async recoverOrphanedTask(
@@ -1318,7 +1318,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     if (previousSessionId) {
       try {
         const { session, events } = await this.sessionManager.resumeSession(workerId, {
-          claudeSessionId: previousSessionId,
+          providerSessionId: previousSessionId,
           workingDirectory: worktreePath,
           worktree: worktreePath,
           checkReadyQueue: false,
@@ -1363,7 +1363,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
   /**
    * Recovers a single orphaned merge steward task by resuming or re-spawning.
-   * Tries to resume the previous Claude session first (preserves context),
+   * Tries to resume the previous provider session first (preserves context),
    * falls back to a fresh spawn via spawnMergeStewardForTask.
    */
   private async recoverOrphanedStewardTask(
@@ -1389,7 +1389,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     if (previousSessionId) {
       try {
         const { session, events } = await this.sessionManager.resumeSession(stewardId, {
-          claudeSessionId: previousSessionId,
+          providerSessionId: previousSessionId,
           workingDirectory,
           worktree: worktreePath,
           checkReadyQueue: false,
@@ -1785,7 +1785,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
         {
           assignedAgent: stewardId,
           mergeStatus: 'testing' as const,
-          sessionId: session.claudeSessionId ?? session.id,
+          sessionId: session.providerSessionId ?? session.id,
         }
       ),
     });

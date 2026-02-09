@@ -484,7 +484,7 @@ export function createTaskRoutes(services: Services) {
           agent: { id: result.agent.id, name: result.agent.name },
           session: {
             id: result.session.id,
-            claudeSessionId: result.session.claudeSessionId,
+            providerSessionId: result.session.providerSessionId,
             status: result.session.status,
             workingDirectory: result.session.workingDirectory,
           },

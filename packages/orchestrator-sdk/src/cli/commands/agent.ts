@@ -792,7 +792,7 @@ const agentStartOptions: CommandOption[] = [
   {
     name: 'resume',
     short: 'r',
-    description: 'Claude session ID to resume',
+    description: 'Provider session ID to resume',
     hasValue: true,
   },
   {
@@ -930,7 +930,7 @@ async function agentStartHandler(
     if (mode === 'json') {
       return success({
         sessionId: result.session.id,
-        claudeSessionId: result.session.claudeSessionId,
+        providerSessionId: result.session.providerSessionId,
         agentId: id,
         status: result.session.status,
         mode: result.session.mode,
@@ -946,7 +946,7 @@ async function agentStartHandler(
     const lines = [
       `Spawned agent ${id}`,
       `  Session ID:  ${result.session.id}`,
-      `  Claude ID:   ${result.session.claudeSessionId ?? '-'}`,
+      `  Provider ID: ${result.session.providerSessionId ?? '-'}`,
       `  Status:      ${result.session.status}`,
       `  Mode:        ${result.session.mode}`,
       `  PID:         ${result.session.pid ?? '-'}`,
@@ -964,7 +964,7 @@ async function agentStartHandler(
 
 export const agentStartCommand: Command = {
   name: 'start',
-  description: 'Start a Claude Code process for an agent',
+  description: 'Start an agent process',
   usage: 'el agent start <id> [options]',
   help: `Start a new Claude Code process for an agent.
 
@@ -974,7 +974,7 @@ Arguments:
 Options:
   -p, --prompt <text>      Initial prompt to send to the agent
   -m, --mode <mode>        Start mode: headless, interactive
-  -r, --resume <id>        Resume a previous Claude session
+  -r, --resume <id>        Resume a previous session
   -w, --workdir <path>     Working directory for the agent
   --cols <n>               Terminal columns for interactive mode (default: 120)
   --rows <n>               Terminal rows for interactive mode (default: 30)
@@ -1010,7 +1010,7 @@ Subcommands:
   list      List all registered agents
   show      Show agent details
   register  Register a new agent
-  start     Start a Claude Code process for an agent
+  start     Start an agent process
   stop      Stop an agent session
   stream    Get agent channel for streaming
 

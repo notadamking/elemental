@@ -1,7 +1,7 @@
 /**
  * Session Manager Service
  *
- * This service manages agent sessions with Claude Code session ID support for
+ * This service manages agent sessions with provider session ID support for
  * resumable sessions and cross-restart persistence.
  *
  * Key features:
@@ -40,8 +40,8 @@ import type { AgentRegistry } from '../services/agent-registry.js';
 export interface SessionRecord {
   /** Internal session ID (unique per spawn) */
   readonly id: string;
-  /** Claude Code session ID (for resume) */
-  readonly claudeSessionId?: string;
+  /** Provider session ID (for resume) */
+  readonly providerSessionId?: string;
   /** Agent entity ID this session belongs to */
   readonly agentId: EntityId;
   /** Agent role */
@@ -90,8 +90,8 @@ export interface StartSessionOptions {
  * Options for resuming a session
  */
 export interface ResumeSessionOptions {
-  /** The Claude Code session ID to resume */
-  readonly claudeSessionId: string;
+  /** The provider session ID to resume */
+  readonly providerSessionId: string;
   /** Working directory for the session */
   readonly workingDirectory?: string;
   /** Git worktree path */
@@ -161,7 +161,7 @@ export interface SessionFilter {
   readonly startedAfter?: Timestamp;
   /** Filter by sessions started before this time */
   readonly startedBefore?: Timestamp;
-  /** Include only sessions with Claude session IDs (resumable) */
+  /** Include only sessions with provider session IDs (resumable) */
   readonly resumable?: boolean;
 }
 
@@ -171,8 +171,8 @@ export interface SessionFilter {
 export interface SessionHistoryEntry {
   /** Internal session ID */
   readonly id: string;
-  /** Claude Code session ID */
-  readonly claudeSessionId?: string;
+  /** Provider session ID */
+  readonly providerSessionId?: string;
   /** Session status when entry was created */
   readonly status: SessionStatus;
   /** Working directory */
@@ -250,14 +250,14 @@ export interface SessionManager {
   ): Promise<{ session: SessionRecord; events: EventEmitter }>;
 
   /**
-   * Resumes a previous session using its Claude Code session ID.
+   * Resumes a previous session using its provider session ID.
    *
    * When `checkReadyQueue` is true (default), implements the Universal Work Principle (UWP):
    * - Before continuing with the previous context, checks if any tasks were assigned during suspension
    * - If tasks are found, the session will be instructed to process them first
    *
    * @param agentId - The agent entity ID
-   * @param options - Resume options including the Claude session ID
+   * @param options - Resume options including the provider session ID
    * @returns The resumed session record, event emitter, and UWP check result
    */
   resumeSession(
@@ -275,7 +275,7 @@ export interface SessionManager {
 
   /**
    * Suspends a session (marks it for later resume).
-   * The session can be resumed later using its Claude Code session ID.
+   * The session can be resumed later using its provider session ID.
    *
    * @param sessionId - The internal session ID
    * @param reason - Optional reason for suspension
@@ -521,7 +521,7 @@ export class SessionManagerImpl implements SessionManager {
     this.agentSessions.set(agentId, sessionState.id);
 
     // Update agent's session status in database
-    await this.registry.updateAgentSession(agentId, result.session.claudeSessionId, 'running');
+    await this.registry.updateAgentSession(agentId, result.session.providerSessionId, 'running');
 
     // Persist session state
     await this.persistSession(sessionState.id);
@@ -597,7 +597,7 @@ export class SessionManagerImpl implements SessionManager {
     let workingDirectory = options.workingDirectory;
     if (!workingDirectory) {
       const history = await this.getSessionHistory(agentId, 20);
-      const previousSession = history.find(h => h.claudeSessionId === options.claudeSessionId);
+      const previousSession = history.find(h => h.providerSessionId === options.providerSessionId);
       if (previousSession?.workingDirectory) {
         workingDirectory = previousSession.workingDirectory;
       }
@@ -606,7 +606,7 @@ export class SessionManagerImpl implements SessionManager {
     // Build spawn options with resume
     const spawnOptions: SpawnOptions = {
       workingDirectory,
-      resumeSessionId: options.claudeSessionId,
+      resumeSessionId: options.providerSessionId,
       initialPrompt: effectivePrompt,
     };
 
@@ -624,7 +624,7 @@ export class SessionManagerImpl implements SessionManager {
     this.agentSessions.set(agentId, sessionState.id);
 
     // Update agent's session status in database
-    await this.registry.updateAgentSession(agentId, options.claudeSessionId, 'running');
+    await this.registry.updateAgentSession(agentId, options.providerSessionId, 'running');
 
     // Persist session state
     await this.persistSession(sessionState.id);
@@ -733,7 +733,7 @@ export class SessionManagerImpl implements SessionManager {
     this.addToHistory(session.agentId, updatedSession);
 
     // Update agent's session status in database
-    await this.registry.updateAgentSession(session.agentId, session.claudeSessionId, 'suspended');
+    await this.registry.updateAgentSession(session.agentId, session.providerSessionId, 'suspended');
 
     // Persist session state
     await this.persistSession(sessionId);
@@ -817,7 +817,7 @@ export class SessionManagerImpl implements SessionManager {
       }
       if (filter.resumable !== undefined) {
         sessions = sessions.filter((s) =>
-          filter.resumable ? s.claudeSessionId !== undefined : s.claudeSessionId === undefined
+          filter.resumable ? s.providerSessionId !== undefined : s.providerSessionId === undefined
         );
       }
     }
@@ -827,7 +827,7 @@ export class SessionManagerImpl implements SessionManager {
 
   getMostRecentResumableSession(agentId: EntityId): SessionRecord | undefined {
     const agentSessions = Array.from(this.sessions.values())
-      .filter((s) => s.agentId === agentId && s.claudeSessionId !== undefined)
+      .filter((s) => s.agentId === agentId && s.providerSessionId !== undefined)
       .sort((a, b) => {
         const aTime = this.getTimestampMs(a.createdAt);
         const bTime = this.getTimestampMs(b.createdAt);
@@ -1019,7 +1019,7 @@ export class SessionManagerImpl implements SessionManager {
     // Update agent metadata with session info and history
     // This persists session history to database for cross-restart recovery
     await this.registry.updateAgentMetadata(session.agentId, {
-      sessionId: session.claudeSessionId,
+      sessionId: session.providerSessionId,
       sessionStatus: session.status === 'running' ? 'running' : session.status === 'suspended' ? 'suspended' : 'idle',
       lastActivityAt: session.lastActivityAt,
       // Persist session history (limited to 20 entries to avoid bloat)
@@ -1055,7 +1055,7 @@ export class SessionManagerImpl implements SessionManager {
     if (meta.sessionId && meta.sessionStatus === 'suspended') {
       // Create a placeholder session record for the suspended session
       const suspendedSession = persistedHistory.find(
-        (h) => h.claudeSessionId === meta.sessionId && h.status === 'suspended'
+        (h) => h.providerSessionId === meta.sessionId && h.status === 'suspended'
       );
 
       if (suspendedSession) {
@@ -1065,7 +1065,7 @@ export class SessionManagerImpl implements SessionManager {
 
         const sessionState: InternalSessionState = {
           id: suspendedSession.id,
-          claudeSessionId: suspendedSession.claudeSessionId,
+          providerSessionId: suspendedSession.providerSessionId,
           agentId,
           agentRole: meta.agentRole,
           workerMode: meta.agentRole === 'worker' ? (meta as { workerMode?: WorkerMode }).workerMode : undefined,
@@ -1270,7 +1270,7 @@ export class SessionManagerImpl implements SessionManager {
   ): InternalSessionState {
     return {
       id: result.session.id,
-      claudeSessionId: result.session.claudeSessionId,
+      providerSessionId: result.session.providerSessionId,
       agentId,
       agentRole: meta.agentRole,
       workerMode: meta.agentRole === 'worker' ? (meta as { workerMode?: WorkerMode }).workerMode : undefined,
@@ -1290,7 +1290,7 @@ export class SessionManagerImpl implements SessionManager {
   private toPublicSession(session: InternalSessionState): SessionRecord {
     return {
       id: session.id,
-      claudeSessionId: session.claudeSessionId,
+      providerSessionId: session.providerSessionId,
       agentId: session.agentId,
       agentRole: session.agentRole,
       workerMode: session.workerMode,
@@ -1310,7 +1310,7 @@ export class SessionManagerImpl implements SessionManager {
   private addToHistory(agentId: EntityId, session: InternalSessionState): void {
     const historyEntry: SessionHistoryEntry = {
       id: session.id,
-      claudeSessionId: session.claudeSessionId,
+      providerSessionId: session.providerSessionId,
       status: session.status,
       workingDirectory: session.workingDirectory,
       worktree: session.worktree,
