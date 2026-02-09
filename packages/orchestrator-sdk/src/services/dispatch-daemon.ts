@@ -1483,26 +1483,29 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       branch = worktreeResult.branch;
     }
 
-    // Dispatch task (assigns + sends message)
-    const dispatchOptions: DispatchOptions = {
-      branch,
-      worktree: worktreePath,
-      markAsStarted: true,
-      priority: task.priority,
-    };
-
-    await this.dispatchService.dispatch(task.id, workerId, dispatchOptions);
-    this.emitter.emit('task:dispatched', task.id, workerId);
-
     // Build initial prompt with task context
     const initialPrompt = await this.buildTaskPrompt(task, workerId);
 
-    // Spawn worker INSIDE the worktree
+    // Spawn worker INSIDE the worktree BEFORE dispatching the task.
+    // This ensures that if the session fails to start (e.g. provider not
+    // available), the task stays unassigned and available for other agents.
     const { session, events } = await this.sessionManager.startSession(workerId, {
       workingDirectory: worktreePath,
       worktree: worktreePath,
       initialPrompt,
     });
+
+    // Session started successfully — now dispatch the task (assigns + sends message)
+    const dispatchOptions: DispatchOptions = {
+      branch,
+      worktree: worktreePath,
+      markAsStarted: true,
+      priority: task.priority,
+      sessionId: session.providerSessionId ?? session.id,
+    };
+
+    await this.dispatchService.dispatch(task.id, workerId, dispatchOptions);
+    this.emitter.emit('task:dispatched', task.id, workerId);
 
     // Call the onSessionStarted callback if provided (for event saver and initial prompt saving)
     if (this.config.onSessionStarted) {

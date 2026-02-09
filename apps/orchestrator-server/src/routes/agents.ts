@@ -262,7 +262,7 @@ export function createAgentRoutes(services: Services) {
   app.patch('/api/agents/:id', async (c) => {
     try {
       const agentId = c.req.param('id') as EntityId;
-      const body = (await c.req.json()) as { name?: string };
+      const body = (await c.req.json()) as { name?: string; provider?: string };
 
       const agent = await agentRegistry.getAgent(agentId);
       if (!agent) {
@@ -273,7 +273,21 @@ export function createAgentRoutes(services: Services) {
         return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Name must be a non-empty string' } }, 400);
       }
 
-      const updatedAgent = await agentRegistry.updateAgent(agentId, { name: body.name?.trim() });
+      if (body.provider !== undefined && (typeof body.provider !== 'string' || body.provider.trim().length === 0)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Provider must be a non-empty string' } }, 400);
+      }
+
+      // Update name if provided
+      let updatedAgent = agent;
+      if (body.name !== undefined) {
+        updatedAgent = await agentRegistry.updateAgent(agentId, { name: body.name.trim() });
+      }
+
+      // Update provider in agent metadata if provided
+      if (body.provider !== undefined) {
+        updatedAgent = await agentRegistry.updateAgentMetadata(agentId, { provider: body.provider.trim() });
+      }
+
       return c.json({ agent: updatedAgent });
     } catch (error) {
       console.error('[orchestrator] Failed to update agent:', error);

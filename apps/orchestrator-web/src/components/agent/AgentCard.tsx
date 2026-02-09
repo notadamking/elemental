@@ -5,13 +5,14 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { Play, Square, RefreshCw, Terminal, MoreVertical, Clock, GitBranch, Pencil, Inbox, Trash2 } from 'lucide-react';
+import { Play, Square, RefreshCw, Terminal, MoreVertical, Clock, GitBranch, Pencil, Inbox, Trash2, ArrowLeftRight } from 'lucide-react';
 import type { Agent, WorkerMetadata, StewardMetadata, SessionStatus } from '../../api/types';
 import { AgentStatusBadge } from './AgentStatusBadge';
 import { AgentRoleBadge } from './AgentRoleBadge';
 import { Tooltip } from '../ui/Tooltip';
 import { useAgentInboxCount } from '../../api/hooks/useAgentInbox';
 import { AgentInboxDrawer } from './AgentInboxDrawer';
+import { ChangeProviderDialog } from './ChangeProviderDialog';
 
 interface AgentCardProps {
   agent: Agent;
@@ -40,6 +41,7 @@ export function AgentCard({
 }: AgentCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [changeProviderOpen, setChangeProviderOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Fetch inbox count for the agent
@@ -97,14 +99,12 @@ export function AgentCard({
               stewardFocus={stewardMeta?.stewardFocus}
               size="sm"
             />
-            {agentMeta?.provider && agentMeta.provider !== 'claude' && (
-              <span
-                className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-[var(--color-surface-elevated)] text-[var(--color-text-tertiary)] border border-[var(--color-border)]"
-                data-testid={`agent-provider-${agent.id}`}
-              >
-                {agentMeta.provider}
-              </span>
-            )}
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-[var(--color-surface-elevated)] text-[var(--color-text-tertiary)] border border-[var(--color-border)]"
+              data-testid={`agent-provider-${agent.id}`}
+            >
+              {(!agentMeta?.provider || agentMeta.provider === 'claude') ? 'claude code' : agentMeta.provider}
+            </span>
           </div>
         </div>
 
@@ -143,6 +143,22 @@ export function AgentCard({
               >
                 <Pencil className="w-3.5 h-3.5" />
                 Rename agent
+              </button>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  setChangeProviderOpen(true);
+                }}
+                className="
+                  w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm
+                  text-[var(--color-text-secondary)]
+                  hover:bg-[var(--color-surface-hover)]
+                  hover:text-[var(--color-text)]
+                "
+                data-testid={`agent-change-provider-${agent.id}`}
+              >
+                <ArrowLeftRight className="w-3.5 h-3.5" />
+                Change provider
               </button>
               <button
                 onClick={() => {
@@ -259,6 +275,14 @@ export function AgentCard({
         onClose={() => setInboxOpen(false)}
         agentId={agent.id}
         agentName={agent.name}
+      />
+
+      {/* Change Provider Dialog */}
+      <ChangeProviderDialog
+        isOpen={changeProviderOpen}
+        onClose={() => setChangeProviderOpen(false)}
+        agentId={agent.id}
+        currentProvider={agentMeta?.provider ?? 'claude'}
       />
     </div>
   );

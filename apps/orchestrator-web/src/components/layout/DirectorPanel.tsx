@@ -187,7 +187,7 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
   const handleSiftBacklog = useCallback(() => {
     if (!terminalRef.current) return;
     // Send the command text first
-    terminalRef.current.sendInput('/sift-backlog');
+    terminalRef.current.sendInput('Use your sift-backlog skill');
     // Send carriage return after a small delay to ensure it registers as the submit action
     setTimeout(() => {
       terminalRef.current?.sendInput('\r');

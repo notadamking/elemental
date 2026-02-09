@@ -19,23 +19,7 @@ import { AsyncQueue } from './async-queue.js';
 import { OpenCodeEventMapper } from './event-mapper.js';
 import type { OpenCodeEvent } from './event-mapper.js';
 import { serverManager } from './server-manager.js';
-
-// ============================================================================
-// Minimal SDK types (avoid hard dependency)
-// ============================================================================
-
-interface OpencodeClient {
-  session: {
-    create(opts: { body: { title?: string } }): Promise<{ id: string }>;
-    get(opts: { path: { id: string } }): Promise<{ id: string }>;
-    abort(opts: { path: { id: string } }): Promise<void>;
-    prompt(opts: { path: { id: string }; body: { content: string } }): Promise<void>;
-  };
-  event: {
-    subscribe(): Promise<AsyncIterable<unknown>>;
-  };
-  url: string;
-}
+import type { OpencodeClient } from './server-manager.js';
 
 // ============================================================================
 // OpenCode Headless Session
@@ -162,7 +146,7 @@ export class OpenCodeHeadlessProvider implements HeadlessProvider {
     const client = await serverManager.acquire({
       port: this.config?.port,
       cwd: options.workingDirectory,
-    }) as unknown as OpencodeClient;
+    });
 
     let sessionId: string;
 
@@ -203,7 +187,6 @@ export class OpenCodeHeadlessProvider implements HeadlessProvider {
 
   async isAvailable(): Promise<boolean> {
     try {
-      // @ts-expect-error - optional dependency, checked at runtime
       await import('@opencode-ai/sdk');
       return true;
     } catch {

@@ -336,6 +336,26 @@ export function useRenameAgent() {
 }
 
 /**
+ * Hook to change an agent's provider
+ */
+export function useChangeAgentProvider() {
+  const queryClient = useQueryClient();
+
+  return useMutation<AgentResponse, Error, { agentId: string; provider: string }>({
+    mutationFn: async ({ agentId, provider }) => {
+      return fetchApi<AgentResponse>(`/agents/${agentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ provider }),
+      });
+    },
+    onSuccess: (_, { agentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
+      queryClient.invalidateQueries({ queryKey: ['agent', agentId] });
+    },
+  });
+}
+
+/**
  * Hook to delete an agent
  */
 export function useDeleteAgent() {

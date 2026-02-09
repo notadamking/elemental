@@ -9,11 +9,11 @@
  */
 
 // ============================================================================
-// SDK Types (loosely typed to avoid hard dependency)
+// Internal Types (our interface into the SDK)
 // ============================================================================
 
-/** Minimal OpenCode client shape */
-interface OpencodeClient {
+/** Minimal OpenCode client shape we program against */
+export interface OpencodeClient {
   session: {
     create(opts: { body: { title?: string } }): Promise<{ id: string }>;
     get(opts: { path: { id: string } }): Promise<{ id: string }>;
@@ -23,20 +23,12 @@ interface OpencodeClient {
   event: {
     subscribe(): Promise<AsyncIterable<unknown>>;
   };
-  url: string;
 }
 
 /** Minimal OpenCode server shape */
 interface OpencodeServer {
-  stop(): Promise<void>;
+  close(): void;
 }
-
-/** The createOpencode() function signature */
-type CreateOpencodeFunction = (options?: {
-  port?: number;
-  cwd?: string;
-  env?: Record<string, string>;
-}) => Promise<{ client: OpencodeClient; server: OpencodeServer }>;
 
 // ============================================================================
 // Server Manager
@@ -93,7 +85,7 @@ class OpenCodeServerManager {
 
   shutdown(): void {
     if (this.server) {
-      this.server.stop().catch(() => {});
+      this.server.close();
       this.server = null;
     }
     this.client = null;
@@ -110,24 +102,24 @@ class OpenCodeServerManager {
       OPENCODE_CLIENT: 'elemental',
     };
 
-    const { client, server } = await createOpencode({
+    const result = await createOpencode({
       port: config?.port ?? 0,
       cwd: config?.cwd,
       env,
     });
 
-    this.client = client;
-    this.server = server;
+    // The SDK returns richer types; we extract what we need
+    this.client = result.client as unknown as OpencodeClient;
+    this.server = result.server as unknown as OpencodeServer;
     this.startPromise = null;
 
-    return client;
+    return this.client;
   }
 
-  private async loadSDK(): Promise<CreateOpencodeFunction> {
+  private async loadSDK(): Promise<(...args: unknown[]) => Promise<{ client: unknown; server: unknown }>> {
     try {
-      // @ts-expect-error - optional dependency, checked at runtime
       const sdk = await import('@opencode-ai/sdk');
-      return sdk.createOpencode as CreateOpencodeFunction;
+      return sdk.createOpencode as (...args: unknown[]) => Promise<{ client: unknown; server: unknown }>;
     } catch {
       throw new Error(
         'OpenCode SDK is not installed. Install it with: npm install @opencode-ai/sdk'
