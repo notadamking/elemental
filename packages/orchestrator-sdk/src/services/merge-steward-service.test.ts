@@ -485,6 +485,74 @@ describe('MergeStewardService', () => {
         service.updateMergeStatus('task-notfound' as ElementId, 'testing')
       ).rejects.toThrow('Task not found');
     });
+
+    it('should close task and set closedAt when status is merged', async () => {
+      const mockTask = createMockTask({ status: TaskStatus.REVIEW });
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.update as MockInstance).mockImplementation((_id, updates) => Promise.resolve({ ...mockTask, ...updates } as Task));
+
+      await service.updateMergeStatus(mockTask.id, 'merged');
+
+      expect(api.update).toHaveBeenCalledWith(
+        mockTask.id,
+        expect.objectContaining({
+          status: TaskStatus.CLOSED,
+          closedAt: expect.any(String),
+          metadata: expect.objectContaining({
+            orchestrator: expect.objectContaining({
+              mergeStatus: 'merged',
+            }),
+          }),
+        })
+      );
+    });
+
+    it('should close task and set closedAt when status is not_applicable', async () => {
+      // When a task's branch has no commits (e.g., fix already exists on master),
+      // setting mergeStatus to 'not_applicable' should close the task the same way 'merged' does
+      const mockTask = createMockTask({ status: TaskStatus.REVIEW });
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.update as MockInstance).mockImplementation((_id, updates) => Promise.resolve({ ...mockTask, ...updates } as Task));
+
+      await service.updateMergeStatus(mockTask.id, 'not_applicable');
+
+      expect(api.update).toHaveBeenCalledWith(
+        mockTask.id,
+        expect.objectContaining({
+          status: TaskStatus.CLOSED,
+          closedAt: expect.any(String),
+          metadata: expect.objectContaining({
+            orchestrator: expect.objectContaining({
+              mergeStatus: 'not_applicable',
+            }),
+          }),
+        })
+      );
+    });
+
+    it('should not close task for non-terminal statuses', async () => {
+      const mockTask = createMockTask({ status: TaskStatus.REVIEW });
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.update as MockInstance).mockImplementation((_id, updates) => Promise.resolve({ ...mockTask, ...updates } as Task));
+
+      // Test with 'pending' status - should NOT close the task
+      await service.updateMergeStatus(mockTask.id, 'pending');
+
+      expect(api.update).toHaveBeenCalledWith(
+        mockTask.id,
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            orchestrator: expect.objectContaining({
+              mergeStatus: 'pending',
+            }),
+          }),
+        })
+      );
+      // Verify status and closedAt are NOT in the update
+      const updateCall = (api.update as MockInstance).mock.calls[0][1];
+      expect(updateCall.status).toBeUndefined();
+      expect(updateCall.closedAt).toBeUndefined();
+    });
   });
 
   // ----------------------------------------

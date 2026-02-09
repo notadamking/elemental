@@ -690,7 +690,24 @@ await mergeSteward.cleanupAfterMerge(taskId, true);
 await mergeSteward.updateMergeStatus(taskId, 'merged', {
   testResult: { passed: true, completedAt: timestamp },
 });
+
+// Mark as not applicable (closes task without merge)
+// Use when a branch has no commits to merge (fix already on master)
+await mergeSteward.updateMergeStatus(taskId, 'not_applicable');
 ```
+
+### Merge Status Values
+
+| Status | Description | Closes Task |
+|--------|-------------|-------------|
+| `pending` | Task completed, awaiting merge | No |
+| `testing` | Steward is running tests | No |
+| `merging` | Tests passed, merge in progress | No |
+| `merged` | Successfully merged | Yes |
+| `conflict` | Merge conflict detected | No |
+| `test_failed` | Tests failed | No |
+| `failed` | Merge failed (other reason) | No |
+| `not_applicable` | No merge needed (e.g., fix already on master) | Yes |
 
 ### Cleanup Behavior
 

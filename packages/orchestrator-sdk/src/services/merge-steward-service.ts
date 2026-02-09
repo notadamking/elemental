@@ -1060,10 +1060,10 @@ export class MergeStewardServiceImpl implements MergeStewardService {
       updates
     );
 
-    // When merge succeeds, transition task from REVIEW to CLOSED
+    // When merge succeeds or is not applicable, transition task from REVIEW to CLOSED
     // This unblocks dependent tasks via the blocked cache
     const taskUpdates: Partial<Task> & { metadata: Record<string, unknown> } = { metadata: newMetadata };
-    if (status === 'merged') {
+    if (status === 'merged' || status === 'not_applicable') {
       taskUpdates.status = TaskStatus.CLOSED;
       taskUpdates.closedAt = createTimestamp();
     }

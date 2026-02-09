@@ -134,10 +134,20 @@ interface OrchestratorTaskMeta {
   branch?: string;
   worktree?: string;
   sessionId?: string;
-  mergeStatus?: 'pending' | 'merged' | 'conflict' | 'skipped';
+  mergeStatus?: MergeStatus;
   mergedAt?: Timestamp;
   mergedBy?: EntityId;
 }
+
+type MergeStatus =
+  | 'pending'         // Task completed, awaiting merge
+  | 'testing'         // Steward is running tests on the branch
+  | 'merging'         // Tests passed, merge in progress
+  | 'merged'          // Successfully merged (closes task)
+  | 'conflict'        // Merge conflict detected
+  | 'test_failed'     // Tests failed, needs attention
+  | 'failed'          // Merge failed for other reason
+  | 'not_applicable'; // No merge needed, e.g., fix already on master (closes task)
 ```
 
 ---
