@@ -96,14 +96,18 @@ function createMockSpawnerService(): SpawnerService & { _mockEmitters: Map<strin
       const now = createTimestamp();
       const events = new EventEmitter();
 
+      const mode = options?.mode ?? 'headless';
       const session: SpawnedSession = {
         id: sessionId,
         claudeSessionId: `claude-session-${sessionIdCounter}`,
         agentId,
         agentRole,
         workerMode: agentRole === 'worker' ? 'ephemeral' : undefined,
-        mode: options?.mode ?? 'headless',
-        pid: 12345 + sessionIdCounter,
+        mode,
+        // Only set PID for interactive sessions, matching real spawner behavior.
+        // Headless sessions don't expose a PID immediately, and setting a fake PID
+        // causes getActiveSession() to fail its isProcessAlive() check.
+        pid: mode === 'interactive' ? 12345 + sessionIdCounter : undefined,
         status: 'running',
         workingDirectory: options?.workingDirectory ?? '/tmp',
         createdAt: now,
