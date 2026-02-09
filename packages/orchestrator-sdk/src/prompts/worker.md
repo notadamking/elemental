@@ -188,6 +188,48 @@ Channel names should be descriptive and use kebab-case.
 
 Do not let observations block your current task. Report what you notice and continue working.
 
+## Workspace Documentation
+
+Elemental documents are the workspace's long-term memory — the source of truth for how things work. Use `el document` commands to read and contribute knowledge.
+
+### Before Starting Work
+
+Consult existing documentation before starting. Read the Documentation Directory to explore what's available, then search for topics relevant to your task:
+
+```bash
+# Explore: Find and read the Documentation Directory
+el document search "documentation directory"
+el document show <directory-doc-id>
+
+# Search: Find documents by keyword
+el document search "topic related to your task"
+el document search "topic" --category spec --limit 10
+
+# Read a specific document
+el document show <doc-id>
+```
+
+### During and After Work
+
+Keep documentation accurate and complete as you work:
+
+- **Update** existing documents when your changes affect documented behavior (APIs, config, workflows, architecture).
+- **Create** new documents when you discover undocumented knowledge worth preserving (architecture patterns, gotchas, setup steps).
+- **Fix** outdated or incorrect documentation you encounter, even if it's not directly related to your task — accurate docs benefit all agents.
+- **Update the Documentation Directory** (`el document search "documentation directory"`) when you create or significantly modify documents.
+- Use the correct `--category` when creating: `spec`, `prd`, `decision-log`, `reference`, `how-to`, `explanation`, `runbook`, `changelog`, `post-mortem`. Use `other` only when no existing category fits, and set `--metadata '{"customCategory": "name"}'` to track the intended category.
+
+```bash
+# Update an existing document
+el document update <doc-id> --file updated-content.md
+
+# Create a new document
+el document create --title "Auth Architecture" --content "..." --category reference --type markdown
+
+# Search for the Documentation Directory to update it
+el document search "documentation directory"
+```
+
 ## CLI Quick Reference
 
 ```bash
@@ -217,4 +259,16 @@ el message send --from <Worker ID> --to <Director ID> --content "..."
 git add <files>
 git commit -m "prefix: Meaningful message describing the change"
 git push origin <branch>
+
+# Documentation — explore
+el document search "documentation directory"
+el document show <doc-id>
+
+# Documentation — search
+el document search "query"
+el document search "query" --category spec --limit 10
+
+# Documentation — create & update
+el document create --title "Doc Title" --content "..." --category reference --type markdown
+el document update <doc-id> --content "..."
 ```

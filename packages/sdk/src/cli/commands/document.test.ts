@@ -157,6 +157,52 @@ describe('doc create command', () => {
     expect(result.exitCode).toBe(ExitCode.VALIDATION);
     expect(result.error).toContain('Invalid content type');
   });
+
+  test('creates document with title', async () => {
+    const options = createTestOptions({ title: 'My Document', content: 'Content here' });
+    const result = await documentCommand.subcommands!.create.handler!([], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const doc = result.data as Document;
+    expect(doc.title).toBe('My Document');
+  });
+
+  test('creates document with metadata', async () => {
+    const options = createTestOptions({
+      content: 'Content',
+      metadata: '{"customCategory": "design-system"}',
+    });
+    const result = await documentCommand.subcommands!.create.handler!([], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const doc = result.data as Document;
+    expect(doc.metadata).toEqual({ customCategory: 'design-system' });
+  });
+
+  test('creates document with title and metadata', async () => {
+    const options = createTestOptions({
+      title: 'Doc Directory',
+      content: '# Index',
+      type: 'markdown',
+      category: 'reference',
+      metadata: '{"purpose": "document-directory"}',
+    });
+    const result = await documentCommand.subcommands!.create.handler!([], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const doc = result.data as Document;
+    expect(doc.title).toBe('Doc Directory');
+    expect(doc.metadata).toEqual({ purpose: 'document-directory' });
+    expect(doc.category).toBe('reference');
+  });
+
+  test('fails with invalid metadata JSON', async () => {
+    const options = createTestOptions({ content: 'Content', metadata: 'not-json' });
+    const result = await documentCommand.subcommands!.create.handler!([], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Invalid JSON for --metadata');
+  });
 });
 
 // ============================================================================
@@ -309,7 +355,7 @@ describe('doc update command', () => {
     expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
   });
 
-  test('fails without content or file', async () => {
+  test('fails without content, file, or metadata', async () => {
     const doc = await createTestDocument('Original');
 
     const options = createTestOptions();
@@ -347,6 +393,43 @@ describe('doc update command', () => {
     const result = await documentCommand.subcommands!.update.handler!([doc.id], options);
 
     expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+  });
+
+  test('updates document with metadata only', async () => {
+    const doc = await createTestDocument('Original content');
+
+    const options = createTestOptions({ metadata: '{"purpose": "api-reference"}', json: true });
+    const result = await documentCommand.subcommands!.update.handler!([doc.id], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const updated = result.data as Document;
+    expect(updated.metadata).toEqual({ purpose: 'api-reference' });
+  });
+
+  test('updates document with content and metadata', async () => {
+    const doc = await createTestDocument('Original content');
+
+    const options = createTestOptions({
+      content: 'New content',
+      metadata: '{"version": 2}',
+      json: true,
+    });
+    const result = await documentCommand.subcommands!.update.handler!([doc.id], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const updated = result.data as Document;
+    expect(updated.content).toBe('New content');
+    expect(updated.metadata).toEqual({ version: 2 });
+  });
+
+  test('fails with invalid metadata JSON on update', async () => {
+    const doc = await createTestDocument('Original content');
+
+    const options = createTestOptions({ metadata: 'not-json' });
+    const result = await documentCommand.subcommands!.update.handler!([doc.id], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Invalid JSON for --metadata');
   });
 
   test('preserves version history', async () => {

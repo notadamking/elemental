@@ -34,14 +34,21 @@ import { resolveActor, createAPI } from '../db.js';
 // ============================================================================
 
 interface DocCreateOptions {
+  title?: string;
   content?: string;
   file?: string;
   type?: string;
   category?: string;
   tag?: string[];
+  metadata?: string;
 }
 
 const docCreateOptions: CommandOption[] = [
+  {
+    name: 'title',
+    description: 'Document title',
+    hasValue: true,
+  },
   {
     name: 'content',
     short: 'c',
@@ -70,6 +77,12 @@ const docCreateOptions: CommandOption[] = [
     description: 'Add tag (can be repeated)',
     hasValue: true,
     array: true,
+  },
+  {
+    name: 'metadata',
+    short: 'm',
+    description: "JSON metadata (e.g. '{\"key\": \"value\"}')",
+    hasValue: true,
   },
 ];
 
@@ -134,11 +147,23 @@ async function docCreateHandler(
       tags = Array.isArray(options.tag) ? options.tag : [options.tag];
     }
 
+    // Parse metadata if provided
+    let metadata: Record<string, unknown> | undefined;
+    if (options.metadata) {
+      try {
+        metadata = JSON.parse(options.metadata);
+      } catch {
+        return failure('Invalid JSON for --metadata', ExitCode.VALIDATION);
+      }
+    }
+
     const input: CreateDocumentInput = {
       content,
       contentType,
       createdBy: actor,
+      ...(options.title && { title: options.title }),
       ...(tags && { tags }),
+      ...(metadata && { metadata }),
       ...(options.category && { category: options.category as typeof DocumentCategory.OTHER }),
     };
 
@@ -164,17 +189,19 @@ const docCreateCommand: Command = {
   help: `Create a new document.
 
 Options:
+      --title <title>       Document title
   -c, --content <text>      Document content (inline)
   -f, --file <path>         Read content from file
   -t, --type <type>         Content type: text, markdown, json (default: text)
-      --category <category> Document category (e.g., spec, prd, reference, tutorial)
+      --category <category> Document category (e.g., spec, prd, reference)
       --tag <tag>           Add tag (can be repeated)
+  -m, --metadata <json>     JSON metadata
 
 Examples:
-  el document create --content "Hello world"
-  el document create --file README.md --type markdown
-  el document create --file spec.md --type markdown --category spec
-  el document create -c '{"key": "value"}' -t json --tag config`,
+  el document create --title "API Reference" --content "..." --category reference
+  el document create --title "Architecture" --file spec.md --type markdown --category spec
+  el document create --content '{"key": "value"}' --type json --tag config
+  el document create --title "Custom Doc" --content "..." --category other --metadata '{"customCategory": "design-system"}'`,
   options: docCreateOptions,
   handler: docCreateHandler as Command['handler'],
 };
@@ -564,6 +591,7 @@ Examples:
 interface DocUpdateOptions {
   content?: string;
   file?: string;
+  metadata?: string;
 }
 
 const docUpdateOptions: CommandOption[] = [
@@ -579,6 +607,12 @@ const docUpdateOptions: CommandOption[] = [
     description: 'Read new content from file',
     hasValue: true,
   },
+  {
+    name: 'metadata',
+    short: 'm',
+    description: "JSON metadata to merge (e.g. '{\"key\": \"value\"}')",
+    hasValue: true,
+  },
 ];
 
 async function docUpdateHandler(
@@ -588,12 +622,12 @@ async function docUpdateHandler(
   const [docId] = args;
 
   if (!docId) {
-    return failure('Usage: el document update <document-id> --content <text> | --file <path>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el document update <document-id> --content <text> | --file <path> | --metadata <json>', ExitCode.INVALID_ARGUMENTS);
   }
 
-  // Must specify either --content or --file
-  if (!options.content && !options.file) {
-    return failure('Either --content or --file is required', ExitCode.INVALID_ARGUMENTS);
+  // Must specify at least one of --content, --file, or --metadata
+  if (!options.content && !options.file && !options.metadata) {
+    return failure('At least one of --content, --file, or --metadata is required', ExitCode.INVALID_ARGUMENTS);
   }
 
   if (options.content && options.file) {
@@ -623,22 +657,37 @@ async function docUpdateHandler(
 
     const actor = resolveActor(options);
 
-    // Get new content
-    let content: string;
+    // Parse metadata if provided
+    let metadata: Record<string, unknown> | undefined;
+    if (options.metadata) {
+      try {
+        metadata = JSON.parse(options.metadata);
+      } catch {
+        return failure('Invalid JSON for --metadata', ExitCode.VALIDATION);
+      }
+    }
+
+    // Get new content if provided
+    let content: string | undefined;
     if (options.content) {
       content = options.content;
-    } else {
-      const filePath = resolve(options.file!);
+    } else if (options.file) {
+      const filePath = resolve(options.file);
       if (!existsSync(filePath)) {
         return failure(`File not found: ${filePath}`, ExitCode.NOT_FOUND);
       }
       content = readFileSync(filePath, 'utf-8');
     }
 
+    // Build update payload
+    const updatePayload: Record<string, unknown> = {};
+    if (content !== undefined) updatePayload.content = content;
+    if (metadata) updatePayload.metadata = metadata;
+
     // Update the document (creates a new version)
     const updated = await api.update<Document>(
       docId as ElementId,
-      { content },
+      updatePayload,
       { actor }
     );
 
@@ -660,8 +709,8 @@ async function docUpdateHandler(
 const docUpdateCommand: Command = {
   name: 'update',
   description: 'Update document content',
-  usage: 'el document update <document-id> --content <text> | --file <path>',
-  help: `Update a document's content, creating a new version.
+  usage: 'el document update <document-id> --content <text> | --file <path> | --metadata <json>',
+  help: `Update a document's content and/or metadata, creating a new version.
 
 Documents are versioned - each update creates a new version while preserving
 the history. Use 'el document history' to view versions and 'el document rollback' to
@@ -671,13 +720,16 @@ Arguments:
   document-id   Document identifier
 
 Options:
-  -c, --content <text>  New content (inline)
-  -f, --file <path>     Read new content from file
+  -c, --content <text>   New content (inline)
+  -f, --file <path>      Read new content from file
+  -m, --metadata <json>  JSON metadata to merge
 
 Examples:
   el document update el-doc123 --content "Updated content"
   el document update el-doc123 --file updated-spec.md
-  el document update el-doc123 -c "Quick fix"`,
+  el document update el-doc123 -c "Quick fix"
+  el document update el-doc123 --metadata '{"purpose": "api-reference"}'
+  el document update el-doc123 --content "New content" --metadata '{"version": 2}'`,
   options: docUpdateOptions,
   handler: docUpdateHandler as Command['handler'],
 };
