@@ -61,6 +61,7 @@ interface OpencodeServer {
 export interface ServerManagerConfig {
   port?: number;
   cwd?: string;
+  elementalRoot?: string;
 }
 
 /**
@@ -125,6 +126,9 @@ class OpenCodeServerManager {
       OPENCODE_PERMISSION: JSON.stringify({ '*': 'allow' }),
       OPENCODE_CLIENT: 'elemental',
     };
+    if (config?.elementalRoot) {
+      env.ELEMENTAL_ROOT = config.elementalRoot;
+    }
 
     const result = await createOpencode({
       port: config?.port ?? 0,

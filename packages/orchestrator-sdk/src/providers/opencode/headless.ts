@@ -151,6 +151,7 @@ export class OpenCodeHeadlessProvider implements HeadlessProvider {
     const client = await serverManager.acquire({
       port: this.config?.port,
       cwd: options.workingDirectory,
+      elementalRoot: options.elementalRoot,
     });
 
     let sessionId: string;
