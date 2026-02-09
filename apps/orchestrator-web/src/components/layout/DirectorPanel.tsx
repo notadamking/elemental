@@ -412,7 +412,7 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
           {/* Terminal body */}
           <div className="flex-1 overflow-hidden relative">
             {status === 'no-director' ? (
-              <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+              <div className="flex flex-col items-center justify-center h-full p-4 text-center" data-testid="director-no-director-state">
                 <AlertCircle className="w-8 h-8 text-[var(--color-text-muted)] mb-2" />
                 <p className="text-sm text-[var(--color-text-muted)]">No Director agent found</p>
                 <p className="text-xs text-[var(--color-text-tertiary)] mt-1">

@@ -142,7 +142,7 @@ test.describe('TB-O17: Director Terminal Panel', () => {
 
       // The xterminal element may be present (depends on if director exists)
       // If no director, it will show the no-director state instead
-      const terminalOrNoDirector = page.locator('[data-testid="director-xterminal"], [class*="AlertCircle"]');
+      const terminalOrNoDirector = page.locator('[data-testid="director-xterminal"], [data-testid="director-no-director-state"]');
       await expect(terminalOrNoDirector.first()).toBeVisible();
     });
 
