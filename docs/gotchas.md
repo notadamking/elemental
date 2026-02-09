@@ -178,6 +178,7 @@ Common pitfalls and their solutions, organized by severity and category.
 - **Resume preserves context** — orphan recovery tries to resume the previous Claude session first using the `sessionId` stored in task metadata, which preserves conversation history. Falls back to fresh spawn if unavailable or resume fails.
 - **Orphan recovery only handles OPEN/IN_PROGRESS tasks** — REVIEW tasks are handled by merge steward dispatch, not the worker orphan recovery mechanism.
 - **Closed-but-unmerged tasks are automatically reconciled** — if a task reaches CLOSED status but its `mergeStatus` is not `'merged'`, the dispatch daemon moves it back to REVIEW after a grace period (default 120s). Tracked via `orchestrator.reconciliationCount` in metadata; stops after 3 attempts (safety valve). Configure with `closedUnmergedReconciliationEnabled` and `closedUnmergedGracePeriodMs`.
+- **NEVER run `git checkout master/main` in a worktree** — Agent sessions run inside git worktrees. Checking out `master` or `main` in a worktree locks that branch and prevents the root workspace from staying on master, breaking the orchestration system. Use `el task merge` or `git push origin HEAD:master` instead.
 
 ## Identity
 

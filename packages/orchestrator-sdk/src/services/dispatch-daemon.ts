@@ -1710,6 +1710,9 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       '2. Run tests on the branch to verify the changes.',
       `3. If tests pass and the code meets acceptance criteria: merge the PR and run \`el task close ${task.id}\`.`,
       `4. If issues are found: create a fix task with \`el task create-fix ${task.id} --reason "description of the issue"\`.`,
+      '',
+      '### Critical Reminder',
+      '**NEVER run `git checkout master` or `git checkout main` in this worktree.** Use `el task merge` or `git push origin HEAD:master` instead.',
     );
 
     return parts.join('\n');
