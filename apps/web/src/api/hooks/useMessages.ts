@@ -4,6 +4,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDebounce } from '../../hooks/useDebounce';
+import { removeElementFromCache } from './useAllElements';
 import type {
   Channel,
   Message,
@@ -166,6 +167,38 @@ export function useThreadReplies(threadId: string | null) {
       return response.json();
     },
     enabled: !!threadId,
+  });
+}
+
+/**
+ * Hook to delete a channel
+ */
+export function useDeleteChannel() {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ success: boolean }, Error, { channelId: string; actor: string }>({
+    mutationFn: async ({ channelId, actor }) => {
+      const response = await fetch(
+        `/api/channels/${channelId}?actor=${encodeURIComponent(actor)}`,
+        { method: 'DELETE' }
+      );
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to delete channel');
+      }
+      return response.json();
+    },
+    onSuccess: (_, { channelId }) => {
+      // Directly remove the channel from the in-memory cache for immediate UI update
+      // This is required because useAllChannels uses staleTime: Infinity
+      removeElementFromCache(queryClient, 'channel', channelId);
+
+      // Also invalidate other channel-related caches
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+      queryClient.invalidateQueries({ queryKey: ['channels', channelId] });
+      queryClient.invalidateQueries({ queryKey: ['channels', channelId, 'messages'] });
+      queryClient.invalidateQueries({ queryKey: ['channels', channelId, 'members'] });
+    },
   });
 }
 

@@ -347,6 +347,18 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   private pollIntervalHandle?: NodeJS.Timeout;
   private currentPollCycle?: Promise<void>;
 
+  /**
+   * Tracks inbox item IDs that are currently being forwarded to persistent agents.
+   * Prevents duplicate message delivery when concurrent pollInboxes() calls
+   * race to forward the same unread message before markAsRead() completes.
+   *
+   * Key: inbox item ID
+   * Value: true (item is in-flight, being processed)
+   *
+   * Items are added before forwarding and removed after markAsRead() completes.
+   */
+  private readonly forwardingInboxItems = new Set<string>();
+
   constructor(
     api: ElementalAPI,
     agentRegistry: AgentRegistry,
@@ -562,13 +574,22 @@ export class DispatchDaemonImpl implements DispatchDaemon {
                 processed++;
               } else {
                 // Item was not processed (deferred for triage)
-                // Check if agent has no active session (idle) — eligible for triage
-                const activeSession = this.sessionManager.getActiveSession(agentId);
-                if (!activeSession) {
-                  if (!deferredItems.has(agentId)) {
-                    deferredItems.set(agentId, { agent, items: [] });
+                // Only ephemeral workers and stewards get triage sessions.
+                // Persistent agents (directors, persistent workers) leave messages
+                // unread until their session starts — spawning a headless triage
+                // session for them would confuse the UI and mark messages as read
+                // before the agent can actually process them.
+                const isPersistentAgent = meta.agentRole === 'director' ||
+                  (meta.agentRole === 'worker' && (meta as WorkerMetadata).workerMode === 'persistent');
+
+                if (!isPersistentAgent) {
+                  const activeSession = this.sessionManager.getActiveSession(agentId);
+                  if (!activeSession) {
+                    if (!deferredItems.has(agentId)) {
+                      deferredItems.set(agentId, { agent, items: [] });
+                    }
+                    deferredItems.get(agentId)!.items.push(item);
                   }
-                  deferredItems.get(agentId)!.items.push(item);
                 }
               }
             } catch (error) {
@@ -1865,16 +1886,32 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     const agentId = asEntityId(agent.id);
 
     if (activeSession) {
-      // In session -> forward as user input
-      const forwardedContent = await this.formatForwardedMessage(message);
-      await this.sessionManager.messageSession(activeSession.id, {
-        content: forwardedContent,
-        senderId: message.sender,
-      });
+      // Guard against duplicate forwarding:
+      // If another concurrent pollInboxes() call is already processing this item,
+      // skip it to prevent duplicate message delivery. The in-flight call will
+      // mark it as read when done.
+      if (this.forwardingInboxItems.has(item.id)) {
+        return false;
+      }
 
-      this.inboxService.markAsRead(item.id);
-      this.emitter.emit('message:forwarded', message.id, agentId);
-      return true;
+      // Mark as in-flight before the async operation
+      this.forwardingInboxItems.add(item.id);
+
+      try {
+        // In session -> forward as user input
+        const forwardedContent = await this.formatForwardedMessage(message);
+        await this.sessionManager.messageSession(activeSession.id, {
+          content: forwardedContent,
+          senderId: message.sender,
+        });
+
+        this.inboxService.markAsRead(item.id);
+        this.emitter.emit('message:forwarded', message.id, agentId);
+        return true;
+      } finally {
+        // Always clean up the in-flight tracking, even on error
+        this.forwardingInboxItems.delete(item.id);
+      }
     }
 
     // No session -> leave message unread for next session

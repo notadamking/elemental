@@ -208,6 +208,15 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
             <Circle
               className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 fill-current ${statusColor}`}
             />
+            {/* Unread messages indicator badge */}
+            {unreadCount > 0 && (
+              <span
+                className="absolute -bottom-1 -right-1 flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold rounded-full bg-[var(--color-primary)] text-white"
+                data-testid="director-panel-collapsed-unread-badge"
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
           </button>
         </Tooltip>
       </aside>
@@ -242,6 +251,19 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
           </span>
         </div>
         <div className="flex items-center gap-1">
+          {/* Sift Backlog Button - left-most action when session is active */}
+          {hasActiveSession && (
+            <Tooltip content="Sift Backlog" side="bottom">
+              <button
+                onClick={handleSiftBacklog}
+                className="p-1.5 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150"
+                aria-label="Sift Backlog"
+                data-testid="director-sift-backlog"
+              >
+                <ListFilter className="w-4 h-4" />
+              </button>
+            </Tooltip>
+          )}
           {/* Pending Messages Queue Toggle */}
           {director && (
             <Tooltip
@@ -317,16 +339,6 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
                       ) : (
                         <Square className="w-4 h-4" />
                       )}
-                    </button>
-                  </Tooltip>
-                  <Tooltip content="Sift Backlog" side="bottom">
-                    <button
-                      onClick={handleSiftBacklog}
-                      className="p-1.5 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150"
-                      aria-label="Sift Backlog"
-                      data-testid="director-sift-backlog"
-                    >
-                      <ListFilter className="w-4 h-4" />
                     </button>
                   </Tooltip>
                 </>

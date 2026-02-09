@@ -380,7 +380,7 @@ Tasks can end up with `status=CLOSED` but `mergeStatus` not `'merged'` (e.g. whe
 
 The reconciliation poll detects and recovers these stuck tasks:
 
-1. Query for tasks with `status=CLOSED` and `mergeStatus` in `['pending', 'testing', 'merging', 'conflict', 'test_failed', 'failed']`
+1. Query for tasks with `status=CLOSED` and `mergeStatus` in `['pending', 'testing', 'merging', 'conflict', 'test_failed', 'failed', 'not_applicable']`
 2. For each stuck task:
    - **Grace period:** Skip if `closedAt` is within `closedUnmergedGracePeriodMs` (default: 120s) to avoid racing with in-progress close+merge sequences
    - **Safety valve:** Skip and warn if `reconciliationCount >= 3` to prevent infinite loops
@@ -690,7 +690,24 @@ await mergeSteward.cleanupAfterMerge(taskId, true);
 await mergeSteward.updateMergeStatus(taskId, 'merged', {
   testResult: { passed: true, completedAt: timestamp },
 });
+
+// Mark as not applicable (closes task without merge)
+// Use when a branch has no commits to merge (fix already on master)
+await mergeSteward.updateMergeStatus(taskId, 'not_applicable');
 ```
+
+### Merge Status Values
+
+| Status | Description | Closes Task |
+|--------|-------------|-------------|
+| `pending` | Task completed, awaiting merge | No |
+| `testing` | Steward is running tests | No |
+| `merging` | Tests passed, merge in progress | No |
+| `merged` | Successfully merged | Yes |
+| `conflict` | Merge conflict detected | No |
+| `test_failed` | Tests failed | No |
+| `failed` | Merge failed (other reason) | No |
+| `not_applicable` | No merge needed (e.g., fix already on master) | Yes |
 
 ### Cleanup Behavior
 

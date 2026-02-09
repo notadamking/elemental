@@ -30,6 +30,7 @@ describe('MergeStatus', () => {
       'conflict',
       'test_failed',
       'failed',
+      'not_applicable',
     ]);
   });
 

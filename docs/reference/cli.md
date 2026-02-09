@@ -770,6 +770,7 @@ Valid status values:
 - `conflict` - Merge conflict detected
 - `test_failed` - Tests failed, needs attention
 - `failed` - Merge failed for other reason
+- `not_applicable` - No merge needed (issue already fixed on master)
 
 ```bash
 el task merge-status el-abc123 merged

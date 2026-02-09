@@ -197,3 +197,24 @@ Common pitfalls and their solutions, organized by severity and category.
 - `ELEMENTAL_CONFIG_PATH` overrides config file location
 - Duration strings supported: `5m`, `1h`, `7d`
 - Config cache invalidated on `setValue()` or `unsetValue()`
+
+## Testing (bun test)
+
+- **`vi.importActual()` is unavailable in bun test** — bun's vitest compatibility layer provides a subset of the `vi` API. `vi.importActual` and the `importOriginal` parameter in `vi.mock` factories are both `undefined`. Use conditional logic with `require()` as a fallback:
+  ```typescript
+  vi.mock('node:child_process', async () => {
+    let actual: typeof import('node:child_process');
+    if (typeof vi.importActual === 'function') {
+      actual = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    } else {
+      actual = require('node:child_process');
+    }
+    return { ...actual, exec: vi.fn() };
+  });
+  ```
+- **Module mocking of Node built-ins doesn't work in bun test** — Even with `require()` fallback, bun test cannot mock Node built-in modules like `node:child_process` or `node:fs` that are imported and used at module load time in the test subject. The mock is applied too late. Tests requiring these mocks should skip in bun test:
+  ```typescript
+  const isBun = typeof globalThis.Bun !== 'undefined';
+  const describeNodeTests = isBun ? describe.skip : describe;
+  ```
+- **Module mocking in bun test doesn't hoist** — unlike vitest, bun's `vi.mock` runs after ES module imports are resolved. Mocking modules that are statically imported by the test subject may not work. The mock is applied for dynamic `import()` calls but not for the initial static import chain.
