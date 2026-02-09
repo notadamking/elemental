@@ -154,8 +154,6 @@ interface FormState {
   // Steward fields
   stewardFocus: StewardFocus;
   triggers: StewardTrigger[];
-  // Settings
-  maxConcurrentTasks: number;
   // Tags
   tags: string;
 }
@@ -166,7 +164,6 @@ const defaultState: FormState = {
   workerMode: 'ephemeral',
   stewardFocus: 'merge',
   triggers: [],
-  maxConcurrentTasks: 1,
   tags: '',
 };
 
@@ -243,7 +240,6 @@ export function CreateAgentDialog({
       name: form.name.trim(),
       role: form.role,
       tags: form.tags.trim() ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
-      maxConcurrentTasks: form.maxConcurrentTasks,
     };
 
     // Add role-specific fields
@@ -637,28 +633,6 @@ export function CreateAgentDialog({
               </button>
               {showCapabilities && (
                 <div className="space-y-3 pl-6">
-                  <div className="space-y-1">
-                    <label htmlFor="agent-max-tasks" className="text-xs font-medium text-[var(--color-text-secondary)]">
-                      Max Concurrent Tasks
-                    </label>
-                    <input
-                      id="agent-max-tasks"
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={form.maxConcurrentTasks}
-                      onChange={e => setForm(prev => ({ ...prev, maxConcurrentTasks: parseInt(e.target.value, 10) || 1 }))}
-                      className="
-                        w-20 px-3 py-1.5
-                        text-sm
-                        bg-[var(--color-surface)]
-                        border border-[var(--color-border)]
-                        rounded-lg
-                        focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30
-                      "
-                      data-testid="agent-max-tasks"
-                    />
-                  </div>
                   <div className="space-y-1">
                     <label htmlFor="agent-tags" className="text-xs font-medium text-[var(--color-text-secondary)]">
                       Tags (comma-separated)
