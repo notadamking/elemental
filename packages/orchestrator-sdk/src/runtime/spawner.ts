@@ -1011,8 +1011,8 @@ export class SpawnerServiceImpl implements SpawnerService {
       });
 
       session.interactiveSession = interactiveSession;
-      session.cols = options?.cols ?? 120;
-      session.rows = options?.rows ?? 30;
+      session.cols = options?.cols ?? 80;
+      session.rows = options?.rows ?? 24;
       (session as { pid?: number }).pid = interactiveSession.pid;
 
       // Handle data output

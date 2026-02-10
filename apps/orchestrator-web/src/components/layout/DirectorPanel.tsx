@@ -141,7 +141,11 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
     if (!director?.id) return;
     setResumeError(null);
     try {
-      await startSession.mutateAsync({ agentId: director.id });
+      const dims = terminalRef.current?.getDimensions();
+      await startSession.mutateAsync({
+        agentId: director.id,
+        ...(dims && { cols: dims.cols, rows: dims.rows }),
+      });
     } catch (err) {
       console.error('Failed to start director session:', err);
     }
@@ -174,7 +178,11 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
     if (!director?.id) return;
     try {
       await stopSession.mutateAsync({ agentId: director.id, graceful: true });
-      await startSession.mutateAsync({ agentId: director.id });
+      const dims = terminalRef.current?.getDimensions();
+      await startSession.mutateAsync({
+        agentId: director.id,
+        ...(dims && { cols: dims.cols, rows: dims.rows }),
+      });
     } catch (err) {
       console.error('Failed to restart director session:', err);
     }
@@ -411,13 +419,22 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
 
           {/* Terminal body */}
           <div className="flex-1 overflow-hidden relative">
-            {status === 'no-director' ? (
+            {status === 'no-director' || (isLoading && !director) ? (
               <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-                <AlertCircle className="w-8 h-8 text-[var(--color-text-muted)] mb-2" />
-                <p className="text-sm text-[var(--color-text-muted)]">No Director agent found</p>
-                <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
-                  Register a Director agent to use this terminal
-                </p>
+                {isLoading ? (
+                  <>
+                    <RefreshCw className="w-8 h-8 text-[var(--color-text-muted)] mb-2 animate-spin" />
+                    <p className="text-sm text-[var(--color-text-muted)]">Loading...</p>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="w-8 h-8 text-[var(--color-text-muted)] mb-2" />
+                    <p className="text-sm text-[var(--color-text-muted)]">No Director agent found</p>
+                    <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
+                      Register a Director agent to use this terminal
+                    </p>
+                  </>
+                )}
               </div>
             ) : status === 'error' && error ? (
               <div className="flex flex-col items-center justify-center h-full p-4 text-center">

@@ -85,6 +85,10 @@ export interface StartSessionOptions {
   readonly environmentVariables?: Record<string, string>;
   /** Whether to use interactive mode (PTY) */
   readonly interactive?: boolean;
+  /** Terminal columns (for interactive mode) */
+  readonly cols?: number;
+  /** Terminal rows (for interactive mode) */
+  readonly rows?: number;
 }
 
 /**
@@ -515,6 +519,8 @@ export class SessionManagerImpl implements SessionManager {
       initialPrompt: options?.initialPrompt,
       environmentVariables: options?.environmentVariables,
       mode: useInteractive ? 'interactive' : 'headless',
+      cols: options?.cols,
+      rows: options?.rows,
       provider: providerOverride,
     };
 

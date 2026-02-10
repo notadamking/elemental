@@ -237,12 +237,14 @@ export function useStartAgentSession() {
       initialPrompt?: string;
       initialMessage?: string;
       interactive?: boolean;
+      cols?: number;
+      rows?: number;
     }
   >({
-    mutationFn: async ({ agentId, taskId, initialPrompt, initialMessage, interactive }) => {
+    mutationFn: async ({ agentId, taskId, initialPrompt, initialMessage, interactive, cols, rows }) => {
       return fetchApi(`/agents/${agentId}/start`, {
         method: 'POST',
-        body: JSON.stringify({ taskId, initialPrompt, initialMessage, interactive }),
+        body: JSON.stringify({ taskId, initialPrompt, initialMessage, interactive, cols, rows }),
       });
     },
     onSuccess: (_, { agentId }) => {

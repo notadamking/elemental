@@ -220,6 +220,8 @@ export function createSessionRoutes(
         worktree?: string;
         initialPrompt?: string;
         interactive?: boolean;
+        cols?: number;
+        rows?: number;
       };
 
       const agent = await agentRegistry.getAgent(agentId);
@@ -352,6 +354,8 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
         worktree: body.worktree ?? worktreePath,
         initialPrompt: effectivePrompt,
         interactive: body.interactive,
+        cols: body.cols,
+        rows: body.rows,
       });
 
       // Attach event saver immediately to capture all events, including the first assistant response

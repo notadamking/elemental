@@ -30,6 +30,8 @@ export interface XTerminalHandle {
   fit: () => void;
   /** Send input to the PTY terminal (as if user typed it) */
   sendInput: (data: string) => void;
+  /** Get current terminal dimensions (cols/rows) */
+  getDimensions: () => { cols: number; rows: number } | null;
 }
 
 export interface XTerminalProps {
@@ -217,11 +219,6 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
-    // Write welcome message
-    terminal.writeln('\x1b[1;36m  Elemental Orchestrator Terminal\x1b[0m');
-    terminal.writeln('\x1b[90m  Connecting to agent...\x1b[0m');
-    terminal.writeln('');
-
     // Auto-focus if requested
     if (autoFocus && interactive) {
       // Delay focus slightly to ensure terminal is fully rendered
@@ -287,9 +284,6 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
   useEffect(() => {
     if (!agentId) {
       updateStatus('disconnected');
-      if (!hasShownConnectionRef.current) {
-        terminalRef.current?.writeln('\x1b[33m  No agent selected\x1b[0m');
-      }
       return;
     }
 
@@ -307,10 +301,6 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
 
     const connect = () => {
       updateStatus('connecting');
-      // Only show connecting message on first attempt, not reconnects
-      if (reconnectAttempts.current === 0) {
-        terminalRef.current?.writeln(`\x1b[90m  Connecting to agent ${agentId}...\x1b[0m`);
-      }
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
@@ -337,36 +327,15 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
             case 'subscribed':
               updateStatus('connected');
               onConnectedRef.current?.();
-              // Only show connection message once per mount
-              if (!hasShownConnectionRef.current) {
-                hasShownConnectionRef.current = true;
-                if (data.isInteractive) {
-                  terminalRef.current?.writeln(
-                    data.hasSession
-                      ? '\x1b[32m  Connected to interactive PTY session\x1b[0m\r\n'
-                      : '\x1b[33m  Agent has no active session\x1b[0m\r\n'
-                  );
-                } else {
-                  terminalRef.current?.writeln(
-                    data.hasSession
-                      ? '\x1b[32m  Connected to active session\x1b[0m\r\n'
-                      : '\x1b[33m  Agent has no active session\x1b[0m\r\n'
-                  );
-                }
-              }
+              hasShownConnectionRef.current = true;
               // Send initial resize for existing sessions (only if this terminal controls resize)
-              // Use a small delay to ensure terminal is fully laid out
               // IMPORTANT: Force send (skip deduplication) since PTY may have stale dimensions from before page refresh
               if (controlsResize && data.hasSession && fitAddonRef.current && terminalRef.current) {
-                setTimeout(() => {
-                  if (wsRef.current?.readyState === WebSocket.OPEN && fitAddonRef.current) {
-                    const dims = fitAddonRef.current.proposeDimensions();
-                    if (dims) {
-                      lastSentDimsRef.current = { cols: dims.cols, rows: dims.rows };
-                      wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
-                    }
-                  }
-                }, 100);
+                const dims = fitAddonRef.current.proposeDimensions();
+                if (dims && wsRef.current?.readyState === WebSocket.OPEN) {
+                  lastSentDimsRef.current = { cols: dims.cols, rows: dims.rows };
+                  wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+                }
               }
               break;
 
@@ -407,26 +376,16 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
               // Reset last sent dimensions so new session gets a fresh resize
               lastSentDimsRef.current = null;
 
-              // Clear previous output and show new session message
+              // Clear previous output for the new session
               terminalRef.current?.clear();
-              terminalRef.current?.writeln(
-                (data as { isInteractive?: boolean }).isInteractive
-                  ? '\x1b[32m  Session started - interactive PTY connected\x1b[0m\r\n'
-                  : '\x1b[32m  Session started - connected\x1b[0m\r\n'
-              );
               // Send initial resize for interactive sessions (only if this terminal controls resize)
-              // Use a small delay to ensure terminal is fully laid out
               // IMPORTANT: Force send (skip deduplication) for new sessions to ensure PTY has correct dimensions
               if (controlsResize && (data as { isInteractive?: boolean }).isInteractive && fitAddonRef.current && terminalRef.current) {
-                setTimeout(() => {
-                  if (wsRef.current?.readyState === WebSocket.OPEN && fitAddonRef.current) {
-                    const dims = fitAddonRef.current.proposeDimensions();
-                    if (dims) {
-                      lastSentDimsRef.current = { cols: dims.cols, rows: dims.rows };
-                      wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
-                    }
-                  }
-                }, 100);
+                const dims = fitAddonRef.current.proposeDimensions();
+                if (dims && wsRef.current?.readyState === WebSocket.OPEN) {
+                  lastSentDimsRef.current = { cols: dims.cols, rows: dims.rows };
+                  wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+                }
               }
               break;
             }
@@ -612,6 +571,13 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
     sendToServer(data);
   }, [sendToServer]);
 
+  // Get current terminal dimensions
+  const getDimensions = useCallback((): { cols: number; rows: number } | null => {
+    if (!fitAddonRef.current) return null;
+    const dims = fitAddonRef.current.proposeDimensions();
+    return dims ? { cols: dims.cols, rows: dims.rows } : null;
+  }, []);
+
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
     refresh,
@@ -621,7 +587,8 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
     focus,
     fit,
     sendInput,
-  }), [refresh, write, writeln, clear, focus, fit, sendInput]);
+    getDimensions,
+  }), [refresh, write, writeln, clear, focus, fit, sendInput, getDimensions]);
 
   // Expose methods through window for testing
   useEffect(() => {

@@ -116,9 +116,11 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
 
   const handleStartSession = useCallback(async () => {
     try {
+      const dims = terminalRef.current?.getDimensions();
       await startSession.mutateAsync({
         agentId: pane.agentId,
         interactive: pane.paneType === 'terminal',
+        ...(dims && { cols: dims.cols, rows: dims.rows }),
       });
     } catch (err) {
       console.error('Failed to start session:', err);

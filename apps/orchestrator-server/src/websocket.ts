@@ -146,14 +146,6 @@ export function handleWSMessage(
                 events.off('error', onError);
                 events.off('exit', onExit);
               };
-
-              if (activeSession.mode === 'interactive') {
-                setTimeout(() => {
-                  const cols = 120;
-                  const rows = 30;
-                  spawnerService.resize(activeSession.id, cols, rows).catch(() => {});
-                }, 100);
-              }
             }
           }
           ws.send(
