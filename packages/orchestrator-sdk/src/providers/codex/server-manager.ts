@@ -23,12 +23,13 @@ import type { NotificationHandler } from './jsonrpc-client.js';
 export interface CodexClient {
   thread: {
     start(params: {
-      input: Array<{ type: 'text'; text: string }>;
+      cwd?: string;
       approvalPolicy?: string;
       sandbox?: string;
     }): Promise<{ thread: { id: string } }>;
     resume(params: {
       threadId: string;
+      cwd?: string;
       approvalPolicy?: string;
       sandbox?: string;
     }): Promise<{ thread: { id: string } }>;
@@ -126,6 +127,17 @@ class CodexServerManager {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: config?.cwd,
       env,
+    });
+
+    // Wait for the process to confirm stdio is ready, or fail with a
+    // descriptive error if the binary is missing / not executable.
+    // Note: ENOENT can mean the binary OR the cwd doesn't exist.
+    await new Promise<void>((resolve, reject) => {
+      child.on('error', (err) => {
+        const detail = config?.cwd ? ` (cwd: ${config.cwd})` : '';
+        reject(new Error(`Failed to spawn codex app-server${detail}: ${err.message}`));
+      });
+      child.on('spawn', () => resolve());
     });
 
     if (!child.stdin || !child.stdout) {

@@ -141,6 +141,90 @@ describe('Codex headless event mapping', () => {
       expect(messages[3].type).toBe('result');
     });
 
+    it('should use streamed output deltas for command execution results', async () => {
+      const mapper = new CodexEventMapper();
+      const queue = new AsyncQueue<AgentMessage>();
+
+      const notifications = [
+        { method: 'turn/started', params: { threadId } },
+        { method: 'item/agentMessage/delta', params: { threadId, delta: 'Running command.', itemId: 'msg-1' } },
+        {
+          method: 'item/started', params: {
+            threadId,
+            item: { type: 'commandExecution', id: 'cmd-1', command: 'cat file.txt', cwd: '/tmp' },
+          },
+        },
+        { method: 'item/commandExecution/outputDelta', params: { threadId, delta: 'line 1\n', itemId: 'cmd-1' } },
+        { method: 'item/commandExecution/outputDelta', params: { threadId, delta: 'line 2\n', itemId: 'cmd-1' } },
+        {
+          method: 'item/completed', params: {
+            threadId,
+            item: { type: 'commandExecution', id: 'cmd-1', command: 'cat file.txt', exitCode: 0 },
+          },
+        },
+        { method: 'turn/completed', params: { threadId, status: 'completed' } },
+      ];
+
+      for (const { method, params } of notifications) {
+        for (const msg of mapper.mapNotification({ method, params: params as any }, threadId)) {
+          queue.push(msg);
+        }
+      }
+      for (const msg of mapper.flush()) { queue.push(msg); }
+      queue.close();
+
+      const messages: AgentMessage[] = [];
+      for await (const msg of queue) { messages.push(msg); }
+
+      expect(messages.length).toBe(4);
+      expect(messages[0].type).toBe('assistant');
+      expect(messages[1].type).toBe('tool_use');
+      expect(messages[2].type).toBe('tool_result');
+      expect(messages[2].content).toBe('line 1\nline 2\n');
+      expect(messages[3].type).toBe('result');
+    });
+
+    it('should use streamed output deltas for file change results', async () => {
+      const mapper = new CodexEventMapper();
+      const queue = new AsyncQueue<AgentMessage>();
+
+      const notifications = [
+        { method: 'turn/started', params: { threadId } },
+        {
+          method: 'item/started', params: {
+            threadId,
+            item: { type: 'fileChange', id: 'fc-1', changes: { file: 'test.ts' } },
+          },
+        },
+        { method: 'item/fileChange/outputDelta', params: { threadId, delta: 'diff --git a/test.ts\n', itemId: 'fc-1' } },
+        { method: 'item/fileChange/outputDelta', params: { threadId, delta: '+new line\n', itemId: 'fc-1' } },
+        {
+          method: 'item/completed', params: {
+            threadId,
+            item: { type: 'fileChange', id: 'fc-1' },
+          },
+        },
+        { method: 'turn/completed', params: { threadId, status: 'completed' } },
+      ];
+
+      for (const { method, params } of notifications) {
+        for (const msg of mapper.mapNotification({ method, params: params as any }, threadId)) {
+          queue.push(msg);
+        }
+      }
+      for (const msg of mapper.flush()) { queue.push(msg); }
+      queue.close();
+
+      const messages: AgentMessage[] = [];
+      for await (const msg of queue) { messages.push(msg); }
+
+      expect(messages.length).toBe(3);
+      expect(messages[0].type).toBe('tool_use');
+      expect(messages[1].type).toBe('tool_result');
+      expect(messages[1].content).toBe('diff --git a/test.ts\n+new line\n');
+      expect(messages[2].type).toBe('result');
+    });
+
     it('should filter notifications for other threads', async () => {
       const mapper = new CodexEventMapper();
       const queue = new AsyncQueue<AgentMessage>();
@@ -173,6 +257,42 @@ describe('Codex headless event mapping', () => {
       expect(messages[0].type).toBe('assistant');
       expect(messages[0].content).toBe('keep me');
       expect(messages[1].type).toBe('result');
+    });
+
+    it('should not emit tool_result for non-tool item types (agentMessage, userMessage)', async () => {
+      const mapper = new CodexEventMapper();
+      const queue = new AsyncQueue<AgentMessage>();
+
+      const notifications = [
+        { method: 'turn/started', params: { threadId } },
+        { method: 'item/agentMessage/delta', params: { threadId, delta: 'Hello!', itemId: 'msg-1' } },
+        {
+          method: 'item/completed', params: {
+            threadId,
+            item: { type: 'agentMessage', id: 'msg-1', text: 'Hello!' },
+          },
+        },
+        { method: 'turn/completed', params: { threadId, status: 'completed' } },
+      ];
+
+      for (const { method, params } of notifications) {
+        for (const msg of mapper.mapNotification({ method, params: params as any }, threadId)) {
+          queue.push(msg);
+        }
+      }
+      for (const msg of mapper.flush()) { queue.push(msg); }
+      queue.close();
+
+      const messages: AgentMessage[] = [];
+      for await (const msg of queue) { messages.push(msg); }
+
+      // Should have: assistant text + result — NO tool_use or tool_result
+      expect(messages.length).toBe(2);
+      expect(messages[0].type).toBe('assistant');
+      expect(messages[0].content).toBe('Hello!');
+      expect(messages[1].type).toBe('result');
+      expect(messages.find(m => m.type === 'tool_result')).toBeUndefined();
+      expect(messages.find(m => m.type === 'tool_use')).toBeUndefined();
     });
 
     it('should handle empty notification stream gracefully', () => {

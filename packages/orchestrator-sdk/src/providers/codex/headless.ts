@@ -100,6 +100,18 @@ class CodexHeadlessSession implements HeadlessSession {
       raw: { synthetic: true, provider: 'codex' },
     });
   }
+
+  /** Replay buffered notifications that arrived before the handler was registered */
+  replayNotifications(buffered: Array<{ method: string; params: unknown }>): void {
+    for (const { method, params } of buffered) {
+      if (this.closed) return;
+      const notification = { method, params: params as any };
+      const agentMessages = this.eventMapper.mapNotification(notification, this.threadId);
+      for (const msg of agentMessages) {
+        this.messageQueue.push(msg);
+      }
+    }
+  }
 }
 
 // ============================================================================
@@ -114,9 +126,12 @@ export class CodexHeadlessProvider implements HeadlessProvider {
   readonly name = 'codex-headless';
 
   async spawn(options: HeadlessSpawnOptions): Promise<HeadlessSession> {
-    // 1. Acquire server client
+    // 1. Acquire shared server client. Use elementalRoot (project root) as the
+    // server's cwd — NOT the per-session workingDirectory, which may be a
+    // temporary worktree that gets deleted. The app-server is a shared
+    // singleton; its cwd must be a stable directory.
     const client = await serverManager.acquire({
-      cwd: options.workingDirectory,
+      cwd: options.elementalRoot ?? options.workingDirectory,
       elementalRoot: options.elementalRoot,
     });
 
@@ -127,6 +142,7 @@ export class CodexHeadlessProvider implements HeadlessProvider {
         // 2a. Resume: load the thread into the server and re-configure it
         const result = await client.thread.resume({
           threadId: options.resumeSessionId,
+          cwd: options.workingDirectory,
           approvalPolicy: 'never',
           sandbox: 'danger-full-access',
         });
@@ -143,20 +159,25 @@ export class CodexHeadlessProvider implements HeadlessProvider {
 
         return session;
       } else {
-        // 2b. New thread: thread/start creates the thread AND starts the first turn
+        // 2b. New thread: thread/start only creates the thread (does NOT run a
+        // turn). We must call turn/start separately via sendMessage() to get
+        // LLM output notifications.
         const result = await client.thread.start({
-          input: [{ type: 'text' as const, text: options.initialPrompt ?? 'Hello' }],
+          cwd: options.workingDirectory,
           approvalPolicy: 'never',
           sandbox: 'danger-full-access',
         });
+
         if (!result?.thread?.id) {
           throw new Error('Codex thread creation failed: no thread ID returned');
         }
         threadId = result.thread.id;
 
-        // Create session — do NOT sendMessage again since thread/start consumed the prompt
         const session = new CodexHeadlessSession(client, threadId);
         session.injectInitMessage();
+
+        // Explicitly start the first turn — thread/start does not do this
+        session.sendMessage(options.initialPrompt ?? 'Hello');
 
         return session;
       }

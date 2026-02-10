@@ -80,6 +80,7 @@ export class CodexEventMapper {
   private emittedToolUses = new Set<string>();
   private emittedToolResults = new Set<string>();
   private pendingText: { itemId: string; content: string } | null = null;
+  private outputBuffers = new Map<string, string>();
 
   /**
    * Maps a Codex notification to zero or more AgentMessages.
@@ -108,12 +109,17 @@ export class CodexEventMapper {
       case 'turn/completed':
         return this.handleTurnCompleted(notification);
 
+      case 'item/commandExecution/outputDelta':
+      case 'item/fileChange/outputDelta':
+        return this.handleOutputDelta(notification);
+
+      case 'codex/event/error':
+        return this.handleServerError(notification);
+
       // Ignored notification types
       case 'turn/started':
       case 'item/reasoning/delta':
       case 'item/reasoning/completed':
-      case 'item/commandExecution/outputDelta':
-      case 'item/fileChange/outputDelta':
       case 'turn/diff/updated':
       case 'turn/plan/updated':
         return [];
@@ -133,11 +139,41 @@ export class CodexEventMapper {
     this.emittedToolUses.clear();
     this.emittedToolResults.clear();
     this.pendingText = null;
+    this.outputBuffers.clear();
   }
 
   // ----------------------------------------
   // Private
   // ----------------------------------------
+
+  private handleServerError(notification: CodexNotification): AgentMessage[] {
+    const params = notification.params as Record<string, unknown> | undefined;
+    const msg = params?.msg as Record<string, unknown> | undefined;
+    const errorMessage = (msg?.message as string)
+      ?? (params?.message as string)
+      ?? 'Unknown codex server error';
+
+    const messages = this.flushPendingText();
+    messages.push({
+      type: 'error',
+      content: errorMessage,
+      raw: notification,
+    });
+    return messages;
+  }
+
+  private handleOutputDelta(notification: CodexNotification): AgentMessage[] {
+    const params = notification.params;
+    if (!params) return [];
+
+    const delta = params.delta;
+    const itemId = params.itemId ?? params.item?.id ?? '';
+    if (!delta || !itemId) return [];
+
+    const existing = this.outputBuffers.get(itemId) ?? '';
+    this.outputBuffers.set(itemId, existing + delta);
+    return [];
+  }
 
   private handleTextDelta(notification: CodexNotification): AgentMessage[] {
     const params = notification.params;
@@ -218,6 +254,11 @@ export class CodexEventMapper {
     const item = notification.params?.item;
     if (!item || !item.id) return [];
 
+    // Only process tool item types — ignore agentMessage, userMessage, etc.
+    if (item.type !== 'commandExecution' && item.type !== 'fileChange' && item.type !== 'mcpToolCall') {
+      return [];
+    }
+
     // Flush buffered text before tool results
     const messages = this.flushPendingText();
 
@@ -261,11 +302,14 @@ export class CodexEventMapper {
     if (!this.emittedToolResults.has(item.id)) {
       this.emittedToolResults.add(item.id);
 
+      const buffered = this.outputBuffers.get(item.id);
+      this.outputBuffers.delete(item.id);
+
       let content = '';
       if (item.type === 'commandExecution') {
-        content = item.stdout ?? `exit code: ${item.exitCode ?? 0}`;
+        content = buffered ?? item.stdout ?? `exit code: ${item.exitCode ?? 0}`;
       } else if (item.type === 'fileChange') {
-        content = item.content ?? '';
+        content = buffered ?? item.content ?? '';
       } else if (item.type === 'mcpToolCall') {
         content = item.result ?? '';
       }
