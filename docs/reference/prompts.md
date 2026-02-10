@@ -24,7 +24,8 @@ packages/orchestrator-sdk/src/prompts/
 ├── steward-merge.md    # Merge focus addendum
 ├── steward-health.md   # Health focus addendum
 ├── steward-ops.md      # Ops focus addendum
-└── steward-reminder.md # Reminder focus addendum
+├── steward-reminder.md # Reminder focus addendum
+└── steward-docs.md     # Docs focus addendum
 ```
 
 ## Loading Prompts
@@ -245,6 +246,7 @@ const result = await spawner.spawn(agentId, 'worker', {
 | `health` | `steward-health.md` | Monitor agent health |
 | `ops` | `steward-ops.md` | Operational tasks |
 | `reminder` | `steward-reminder.md` | Send reminders |
+| `docs` | `steward-docs.md` | Scan and fix documentation issues |
 
 Steward prompts are combined: `steward-base.md` + `steward-{focus}.md`
 

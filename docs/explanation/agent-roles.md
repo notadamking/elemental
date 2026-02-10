@@ -147,6 +147,7 @@ Stewards handle maintenance and system health. There are specialized Steward typ
 | `health` | Monitor worker health and intervene when stuck |
 | `ops` | System operations, cleanup, archival |
 | `reminder` | Time-based notifications, due date alerts |
+| `docs` | Scan and fix documentation issues, auto-merge fixes |
 
 ### Example Prompt (Merge Steward)
 
@@ -220,7 +221,8 @@ prompts/
 ├── steward-merge.md   # Merge focus addendum
 ├── steward-health.md  # Health focus addendum
 ├── steward-ops.md     # Ops focus addendum
-└── steward-reminder.md # Reminder focus addendum
+├── steward-reminder.md # Reminder focus addendum
+└── steward-docs.md    # Docs focus addendum
 ```
 
 ### Project Overrides
@@ -385,6 +387,7 @@ When creating agents through the UI, names are auto-populated following these co
 | Health Steward | `h-steward-{n}` | `h-steward-1`, `h-steward-2` |
 | Reminder Steward | `r-steward-{n}` | `r-steward-1`, `r-steward-2` |
 | Ops Steward | `o-steward-{n}` | `o-steward-1`, `o-steward-2` |
+| Docs Steward | `d-steward-{n}` | `d-steward-1`, `d-steward-2` |
 
 The sequential number is calculated based on existing agents of the same type. Auto-generated names are editable before submission.
 

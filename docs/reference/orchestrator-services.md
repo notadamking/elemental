@@ -531,6 +531,94 @@ interface HealthIssue {
 
 ---
 
+## DocsStewardService
+
+**File:** `services/docs-steward-service.ts`
+
+Scans documentation for issues and provides automated fixes. The docs steward creates a worktree, accumulates fixes as commits, self-merges when complete, and cleans up.
+
+```typescript
+import { createDocsStewardService } from '@elemental/orchestrator-sdk';
+
+const docsSteward = createDocsStewardService(api, {
+  workspaceRoot: '/project',
+  docsDir: 'docs',
+  packagesDir: 'packages',
+});
+```
+
+### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `workspaceRoot` | `string` | *required* | Workspace root directory (git repo) |
+| `docsDir` | `string` | `'docs'` | Documentation directory relative to workspace |
+| `packagesDir` | `string` | `'packages'` | Packages directory for source verification |
+| `mergeStrategy` | `'squash' \| 'merge'` | `'squash'` | Merge strategy for self-merge |
+| `autoPush` | `boolean` | `true` | Push after merge |
+
+### Verification Methods
+
+```typescript
+// Scan all documentation for issues
+const issues = await docsSteward.scanAll();
+
+// Individual verification methods
+const filePathIssues = await docsSteward.verifyFilePaths();
+const linkIssues = await docsSteward.verifyInternalLinks();
+const exportIssues = await docsSteward.verifyExports();
+const cliIssues = await docsSteward.verifyCliCommands();
+const typeIssues = await docsSteward.verifyTypeFields();
+const apiIssues = await docsSteward.verifyApiMethods();
+```
+
+### Session Lifecycle Methods
+
+```typescript
+// Create session worktree and branch
+const worktree = await docsSteward.createSessionWorktree('d-steward-1');
+// Creates: .elemental/.worktrees/d-steward-1-docs/
+// Branch: d-steward-1/docs/auto-updates
+
+// Commit a fix
+await docsSteward.commitFix('Fix broken link in README', ['docs/README.md']);
+
+// Self-merge and cleanup
+const result = await docsSteward.mergeAndCleanup(
+  'd-steward-1/docs/auto-updates',
+  'docs: fix documentation issues'
+);
+
+// Cleanup session (worktree and branch)
+await docsSteward.cleanupSession();
+```
+
+### DocIssue Type
+
+```typescript
+interface DocIssue {
+  type: DocIssueType;        // 'file_path' | 'internal_link' | 'export' | 'cli' | 'type_field' | 'api_method'
+  file: string;              // Doc file with the issue
+  line: number;              // Line number
+  description: string;       // What's wrong
+  currentValue: string;      // What the doc says
+  suggestedFix?: string;     // Suggested correction
+  confidence: FixConfidence; // 'high' | 'medium' | 'low'
+  complexity: IssueComplexity; // 'low' | 'medium' | 'high'
+  context: string;           // Surrounding text
+}
+```
+
+### Complexity Classification
+
+| Complexity | Examples | Action |
+|------------|----------|--------|
+| `low` | Typos, broken links, stale paths | Self-fix |
+| `medium` | Outdated exports, API changes, rewrites | Self-fix |
+| `high` | Ambiguous situations requiring product decisions | Escalate to Director |
+
+---
+
 ## WorkerTaskService
 
 **File:** `services/worker-task-service.ts`
