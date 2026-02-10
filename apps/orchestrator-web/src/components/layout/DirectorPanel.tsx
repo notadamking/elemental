@@ -192,6 +192,18 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
     setTerminalStatus(newStatus);
   }, []);
 
+  // Auto-refresh terminal on connection to fix rendering issues during startup
+  // This triggers the resize-cycle trick (shrink then restore) which sends SIGWINCH
+  // to the shell and forces a proper redraw of the terminal content.
+  useEffect(() => {
+    if (terminalStatus === 'connected') {
+      const timer = setTimeout(() => {
+        terminalRef.current?.refresh();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [terminalStatus]);
+
   const handleSiftBacklog = useCallback(() => {
     if (!terminalRef.current) return;
     // Send the command text first
