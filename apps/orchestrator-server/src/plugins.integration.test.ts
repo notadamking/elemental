@@ -16,6 +16,10 @@ import { unlinkSync, existsSync } from 'node:fs';
 const TEST_PORT = 3458; // Use a different port than default
 const SERVER_URL = `http://localhost:${TEST_PORT}`;
 const TEST_DB_PATH = '/tmp/elemental-plugin-api-test.db';
+const STARTUP_POLL_INTERVAL_MS = 100;
+// Orchestrator startup can take several seconds (git/worktree init, session restore).
+// Use a generous timeout to avoid flaky startup failures on slower machines/CI.
+const STARTUP_TIMEOUT_MS = Number(process.env.ORCHESTRATOR_TEST_STARTUP_TIMEOUT_MS ?? 20_000);
 
 // Server process
 let serverProcess: Subprocess<'ignore', 'pipe', 'pipe'> | null = null;
@@ -40,9 +44,38 @@ async function startServer(): Promise<void> {
     stderr: 'pipe',
   });
 
+  const stdoutPromise = serverProcess.stdout
+    ? new Response(serverProcess.stdout).text().catch(() => '')
+    : Promise.resolve('');
+  const stderrPromise = serverProcess.stderr
+    ? new Response(serverProcess.stderr).text().catch(() => '')
+    : Promise.resolve('');
+
+  let exitCode: number | null = null;
+  serverProcess.exited
+    .then((code) => {
+      exitCode = code;
+    })
+    .catch(() => {
+      exitCode = -1;
+    });
+
+  const truncateOutput = (text: string, max = 4000) => {
+    if (text.length <= max) return text;
+    return `${text.slice(0, max)}\n... (truncated ${text.length - max} chars)`;
+  };
+
   // Wait for server to start
-  let retries = 30;
-  while (retries > 0) {
+  const deadline = Date.now() + STARTUP_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (exitCode !== null) {
+      const [stdout, stderr] = await Promise.all([stdoutPromise, stderrPromise]);
+      throw new Error(
+        `Server exited before startup (exit code ${exitCode}).\n` +
+          `stdout:\n${truncateOutput(stdout)}\n` +
+          `stderr:\n${truncateOutput(stderr)}`
+      );
+    }
     try {
       const response = await fetch(`${SERVER_URL}/api/health`);
       if (response.ok) {
@@ -52,10 +85,18 @@ async function startServer(): Promise<void> {
     } catch {
       // Server not ready yet
     }
-    await Bun.sleep(100);
-    retries--;
+    await Bun.sleep(STARTUP_POLL_INTERVAL_MS);
   }
-  throw new Error('Server failed to start');
+
+  if (serverProcess) {
+    serverProcess.kill();
+  }
+  const [stdout, stderr] = await Promise.all([stdoutPromise, stderrPromise]);
+  throw new Error(
+    `Server failed to start within ${STARTUP_TIMEOUT_MS}ms.\n` +
+      `stdout:\n${truncateOutput(stdout)}\n` +
+      `stderr:\n${truncateOutput(stderr)}`
+  );
 }
 
 async function stopServer(): Promise<void> {
