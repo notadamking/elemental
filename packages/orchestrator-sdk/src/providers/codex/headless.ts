@@ -124,9 +124,13 @@ export class CodexHeadlessProvider implements HeadlessProvider {
 
     try {
       if (options.resumeSessionId) {
-        // 2a. Resume: verify thread exists
-        const result = await client.thread.read({ threadId: options.resumeSessionId });
-        threadId = result.id;
+        // 2a. Resume: load the thread into the server and re-configure it
+        const result = await client.thread.resume({
+          threadId: options.resumeSessionId,
+          approvalPolicy: 'never',
+          sandbox: 'danger-full-access',
+        });
+        threadId = result.thread.id;
 
         // Create session
         const session = new CodexHeadlessSession(client, threadId);
@@ -143,12 +147,12 @@ export class CodexHeadlessProvider implements HeadlessProvider {
         const result = await client.thread.start({
           input: [{ type: 'text' as const, text: options.initialPrompt ?? 'Hello' }],
           approvalPolicy: 'never',
-          sandbox: 'dangerFullAccess',
+          sandbox: 'danger-full-access',
         });
-        if (!result?.id) {
+        if (!result?.thread?.id) {
           throw new Error('Codex thread creation failed: no thread ID returned');
         }
-        threadId = result.id;
+        threadId = result.thread.id;
 
         // Create session — do NOT sendMessage again since thread/start consumed the prompt
         const session = new CodexHeadlessSession(client, threadId);

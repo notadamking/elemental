@@ -26,9 +26,13 @@ export interface CodexClient {
       input: Array<{ type: 'text'; text: string }>;
       approvalPolicy?: string;
       sandbox?: string;
-    }): Promise<{ id: string }>;
-    resume(params: { threadId: string }): Promise<void>;
-    read(params: { threadId: string }): Promise<{ id: string }>;
+    }): Promise<{ thread: { id: string } }>;
+    resume(params: {
+      threadId: string;
+      approvalPolicy?: string;
+      sandbox?: string;
+    }): Promise<{ thread: { id: string } }>;
+    read(params: { threadId: string }): Promise<{ thread: { id: string } }>;
   };
   turn: {
     start(params: {
@@ -174,9 +178,9 @@ class CodexServerManager {
 
     const client: CodexClient = {
       thread: {
-        start: (params) => rpcClient.request('thread/start', params) as Promise<{ id: string }>,
-        resume: (params) => rpcClient.request('thread/resume', params) as Promise<void>,
-        read: (params) => rpcClient.request('thread/read', params) as Promise<{ id: string }>,
+        start: (params) => rpcClient.request('thread/start', params) as Promise<{ thread: { id: string } }>,
+        resume: (params) => rpcClient.request('thread/resume', params) as Promise<{ thread: { id: string } }>,
+        read: (params) => rpcClient.request('thread/read', params) as Promise<{ thread: { id: string } }>,
       },
       turn: {
         start: (params) => rpcClient.request('turn/start', params) as Promise<void>,
