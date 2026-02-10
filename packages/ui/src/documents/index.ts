@@ -12,12 +12,17 @@
  */
 
 // Types
+export {
+  DocumentCategory,
+} from './types';
+
 export type {
   DocumentSortField,
   SortDirection,
   DocumentSortOption,
   ContentTypeFilterOption,
   DocumentFilterConfig,
+  DocumentCategory as DocumentCategoryType,
 } from './types';
 
 // Constants
@@ -26,6 +31,7 @@ export {
   CONTENT_TYPE_FILTER_OPTIONS,
   DOCUMENT_STORAGE_KEYS,
   EMPTY_DOCUMENT_FILTER,
+  DOCUMENT_CATEGORY_LABELS,
 } from './constants';
 
 // Utilities
@@ -36,6 +42,7 @@ export {
   getActiveFilterCount,
   hasActiveFilters,
   getDefaultDirection,
+  getCategoryDisplayLabel,
 } from './utils';
 
 // Components

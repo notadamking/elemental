@@ -107,3 +107,30 @@ export function getDefaultDirection(field: DocumentSortField): SortDirection {
   const option = DOCUMENT_SORT_OPTIONS.find((o) => o.value === field);
   return option?.defaultDirection ?? 'desc';
 }
+
+// ============================================================================
+// Category Helpers
+// ============================================================================
+
+/**
+ * Gets the display label for a document category.
+ * For 'other' category, returns the custom category name if available,
+ * otherwise returns 'Other'.
+ */
+export function getCategoryDisplayLabel(
+  category?: string,
+  metadata?: { customCategory?: string }
+): string {
+  if (!category) {
+    return 'Other';
+  }
+
+  // For 'other' category, use custom category name if available
+  if (category === 'other' && metadata?.customCategory) {
+    return metadata.customCategory;
+  }
+
+  // Import the labels dynamically to avoid circular dependency
+  const { DOCUMENT_CATEGORY_LABELS } = require('./constants');
+  return DOCUMENT_CATEGORY_LABELS[category] || category;
+}

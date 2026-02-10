@@ -44,3 +44,24 @@ export const EMPTY_DOCUMENT_FILTER: DocumentFilterConfig = {
   contentTypes: [],
   tags: [],
 };
+
+// ============================================================================
+// Document Category Labels
+// ============================================================================
+
+export const DOCUMENT_CATEGORY_LABELS: Record<string, string> = {
+  'spec': 'Spec',
+  'prd': 'PRD',
+  'decision-log': 'Decision Log',
+  'changelog': 'Changelog',
+  'tutorial': 'Tutorial',
+  'how-to': 'How-To',
+  'explanation': 'Explanation',
+  'reference': 'Reference',
+  'runbook': 'Runbook',
+  'meeting-notes': 'Meeting Notes',
+  'post-mortem': 'Post-Mortem',
+  'task-description': 'Task Description',
+  'message-content': 'Message Content',
+  'other': 'Other',
+};
