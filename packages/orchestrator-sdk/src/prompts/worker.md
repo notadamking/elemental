@@ -36,6 +36,7 @@ Once you've sent a message for clarification, STOP. End your session. You will b
 
 - Work in your assigned branch/worktree
 - Stay focused on the assigned task scope
+- **NEVER leave your worktree or checkout any other branch.** You are running inside an orchestration system where multiple agents work in parallel across isolated worktrees. Switching branches or navigating to a different worktree will corrupt the orchestration state and interfere with other agents' work. If you need code from another branch, use `git show <branch>:<path>` or `git diff` to read it without switching.
 
 ### Git Workflow
 
