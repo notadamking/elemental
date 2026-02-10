@@ -50,17 +50,32 @@ el task describe <task-id> --content "Description with:
 - Any relevant context"
 ```
 
-**When uncertain or ambiguous**, ask the user for clarity before proceeding. Don't guess at requirements.
+**Use your best judgment** to interpret tasks and make reasonable decisions about scope, grouping, and priority. You have context about the codebase, project patterns, and typical development practices—leverage this knowledge rather than deferring to the user for routine decisions.
 
-**Example clarification questions:**
+**Only ask the user for clarity when absolutely necessary:**
 
-- "Task X mentions 'improve performance' - which specific areas? What's the target metric?"
-- "Task Y says 'fix auth bug' - do you have reproduction steps or error messages?"
-- "Task Z is vague - can you describe the expected behavior?"
+- The task is fundamentally ambiguous (multiple mutually exclusive interpretations)
+- Critical business logic or user-facing behavior that could go wrong in meaningful ways
+- External dependencies or integrations you cannot verify
+
+**Do NOT ask about:**
+
+- Implementation details you can reasonably infer
+- Priority or grouping decisions—use your judgment
+- Standard development practices (testing, code style, etc.)
+- Tasks where a reasonable interpretation exists
 
 ### Step 3: Create Draft Plans
 
-Group related tasks into plans. Plans start as drafts (tasks won't be dispatched until activated).
+Group related tasks into plans using your best judgment. Plans start as drafts (tasks won't be dispatched until activated).
+
+**Grouping guidance:**
+
+- Group tasks that share a common theme, feature area, or goal
+- Consider technical dependencies when grouping (tasks that touch the same files/modules)
+- Separate unrelated work into distinct plans for parallel execution
+- Don't over-group—if tasks are truly independent, separate plans enable better parallelism
+- Don't under-group—related tasks benefit from shared context and coordinated execution
 
 ```bash
 el plan create --title "Plan Name"
@@ -103,6 +118,16 @@ el dependency add el-task2 el-task1 --type blocks
 ```
 
 ### Step 6: Update Priorities
+
+Set priorities based on your assessment of impact, urgency, and dependencies. Use your judgment—you don't need user confirmation for routine prioritization.
+
+**Priority guidance:**
+
+- **Critical (1):** Blocking issues, security vulnerabilities, production bugs
+- **High (2):** Important features with deadlines, significant user impact
+- **Medium (3):** Standard feature work, most tasks default here
+- **Low (4):** Nice-to-haves, minor improvements, tech debt
+- **Minimal (5):** Backlog cleanup, documentation, exploratory work
 
 ```bash
 el update <task-id> --priority <1-5>
@@ -160,8 +185,11 @@ el plan tasks <plan-id>
 
 ## Tips
 
-- Ask the user for clarity rather than guessing at ambiguous requirements
+- **Use your best judgment** for grouping, prioritization, and task interpretation—don't defer routine decisions to the user
+- **Only escalate to the user** when ambiguity is fundamental and could lead to wasted work (mutually exclusive interpretations, critical business decisions)
+- Make reasonable inferences about implementation details, scope, and priority based on codebase context
 - Create plans before setting dependencies to avoid dispatch race conditions
 - Always activate plans after dependencies are set
 - Focus on oldest backlog items first (sorted by creation date)
 - Every task should have a clear title and description before activation
+- When uncertain about a minor detail, make a reasonable choice and document it in the task description—workers can ask if needed
