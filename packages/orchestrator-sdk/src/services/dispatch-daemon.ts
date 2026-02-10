@@ -1705,16 +1705,6 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       parts.push('', '### Acceptance Criteria', task.acceptanceCriteria);
     }
 
-    // Instructions for the merge steward
-    parts.push(
-      '',
-      '### Instructions',
-      '1. Review the PR at the URL above (if available) or check the branch directly.',
-      '2. Run tests on the branch to verify the changes.',
-      `3. If tests pass and the code meets acceptance criteria: merge the PR and run \`el task close ${task.id}\`.`,
-      `4. If issues are found: create a fix task with \`el task create-fix ${task.id} --reason "description of the issue"\`.`,
-    );
-
     return parts.join('\n');
   }
 

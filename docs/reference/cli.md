@@ -750,14 +750,21 @@ el merge --cleanup --message "docs: automated documentation fixes"
 | Command                                    | Description                            |
 | ------------------------------------------ | -------------------------------------- |
 | `el task handoff <id>`                     | Hand off task to another agent         |
-| `el task complete <id>`                    | Complete task and create merge request |
-| `el task merge <id>`                       | Mark task as merged and close it       |
+| `el task complete <id>`                    | Complete task and create merge request (OPEN/IN_PROGRESS only) |
+| `el task merge <id>`                       | Squash-merge task branch and close it  |
 | `el task reject <id>`                      | Mark merge as failed and reopen task   |
 | `el task merge-status <id> <status>`       | Update the merge status of a task      |
 
 #### task merge
 
-Mark a task as merged and close it.
+Squash-merge a task's branch into the target branch and close it. The task must be in REVIEW status with an associated branch.
+
+This command:
+1. Validates the task is in REVIEW status with a branch
+2. Squash-merges the branch into the target branch (auto-detected)
+3. Pushes to remote
+4. Atomically sets merge status to `merged` and closes the task
+5. Cleans up the source branch (local + remote) and worktree
 
 | Option                 | Description          |
 | ---------------------- | -------------------- |
@@ -795,16 +802,18 @@ Valid status values:
 - `pending` - Task completed, awaiting merge
 - `testing` - Steward is running tests on the branch
 - `merging` - Tests passed, merge in progress
-- `merged` - Successfully merged
+- `merged` - Successfully merged (**terminal** — also closes the task)
 - `conflict` - Merge conflict detected
 - `test_failed` - Tests failed, needs attention
 - `failed` - Merge failed for other reason
-- `not_applicable` - No merge needed (issue already fixed on master)
+- `not_applicable` - No merge needed, e.g. fix already on master (**terminal** — also closes the task)
+
+Terminal statuses (`merged`, `not_applicable`) atomically set the task to CLOSED in a single API call.
 
 ```bash
 el task merge-status el-abc123 merged
 el task merge-status el-abc123 pending
-el task merge-status el-abc123 test_failed
+el task merge-status el-abc123 not_applicable
 ```
 
 ## Short IDs

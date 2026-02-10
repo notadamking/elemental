@@ -283,6 +283,23 @@ describe('TaskAssignmentService', () => {
         service.completeTask('el-nonexistent' as ElementId)
       ).rejects.toThrow('Task not found');
     });
+
+    test('throws error when task is already CLOSED', async () => {
+      const task = await createTestTask('Closed task', TaskStatus.CLOSED);
+      await expect(
+        service.completeTask(task.id, { createMergeRequest: false })
+      ).rejects.toThrow("already in 'closed' status");
+    });
+
+    test('throws error when task is already in REVIEW', async () => {
+      const task = await createTestTask('Review task', TaskStatus.IN_PROGRESS);
+      // Complete once to move to REVIEW
+      await service.completeTask(task.id, { createMergeRequest: false });
+      // Attempting to complete again should fail
+      await expect(
+        service.completeTask(task.id, { createMergeRequest: false })
+      ).rejects.toThrow("already in 'review' status");
+    });
   });
 
   describe('handoffTask', () => {

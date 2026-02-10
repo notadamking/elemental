@@ -136,9 +136,7 @@ git diff origin/master..HEAD
 # IMPORTANT: Commit any in-progress work first!
 el task sync <task-id>
 
-# Approve and merge
-gh pr merge <pr-number> --merge
-git worktree remove <worktree-path>
+# Approve and merge — squash-merges, pushes, cleans up branch/worktree, and closes the task
 el task merge <task-id>
 
 # Request changes — reject and reopen for another worker
@@ -149,7 +147,8 @@ el task handoff <task-id> --message "Review feedback: ..."
 
 # Report pre-existing issues to the Director
 el message send --from <Steward ID> --to <Director ID> --content "Found pre-existing issue during review of <task-id>: <description>. Please create a task to address this."
-
-# Close your workflow task
-el task complete <workflow-task-id>
 ```
+
+> **NEVER** use `el task complete` for the task you are merging.
+> `el task complete` is for workers finishing implementation — it resets
+> the task to REVIEW status. Use only `el task merge` to merge and close.

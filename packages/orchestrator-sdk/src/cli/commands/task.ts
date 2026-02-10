@@ -12,7 +12,7 @@
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '@elemental/sdk/cli';
 import { success, failure, ExitCode, getOutputMode } from '@elemental/sdk/cli';
 import type { ElementId, Task } from '@elemental/core';
-import { TaskStatus } from '@elemental/core';
+import { TaskStatus, createTimestamp } from '@elemental/core';
 
 // ============================================================================
 // Shared Helpers
@@ -397,20 +397,101 @@ async function taskMergeHandler(
   }
 
   try {
-    await api.updateTaskOrchestratorMeta(taskId as ElementId, {
-      mergeStatus: 'merged',
-      completedAt: new Date().toISOString(),
-      ...(options.summary ? { completionSummary: options.summary } : {}),
+    // 1. Get task and validate
+    const task = await api.get<Task>(taskId as ElementId);
+    if (!task) {
+      return failure(`Task not found: ${taskId}`, ExitCode.GENERAL_ERROR);
+    }
+    if (task.status !== TaskStatus.REVIEW) {
+      return failure(
+        `Task ${taskId} is in '${task.status}' status. Only REVIEW tasks can be merged.`,
+        ExitCode.GENERAL_ERROR
+      );
+    }
+
+    const { getOrchestratorTaskMeta, updateOrchestratorTaskMeta } = await import('../../types/task-meta.js');
+    const orchestratorMeta = getOrchestratorTaskMeta(task.metadata as Record<string, unknown>);
+    const sourceBranch = orchestratorMeta?.branch;
+
+    if (!sourceBranch) {
+      return failure(`Task ${taskId} has no branch in orchestrator metadata.`, ExitCode.GENERAL_ERROR);
+    }
+
+    // 2. Derive workspace root from .elemental dir
+    const { findElementalDir } = await import('@elemental/sdk');
+    const elementalDir = findElementalDir(process.cwd());
+    if (!elementalDir) {
+      return failure('No .elemental directory found. Run "el init" first.', ExitCode.GENERAL_ERROR);
+    }
+    const { default: path } = await import('node:path');
+    const workspaceRoot = path.dirname(elementalDir);
+
+    // 3. Call mergeBranch()
+    const { mergeBranch } = await import('../../git/merge.js');
+    const commitMessage = `${task.title} (${taskId})`;
+
+    const mergeResult = await mergeBranch({
+      workspaceRoot,
+      sourceBranch,
+      commitMessage,
     });
 
-    await api.update<Task>(taskId as ElementId, { status: TaskStatus.CLOSED });
+    if (!mergeResult.success) {
+      const lines = [`Failed to merge task ${taskId}: ${mergeResult.error}`];
+      if (mergeResult.conflictFiles?.length) {
+        lines.push('Conflict files:');
+        for (const f of mergeResult.conflictFiles) {
+          lines.push(`  - ${f}`);
+        }
+      }
+      return failure(lines.join('\n'), ExitCode.GENERAL_ERROR);
+    }
 
+    // 4. Atomic status update: set mergeStatus + close in one call
+    const now = createTimestamp();
+    const newMeta = updateOrchestratorTaskMeta(
+      task.metadata as Record<string, unknown>,
+      {
+        mergeStatus: 'merged' as import('../../types/task-meta.js').MergeStatus,
+        completedAt: now,
+        ...(options.summary ? { completionSummary: options.summary } : {}),
+      }
+    );
+
+    await api.update<Task>(taskId as ElementId, {
+      status: TaskStatus.CLOSED,
+      closedAt: now,
+      metadata: newMeta,
+    });
+
+    // 5. Clean up: delete source branch and remove task worktree (best-effort)
+    const { exec } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const execAsync = promisify(exec);
+
+    try {
+      await execAsync(`git branch -D ${sourceBranch}`, { cwd: workspaceRoot });
+    } catch { /* branch may not exist locally */ }
+
+    try {
+      await execAsync(`git push origin --delete ${sourceBranch}`, { cwd: workspaceRoot });
+    } catch { /* branch may not exist on remote */ }
+
+    const worktreePath = orchestratorMeta?.worktree;
+    if (worktreePath) {
+      try {
+        await execAsync(`git worktree remove --force "${worktreePath}"`, { cwd: workspaceRoot });
+      } catch { /* worktree may already be gone */ }
+    }
+
+    // 6. Output result
     const mode = getOutputMode(options);
 
     if (mode === 'json') {
       return success({
         taskId,
         mergeStatus: 'merged',
+        commitHash: mergeResult.commitHash,
       });
     }
 
@@ -420,13 +501,15 @@ async function taskMergeHandler(
 
     const lines = [
       `Merged task ${taskId}`,
+      `  Commit: ${mergeResult.commitHash}`,
       '  Merge Status: merged',
+      '  Task Status: CLOSED',
     ];
     if (options.summary) {
       lines.push(`  Summary: ${options.summary.slice(0, 50)}${options.summary.length > 50 ? '...' : ''}`);
     }
 
-    return success({ taskId, mergeStatus: 'merged' }, lines.join('\n'));
+    return success({ taskId, mergeStatus: 'merged', commitHash: mergeResult.commitHash }, lines.join('\n'));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return failure(`Failed to merge task: ${message}`, ExitCode.GENERAL_ERROR);
@@ -435,14 +518,16 @@ async function taskMergeHandler(
 
 export const taskMergeCommand: Command = {
   name: 'merge',
-  description: 'Mark a task as merged and close it',
+  description: 'Squash-merge a task branch and close the task',
   usage: 'el task merge <task-id> [options]',
-  help: `Mark a task as merged and close it.
+  help: `Squash-merge a task's branch into the target branch and close it.
 
 This command:
-1. Sets the task's merge status to "merged"
-2. Records the completion timestamp
-3. Closes the task
+1. Validates the task is in REVIEW status with an associated branch
+2. Squash-merges the branch into the target branch (auto-detected)
+3. Pushes to remote
+4. Atomically sets merge status to "merged" and closes the task
+5. Cleans up the source branch (local + remote) and worktree
 
 Arguments:
   task-id    Task identifier to merge
@@ -874,9 +959,30 @@ async function taskMergeStatusHandler(
   }
 
   try {
-    await api.updateTaskOrchestratorMeta(taskId as ElementId, {
-      mergeStatus: status,
-    });
+    // Terminal statuses (merged, not_applicable) also close the task atomically
+    if (status === 'merged' || status === 'not_applicable') {
+      const task = await api.get<Task>(taskId as ElementId);
+      if (!task) {
+        return failure(`Task not found: ${taskId}`, ExitCode.GENERAL_ERROR);
+      }
+
+      const { updateOrchestratorTaskMeta } = await import('../../types/task-meta.js');
+      const now = createTimestamp();
+      const newMeta = updateOrchestratorTaskMeta(
+        task.metadata as Record<string, unknown>,
+        { mergeStatus: status }
+      );
+
+      await api.update<Task>(taskId as ElementId, {
+        status: TaskStatus.CLOSED,
+        closedAt: now,
+        metadata: newMeta,
+      });
+    } else {
+      await api.updateTaskOrchestratorMeta(taskId as ElementId, {
+        mergeStatus: status,
+      });
+    }
 
     const mode = getOutputMode(options);
 
@@ -891,13 +997,16 @@ async function taskMergeStatusHandler(
       return success(taskId);
     }
 
+    const statusLine = (status === 'merged' || status === 'not_applicable')
+      ? `Updated task ${taskId}\n  Merge Status: ${status}\n  Task Status: CLOSED`
+      : `Updated task ${taskId}\n  Merge Status: ${status}`;
+
     return success(
       { taskId, mergeStatus: status },
-      `Updated task ${taskId}\n  Merge Status: ${status}`
+      statusLine
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    // Check if it's a "not found" error
     if (message.includes('not found') || message.includes('Task not found')) {
       return failure(`Task not found: ${taskId}`, ExitCode.GENERAL_ERROR);
     }

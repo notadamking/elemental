@@ -743,7 +743,7 @@ The merge runs in two phases to avoid branch locking issues:
 
 ### Worktree Safety
 
-The `attemptMerge()` method uses `execGitSafe()` for all git operations within the merge flow. This helper rejects any command where the working directory resolves to the main workspace root, preventing accidental HEAD corruption. Only worktree creation/removal and the post-merge local sync (Phase B) intentionally operate on the main repo. The temp worktree uses a detached HEAD (`--detach`) so it never locks the target branch — this allows Phase B to check out and sync the target branch after cleanup.
+The `attemptMerge()` method delegates to the shared `mergeBranch()` utility (`git/merge.ts`), which is also used by `DocsStewardService.mergeAndCleanup()`. The merge utility uses `execGitSafe()` for all git operations within the merge flow — this helper rejects any command where the working directory resolves to the main workspace root, preventing accidental HEAD corruption. Only worktree creation/removal and the post-merge local sync (Phase B) intentionally operate on the main repo. The temp worktree uses a detached HEAD (`--detach`) so it never locks the target branch — this allows Phase B to check out and sync the target branch after cleanup.
 
 ### Methods
 

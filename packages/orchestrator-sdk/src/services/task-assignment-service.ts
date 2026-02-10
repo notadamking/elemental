@@ -473,6 +473,12 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       throw new Error(`Task not found: ${taskId}`);
     }
 
+    if (task.status === TaskStatus.CLOSED || task.status === TaskStatus.REVIEW) {
+      throw new Error(
+        `Cannot complete task ${taskId}: task is already in '${task.status}' status`
+      );
+    }
+
     const currentMeta = getOrchestratorTaskMeta(task.metadata as Record<string, unknown> | undefined);
     const branch = currentMeta?.branch;
 

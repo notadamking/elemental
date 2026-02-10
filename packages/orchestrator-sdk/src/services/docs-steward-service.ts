@@ -639,7 +639,6 @@ export class DocsStewardServiceImpl implements DocsStewardService {
     branchName: string,
     commitMessage: string
   ): Promise<DocsMergeResult> {
-    const targetBranch = await this.getTargetBranch();
     const worktreePath = this.sessionWorktreePath;
 
     if (!worktreePath) {
@@ -650,79 +649,24 @@ export class DocsStewardServiceImpl implements DocsStewardService {
       };
     }
 
-    // Create a temporary merge worktree
-    const mergeDirName = `_merge-docs-${Date.now()}`;
-    const mergeDir = path.join(
-      this.config.workspaceRoot,
-      '.elemental/.worktrees',
-      mergeDirName
-    );
+    const { mergeBranch } = await import('../git/merge.js');
 
-    try {
-      // Fetch latest
-      await execAsync('git fetch origin', { cwd: this.config.workspaceRoot });
+    const result = await mergeBranch({
+      workspaceRoot: this.config.workspaceRoot,
+      sourceBranch: branchName,
+      targetBranch: await this.getTargetBranch(),
+      mergeStrategy: 'squash',
+      autoPush: this.config.autoPush,
+      commitMessage,
+      preflight: false,
+      syncLocal: false,
+    });
 
-      // Create merge worktree at target branch
-      await execAsync(`git worktree add --detach "${mergeDir}" origin/${targetBranch}`, {
-        cwd: this.config.workspaceRoot,
-      });
-
-      // Squash merge the docs branch
-      await execAsync(`git merge --squash ${branchName}`, { cwd: mergeDir });
-
-      // Commit the squash
-      await execAsync(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`, {
-        cwd: mergeDir,
-      });
-
-      // Get the commit hash
-      const { stdout: hash } = await execAsync('git rev-parse HEAD', {
-        cwd: mergeDir,
-      });
-      const commitHash = hash.trim();
-
-      // Push if enabled
-      if (this.config.autoPush) {
-        await execAsync(`git push origin HEAD:${targetBranch}`, {
-          cwd: mergeDir,
-        });
-      }
-
-      // Cleanup merge worktree
-      await execAsync(`git worktree remove --force "${mergeDir}"`, {
-        cwd: this.config.workspaceRoot,
-      });
-
-      // Cleanup session worktree and branch
+    if (result.success) {
       await this.cleanupSession(worktreePath, branchName);
-
-      return {
-        success: true,
-        commitHash,
-        hasConflict: false,
-      };
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-
-      // Check for conflict
-      const hasConflict =
-        errorMsg.includes('CONFLICT') || errorMsg.includes('Automatic merge failed');
-
-      // Cleanup merge worktree
-      try {
-        await execAsync(`git worktree remove --force "${mergeDir}"`, {
-          cwd: this.config.workspaceRoot,
-        });
-      } catch {
-        // Ignore cleanup errors
-      }
-
-      return {
-        success: false,
-        error: errorMsg,
-        hasConflict,
-      };
     }
+
+    return result;
   }
 
   async cleanupSession(worktreePath: string, branchName: string): Promise<void> {
