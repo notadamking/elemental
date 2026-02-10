@@ -6,6 +6,7 @@
  */
 
 import { resolve, dirname, extname } from 'node:path';
+import { mkdirSync } from 'node:fs';
 import { mkdir, readdir, unlink, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { Hono } from 'hono';
@@ -117,6 +118,9 @@ let inboxService: InboxService;
 let storageBackend: ReturnType<typeof createStorage>;
 
 try {
+  if (DB_PATH !== ':memory:') {
+    mkdirSync(dirname(DB_PATH), { recursive: true });
+  }
   storageBackend = createStorage({ path: DB_PATH });
   initializeSchema(storageBackend);
   api = createElementalAPI(storageBackend);
