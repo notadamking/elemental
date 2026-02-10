@@ -179,7 +179,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | Message mapper | `runtime/message-mapper.ts` | - |
 | Prompts | `prompts/index.ts` | - |
 | Message triage prompt | `prompts/message-triage.md` | - |
+| Docs steward prompt | `prompts/steward-docs.md` | - |
 | Worktree manager | `git/worktree-manager.ts` | `git/worktree-manager.test.ts` |
+| Docs steward service | `services/docs-steward-service.ts` | `services/docs-steward-service.test.ts` |
 
 ## File Map (Platform)
 

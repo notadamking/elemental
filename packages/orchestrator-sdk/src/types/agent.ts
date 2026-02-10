@@ -73,13 +73,14 @@ export function isWorkerMode(value: unknown): value is WorkerMode {
  * - `health`: Monitors agent health, detects stuck agents, helps unstick
  * - `reminder`: Sends reminders and notifications
  * - `ops`: Runs scheduled maintenance tasks, garbage collection
+ * - `docs`: Scans and fixes documentation issues, auto-merges fixes
  */
-export type StewardFocus = 'merge' | 'health' | 'reminder' | 'ops';
+export type StewardFocus = 'merge' | 'health' | 'reminder' | 'ops' | 'docs';
 
 /**
  * All valid steward focus values
  */
-export const StewardFocusValues = ['merge', 'health', 'reminder', 'ops'] as const;
+export const StewardFocusValues = ['merge', 'health', 'reminder', 'ops', 'docs'] as const;
 
 /**
  * Type guard to check if a value is a valid StewardFocus

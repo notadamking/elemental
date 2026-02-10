@@ -41,6 +41,7 @@ const PROMPT_FILES = {
   'steward-health': 'steward-health.md',
   'steward-ops': 'steward-ops.md',
   'steward-reminder': 'steward-reminder.md',
+  'steward-docs': 'steward-docs.md',
   'message-triage': 'message-triage.md',
 } as const;
 

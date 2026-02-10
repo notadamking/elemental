@@ -203,6 +203,24 @@ export {
   createHealthStewardService,
 } from './health-steward-service.js';
 
+// Docs steward service
+export {
+  // Types
+  type DocIssueType,
+  type FixConfidence,
+  type IssueComplexity,
+  type DocIssue,
+  type VerificationResult,
+  type SessionWorktreeInfo,
+  type DocsMergeResult,
+  type DocsStewardConfig,
+  type DocsStewardService,
+  // Implementation
+  DocsStewardServiceImpl,
+  // Factory
+  createDocsStewardService,
+} from './docs-steward-service.js';
+
 // Dispatch daemon service
 export {
   // Constants
