@@ -18,7 +18,7 @@ import {
   Shrink,
   Copy,
 } from 'lucide-react';
-import { DocumentTagInput } from '@elemental/ui/documents';
+import { DocumentTagInput, DocumentCategory, DOCUMENT_CATEGORY_LABELS, getCategoryDisplayLabel } from '@elemental/ui/documents';
 import {
   useDocument,
   useUpdateDocument,
@@ -67,6 +67,11 @@ export function DocumentDetailPanel({
   const [editedTitle, setEditedTitle] = useState('');
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [previewingVersion, setPreviewingVersion] = useState<number | null>(null);
+
+  // Category editing state
+  const [editingCategory, setEditingCategory] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [customCategoryInput, setCustomCategoryInput] = useState('');
 
   // Fetch the previewing version content
   const { data: previewDocument } = useDocumentVersion(
@@ -131,6 +136,54 @@ export function DocumentDetailPanel({
     } catch {
       // Error handling is done by the mutation
     }
+  };
+
+  // Start editing category
+  const handleStartEditCategory = () => {
+    if (document) {
+      setSelectedCategory(document.category || DocumentCategory.OTHER);
+      setCustomCategoryInput(document.metadata?.customCategory || '');
+      setEditingCategory(true);
+    }
+  };
+
+  // Save category changes
+  const handleSaveCategory = async () => {
+    if (!document) return;
+
+    try {
+      const updates: Partial<Pick<DocumentType, 'category' | 'metadata'>> = {
+        category: selectedCategory,
+      };
+
+      // If category is 'other', save the custom category in metadata
+      if (selectedCategory === DocumentCategory.OTHER && customCategoryInput) {
+        updates.metadata = {
+          ...document.metadata,
+          customCategory: customCategoryInput,
+        };
+      } else {
+        // Remove customCategory from metadata if not using 'other'
+        const newMetadata = { ...document.metadata };
+        delete newMetadata.customCategory;
+        updates.metadata = newMetadata;
+      }
+
+      await updateDocument.mutateAsync({
+        id: documentId,
+        updates,
+      });
+      setEditingCategory(false);
+    } catch {
+      // Error handling is done by the mutation
+    }
+  };
+
+  // Cancel category editing
+  const handleCancelEditCategory = () => {
+    setEditingCategory(false);
+    setSelectedCategory('');
+    setCustomCategoryInput('');
   };
 
   if (isLoading) {
@@ -246,6 +299,73 @@ export function DocumentDetailPanel({
               <span className="font-mono">{document.createdBy}</span>
             </div>
           </div>
+
+          {/* Category - editable, only show for current version, not preview */}
+          {!previewingVersion && (
+            <div className="mt-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Category:</span>
+                {editingCategory ? (
+                  <div className="flex items-center gap-2 flex-1">
+                    <select
+                      value={selectedCategory}
+                      onChange={(e) => setSelectedCategory(e.target.value)}
+                      data-testid="document-category-select"
+                      className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-200"
+                    >
+                      {Object.entries(DOCUMENT_CATEGORY_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedCategory === DocumentCategory.OTHER && (
+                      <input
+                        type="text"
+                        value={customCategoryInput}
+                        onChange={(e) => setCustomCategoryInput(e.target.value)}
+                        placeholder="Custom category name"
+                        data-testid="document-custom-category-input"
+                        className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-200 flex-1"
+                      />
+                    )}
+                    <button
+                      onClick={handleSaveCategory}
+                      disabled={updateDocument.isPending}
+                      data-testid="document-category-save"
+                      className="text-xs px-2 py-1 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/30 rounded disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={handleCancelEditCategory}
+                      disabled={updateDocument.isPending}
+                      data-testid="document-category-cancel"
+                      className="text-xs px-2 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 rounded disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span
+                      data-testid="document-detail-category"
+                      className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                    >
+                      {getCategoryDisplayLabel(document.category, document.metadata)}
+                    </span>
+                    <button
+                      onClick={handleStartEditCategory}
+                      data-testid="document-category-edit"
+                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Action buttons - simplified on mobile */}

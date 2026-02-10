@@ -36,6 +36,8 @@ export interface DocumentType {
   title?: string;
   content?: string;
   contentType: string;
+  /** Document category for knowledge taxonomy */
+  category?: string;
   version?: number;
   createdAt: string;
   updatedAt: string;
@@ -43,6 +45,8 @@ export interface DocumentType {
   tags: string[];
   metadata?: {
     icon?: string;
+    /** Custom category label when category is 'other' */
+    customCategory?: string;
     [key: string]: unknown;
   };
 }
