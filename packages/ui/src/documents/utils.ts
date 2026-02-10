@@ -5,7 +5,7 @@
  */
 
 import type { DocumentSortField, SortDirection, DocumentFilterConfig } from './types';
-import { DOCUMENT_STORAGE_KEYS, DOCUMENT_SORT_OPTIONS } from './constants';
+import { DOCUMENT_STORAGE_KEYS, DOCUMENT_SORT_OPTIONS, DOCUMENT_CATEGORY_LABELS, DocumentCategory, type DocumentCategoryValue } from './constants';
 
 // ============================================================================
 // Sort Storage
@@ -106,4 +106,40 @@ export function hasActiveFilters(config: DocumentFilterConfig): boolean {
 export function getDefaultDirection(field: DocumentSortField): SortDirection {
   const option = DOCUMENT_SORT_OPTIONS.find((o) => o.value === field);
   return option?.defaultDirection ?? 'desc';
+}
+
+// ============================================================================
+// Category Helpers
+// ============================================================================
+
+/**
+ * Gets the display label for a document category.
+ * For 'other' category, returns the customCategory from metadata if available.
+ *
+ * @param category - The document category value
+ * @param metadata - Optional document metadata containing customCategory
+ * @returns The display label for the category
+ */
+export function getCategoryDisplayLabel(
+  category: string | undefined,
+  metadata?: { customCategory?: string; [key: string]: unknown }
+): string {
+  if (!category) {
+    return DOCUMENT_CATEGORY_LABELS[DocumentCategory.OTHER];
+  }
+
+  // If category is 'other' and we have a customCategory in metadata, use that
+  if (category === DocumentCategory.OTHER && metadata?.customCategory) {
+    return metadata.customCategory;
+  }
+
+  // Return the standard label or the raw category value if not found
+  return DOCUMENT_CATEGORY_LABELS[category as DocumentCategoryValue] ?? category;
+}
+
+/**
+ * Checks if a category value is a valid DocumentCategory
+ */
+export function isValidCategory(value: string): value is DocumentCategoryValue {
+  return Object.values(DocumentCategory).includes(value as DocumentCategoryValue);
 }

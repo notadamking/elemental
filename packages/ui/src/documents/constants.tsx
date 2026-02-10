@@ -44,3 +44,52 @@ export const EMPTY_DOCUMENT_FILTER: DocumentFilterConfig = {
   contentTypes: [],
   tags: [],
 };
+
+// ============================================================================
+// Document Categories
+// ============================================================================
+
+/**
+ * Document category values matching @elemental/core DocumentCategory
+ */
+export const DocumentCategory = {
+  // Knowledge categories
+  SPEC: 'spec',
+  PRD: 'prd',
+  DECISION_LOG: 'decision-log',
+  CHANGELOG: 'changelog',
+  TUTORIAL: 'tutorial',
+  HOW_TO: 'how-to',
+  EXPLANATION: 'explanation',
+  REFERENCE: 'reference',
+  RUNBOOK: 'runbook',
+  MEETING_NOTES: 'meeting-notes',
+  POST_MORTEM: 'post-mortem',
+  // System categories
+  TASK_DESCRIPTION: 'task-description',
+  MESSAGE_CONTENT: 'message-content',
+  // Fallback
+  OTHER: 'other',
+} as const;
+
+export type DocumentCategoryValue = (typeof DocumentCategory)[keyof typeof DocumentCategory];
+
+/**
+ * Human-readable labels for document categories
+ */
+export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategoryValue, string> = {
+  [DocumentCategory.SPEC]: 'Spec',
+  [DocumentCategory.PRD]: 'PRD',
+  [DocumentCategory.DECISION_LOG]: 'Decision Log',
+  [DocumentCategory.CHANGELOG]: 'Changelog',
+  [DocumentCategory.TUTORIAL]: 'Tutorial',
+  [DocumentCategory.HOW_TO]: 'How-To',
+  [DocumentCategory.EXPLANATION]: 'Explanation',
+  [DocumentCategory.REFERENCE]: 'Reference',
+  [DocumentCategory.RUNBOOK]: 'Runbook',
+  [DocumentCategory.MEETING_NOTES]: 'Meeting Notes',
+  [DocumentCategory.POST_MORTEM]: 'Post-Mortem',
+  [DocumentCategory.TASK_DESCRIPTION]: 'Task Description',
+  [DocumentCategory.MESSAGE_CONTENT]: 'Message',
+  [DocumentCategory.OTHER]: 'Other',
+};

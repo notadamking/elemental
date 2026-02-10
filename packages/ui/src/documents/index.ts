@@ -26,7 +26,10 @@ export {
   CONTENT_TYPE_FILTER_OPTIONS,
   DOCUMENT_STORAGE_KEYS,
   EMPTY_DOCUMENT_FILTER,
+  DocumentCategory,
+  DOCUMENT_CATEGORY_LABELS,
 } from './constants';
+export type { DocumentCategoryValue } from './constants';
 
 // Utilities
 export {
@@ -36,6 +39,8 @@ export {
   getActiveFilterCount,
   hasActiveFilters,
   getDefaultDirection,
+  getCategoryDisplayLabel,
+  isValidCategory,
 } from './utils';
 
 // Components
