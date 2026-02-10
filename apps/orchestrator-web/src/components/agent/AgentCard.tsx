@@ -154,6 +154,7 @@ export function AgentCard({
                   text-[var(--color-text-secondary)]
                   hover:bg-[var(--color-surface-hover)]
                   hover:text-[var(--color-text)]
+                  whitespace-nowrap
                 "
                 data-testid={`agent-change-provider-${agent.id}`}
               >
