@@ -9,6 +9,7 @@ import type { CLIPlugin } from '@elemental/sdk/cli';
 import { agentCommand } from './commands/agent.js';
 import { daemonCommand } from './commands/daemon.js';
 import { dispatchCommand } from './commands/dispatch.js';
+import { mergeCommand } from './commands/merge.js';
 import { taskCommand } from './commands/task.js';
 
 /**
@@ -18,12 +19,13 @@ import { taskCommand } from './commands/task.js';
  * - `agent`: Manage orchestrator agents (list, show, register, start, stop, stream)
  * - `daemon`: Manage the dispatch daemon (start, stop, status)
  * - `dispatch`: Dispatch tasks to agents
+ * - `merge`: Squash-merge a branch into the default branch
  * - `task`: Task management (handoff, complete)
  */
 export const cliPlugin: CLIPlugin = {
   name: 'orchestrator',
   version: '0.1.0',
-  commands: [agentCommand, daemonCommand, dispatchCommand, taskCommand],
+  commands: [agentCommand, daemonCommand, dispatchCommand, mergeCommand, taskCommand],
   aliases: {
     agents: 'agent list',
   },

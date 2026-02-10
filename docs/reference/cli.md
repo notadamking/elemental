@@ -716,6 +716,35 @@ el dispatch smart el-task123
 el dispatch smart el-task123 --branch feature/task
 ```
 
+### Merge Command
+
+| Command    | Description                                      |
+| ---------- | ------------------------------------------------ |
+| `el merge` | Squash-merge a branch into the default branch    |
+
+Squash-merge a source branch into the default branch (master/main). Used by persistent workers and docs stewards to merge their work.
+
+| Option                    | Description                                        |
+| ------------------------- | -------------------------------------------------- |
+| `-b, --branch <name>`     | Source branch to merge (default: current branch)   |
+| `-i, --into <name>`       | Target branch (default: master/main auto-detected) |
+| `-m, --message <text>`    | Commit message (default: "Merge \<branch\>")       |
+| `--cleanup`               | Delete source branch and worktree after merge      |
+
+```bash
+# Squash-merge current branch into master
+el merge
+
+# With a descriptive commit message
+el merge --message "feat: implement user authentication"
+
+# Merge a specific branch
+el merge --branch feature/xyz --into main
+
+# Merge and clean up (used by docs steward)
+el merge --cleanup --message "docs: automated documentation fixes"
+```
+
 ### Orchestrator Task Commands
 
 | Command                                    | Description                            |

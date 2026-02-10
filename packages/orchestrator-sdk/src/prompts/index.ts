@@ -10,7 +10,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AgentRole, StewardFocus } from '../types/index.js';
+import type { AgentRole, StewardFocus, WorkerMode } from '../types/index.js';
 
 // ============================================================================
 // Constants
@@ -36,6 +36,7 @@ const PROJECT_PROMPTS_DIR = '.elemental/prompts';
 const PROMPT_FILES = {
   director: 'director.md',
   worker: 'worker.md',
+  'persistent-worker': 'persistent-worker.md',
   'steward-base': 'steward-base.md',
   'steward-merge': 'steward-merge.md',
   'steward-health': 'steward-health.md',
@@ -60,6 +61,13 @@ export interface LoadPromptOptions {
    * If true, skip project overrides and only use built-in prompts
    */
   builtInOnly?: boolean;
+
+  /**
+   * For workers, specifies whether to load the ephemeral or persistent worker prompt.
+   * When 'persistent', loads persistent-worker.md instead of worker.md.
+   * Defaults to ephemeral behavior (worker.md) for backward compatibility.
+   */
+  workerMode?: WorkerMode;
 }
 
 export interface RolePromptResult {
@@ -113,11 +121,13 @@ function getProjectPromptPath(projectRoot: string, filename: string): string {
  *
  * @param role - The agent role
  * @param stewardFocus - For stewards, the focus area
+ * @param workerMode - For workers, whether to load persistent or ephemeral prompt
  * @returns The prompt content, or undefined if not found
  */
 export function loadBuiltInPrompt(
   role: AgentRole,
-  stewardFocus?: StewardFocus
+  stewardFocus?: StewardFocus,
+  workerMode?: WorkerMode
 ): string | undefined {
   if (role === 'steward') {
     // Stewards combine base + focus
@@ -143,7 +153,10 @@ export function loadBuiltInPrompt(
     return `${baseContent}\n\n${focusContent}`;
   }
 
-  const filename = PROMPT_FILES[role];
+  // Workers: use persistent prompt when workerMode is 'persistent'
+  const filename = role === 'worker' && workerMode === 'persistent'
+    ? PROMPT_FILES['persistent-worker']
+    : PROMPT_FILES[role];
   const path = getBuiltInPromptPath(filename);
   return loadPromptFile(path);
 }
@@ -163,13 +176,16 @@ export function loadRolePrompt(
   stewardFocus?: StewardFocus,
   options: LoadPromptOptions = {}
 ): RolePromptResult | undefined {
-  const { projectRoot, builtInOnly } = options;
+  const { projectRoot, builtInOnly, workerMode } = options;
 
   if (role === 'steward') {
     return loadStewardPrompt(stewardFocus, options);
   }
 
-  const filename = PROMPT_FILES[role];
+  // Workers: use persistent prompt when workerMode is 'persistent'
+  const filename = role === 'worker' && workerMode === 'persistent'
+    ? PROMPT_FILES['persistent-worker']
+    : PROMPT_FILES[role];
 
   // Try project override first
   if (projectRoot && !builtInOnly) {
@@ -321,7 +337,11 @@ export function listBuiltInPrompts(): string[] {
 /**
  * Checks if a built-in prompt exists for a role.
  */
-export function hasBuiltInPrompt(role: AgentRole, stewardFocus?: StewardFocus): boolean {
+export function hasBuiltInPrompt(
+  role: AgentRole,
+  stewardFocus?: StewardFocus,
+  workerMode?: WorkerMode
+): boolean {
   if (role === 'steward') {
     const basePath = getBuiltInPromptPath(PROMPT_FILES['steward-base']);
     if (!existsSync(basePath)) {
@@ -335,7 +355,10 @@ export function hasBuiltInPrompt(role: AgentRole, stewardFocus?: StewardFocus): 
     return true;
   }
 
-  const filename = PROMPT_FILES[role];
+  // Workers: check persistent prompt when workerMode is 'persistent'
+  const filename = role === 'worker' && workerMode === 'persistent'
+    ? PROMPT_FILES['persistent-worker']
+    : PROMPT_FILES[role];
   const path = getBuiltInPromptPath(filename);
   return existsSync(path);
 }
@@ -350,6 +373,9 @@ export interface BuildAgentPromptOptions {
 
   /** For stewards, the focus area */
   stewardFocus?: StewardFocus;
+
+  /** For workers, whether to load the persistent or ephemeral prompt */
+  workerMode?: WorkerMode;
 
   /** Task context to include (task description, acceptance criteria, etc.) */
   taskContext?: string;
@@ -376,11 +402,11 @@ export interface BuildAgentPromptOptions {
  * @returns The complete prompt string, or undefined if role prompt not found
  */
 export function buildAgentPrompt(options: BuildAgentPromptOptions): string | undefined {
-  const { role, stewardFocus, taskContext, additionalInstructions, projectRoot, builtInOnly } =
+  const { role, stewardFocus, workerMode, taskContext, additionalInstructions, projectRoot, builtInOnly } =
     options;
 
   // Load the role prompt
-  const roleResult = loadRolePrompt(role, stewardFocus, { projectRoot, builtInOnly });
+  const roleResult = loadRolePrompt(role, stewardFocus, { projectRoot, builtInOnly, workerMode });
   if (!roleResult) {
     return undefined;
   }

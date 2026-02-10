@@ -356,6 +356,38 @@ export function generateWorktreePath(
 }
 
 /**
+ * Generates a branch name for a persistent worker session
+ *
+ * Format: session/{worker-name}-{timestamp}
+ *
+ * @param workerName - The agent's name
+ * @param timestamp - Timestamp string (e.g. '20240115143022')
+ */
+export function generateSessionBranchName(
+  workerName: string,
+  timestamp: string
+): string {
+  const safeName = workerName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+  return `session/${safeName}-${timestamp}`;
+}
+
+/**
+ * Generates a worktree path for a persistent worker session
+ *
+ * Format: .elemental/.worktrees/{worker-name}-session-{timestamp}/
+ *
+ * @param workerName - The agent's name
+ * @param timestamp - Timestamp string (e.g. '20240115143022')
+ */
+export function generateSessionWorktreePath(
+  workerName: string,
+  timestamp: string
+): string {
+  const safeName = workerName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+  return `.elemental/.worktrees/${safeName}-session-${timestamp}`;
+}
+
+/**
  * Creates a URL-friendly slug from a task title
  */
 export function createSlugFromTitle(title: string): string {

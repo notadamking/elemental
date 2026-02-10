@@ -135,6 +135,69 @@ describe("Prompt Loading", () => {
   });
 });
 
+describe("Persistent Worker Prompt Loading", () => {
+  describe("loadBuiltInPrompt with workerMode", () => {
+    it("loads ephemeral worker prompt by default", () => {
+      const prompt = loadBuiltInPrompt("worker");
+      expect(prompt).toBeDefined();
+      expect(prompt).toContain("You are an **Ephemeral Worker**");
+    });
+
+    it("loads persistent worker prompt when workerMode is persistent", () => {
+      const prompt = loadBuiltInPrompt("worker", undefined, "persistent");
+      expect(prompt).toBeDefined();
+      expect(prompt).toContain("You are a **Persistent Worker**");
+      expect(prompt).not.toContain("Ephemeral Worker");
+    });
+
+    it("loads ephemeral worker prompt when workerMode is ephemeral", () => {
+      const prompt = loadBuiltInPrompt("worker", undefined, "ephemeral");
+      expect(prompt).toBeDefined();
+      expect(prompt).toContain("You are an **Ephemeral Worker**");
+    });
+  });
+
+  describe("loadRolePrompt with workerMode", () => {
+    it("loads ephemeral worker prompt by default (backward compat)", () => {
+      const result = loadRolePrompt("worker");
+      expect(result).toBeDefined();
+      expect(result!.prompt).toContain("You are an **Ephemeral Worker**");
+    });
+
+    it("loads persistent worker prompt via options", () => {
+      const result = loadRolePrompt("worker", undefined, { workerMode: "persistent" });
+      expect(result).toBeDefined();
+      expect(result!.source).toBe("built-in");
+      expect(result!.prompt).toContain("You are a **Persistent Worker**");
+    });
+  });
+
+  describe("hasBuiltInPrompt with workerMode", () => {
+    it("returns true for persistent worker", () => {
+      expect(hasBuiltInPrompt("worker", undefined, "persistent")).toBe(true);
+    });
+
+    it("returns true for ephemeral worker (default)", () => {
+      expect(hasBuiltInPrompt("worker")).toBe(true);
+    });
+  });
+
+  describe("buildAgentPrompt with workerMode", () => {
+    it("builds persistent worker prompt", () => {
+      const prompt = buildAgentPrompt({ role: "worker", workerMode: "persistent" });
+      expect(prompt).toBeDefined();
+      expect(prompt).toContain("You are a **Persistent Worker**");
+      expect(prompt).not.toContain("Ephemeral Worker");
+    });
+
+    it("builds ephemeral worker prompt by default", () => {
+      const prompt = buildAgentPrompt({ role: "worker" });
+      expect(prompt).toBeDefined();
+      expect(prompt).toContain("You are an **Ephemeral Worker**");
+    });
+  });
+});
+
 describe("Prompt Content", () => {
   describe("Director prompt", () => {
     it("includes inbox check workflow", () => {
@@ -176,6 +239,43 @@ describe("Prompt Content", () => {
     it("includes director lookup command", () => {
       const prompt = loadBuiltInPrompt("worker");
       expect(prompt).toContain("el agent list --role director");
+    });
+  });
+
+  describe("Persistent worker prompt", () => {
+    it("includes el merge command", () => {
+      const prompt = loadBuiltInPrompt("worker", undefined, "persistent");
+      expect(prompt).toContain("el merge");
+    });
+
+    it("does NOT include task handoff or complete", () => {
+      const prompt = loadBuiltInPrompt("worker", undefined, "persistent");
+      expect(prompt).not.toContain("el task handoff");
+      expect(prompt).not.toContain("el task complete");
+      expect(prompt).not.toContain("el task create");
+    });
+
+    it("does NOT include auto-shutdown or daemon dispatch model", () => {
+      const prompt = loadBuiltInPrompt("worker", undefined, "persistent");
+      expect(prompt).not.toContain("Auto-shutdown");
+      expect(prompt).not.toContain("your session ends automatically");
+      expect(prompt).not.toContain("Do not check the task queue");
+    });
+
+    it("includes director lookup command", () => {
+      const prompt = loadBuiltInPrompt("worker", undefined, "persistent");
+      expect(prompt).toContain("el agent list --role director");
+    });
+
+    it("includes session branch context", () => {
+      const prompt = loadBuiltInPrompt("worker", undefined, "persistent");
+      expect(prompt).toContain("session/{worker-name}-{timestamp}");
+    });
+
+    it("includes documentation guidance", () => {
+      const prompt = loadBuiltInPrompt("worker", undefined, "persistent");
+      expect(prompt).toContain("el document search");
+      expect(prompt).toContain("Documentation Directory");
     });
   });
 

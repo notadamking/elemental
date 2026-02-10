@@ -15,14 +15,18 @@ The prompts system supports:
 
 ```
 packages/orchestrator-sdk/src/prompts/
-├── director.md        # Director role
-├── worker.md          # Worker role
-├── steward-base.md    # Base steward (all focuses)
-├── steward-merge.md   # Merge focus addendum
-├── steward-health.md  # Health focus addendum
-├── steward-ops.md     # Ops focus addendum
-└── steward-reminder.md # Reminder focus addendum
+├── director.md           # Director role
+├── worker.md             # Ephemeral worker role
+├── persistent-worker.md  # Persistent worker role
+├── steward-base.md       # Base steward (all focuses)
+├── steward-merge.md      # Merge focus addendum
+├── steward-health.md     # Health focus addendum
+├── steward-ops.md        # Ops focus addendum
+├── steward-reminder.md   # Reminder focus addendum
+└── steward-docs.md       # Docs focus addendum
 ```
+
+**Note:** The worker prompt is selected automatically based on `workerMode`. Ephemeral workers get `worker.md`, persistent workers get `persistent-worker.md`. You can override either by placing the corresponding file in `.elemental/prompts/`.
 
 ## Creating Project Overrides
 

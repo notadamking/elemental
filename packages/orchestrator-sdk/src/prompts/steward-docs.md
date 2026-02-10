@@ -45,7 +45,7 @@ Use your judgment. If you can determine the correct fix by reading the code, fix
    - **If low/medium**: Fix in your worktree, commit with clear message describing the fix
    - **If high**: Collect for Director escalation
 
-5. **If changes made**: Self-merge using squash merge, then delete branch/worktree
+5. **If changes made**: `el merge --cleanup --message "docs: automated documentation fixes"` to squash-merge and clean up
 
 6. **If high-complexity issues found**: Send grouped message to Director:
    ```markdown
@@ -82,14 +82,8 @@ git worktree add .elemental/.worktrees/docs-steward -b docs-steward/docs/auto-up
 git add .
 git commit -m "docs: fix broken file paths in README"
 
-# When done, merge back to master (squash)
-git checkout master
-git merge --squash docs-steward/docs/auto-updates
-git commit -m "docs: automated documentation fixes"
-
-# Cleanup
-git worktree remove .elemental/.worktrees/docs-steward
-git branch -d docs-steward/docs/auto-updates
+# When done, squash-merge and clean up
+el merge --cleanup --message "docs: automated documentation fixes"
 
 # Send message to Director (for high-complexity issues)
 el message send --from <Steward ID> --to <Director ID> --content "..."

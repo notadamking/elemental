@@ -16,16 +16,17 @@ The prompts system provides:
 
 ```
 packages/orchestrator-sdk/src/prompts/
-├── index.ts            # Loading and composition API
-├── director.md         # Director role prompt
-├── worker.md           # Worker role prompt
-├── message-triage.md   # Message triage prompt (used by triage sessions)
-├── steward-base.md     # Base steward prompt
-├── steward-merge.md    # Merge focus addendum
-├── steward-health.md   # Health focus addendum
-├── steward-ops.md      # Ops focus addendum
-├── steward-reminder.md # Reminder focus addendum
-└── steward-docs.md     # Docs focus addendum
+├── index.ts              # Loading and composition API
+├── director.md           # Director role prompt
+├── worker.md             # Ephemeral worker role prompt
+├── persistent-worker.md  # Persistent worker role prompt
+├── message-triage.md     # Message triage prompt (used by triage sessions)
+├── steward-base.md       # Base steward prompt
+├── steward-merge.md      # Merge focus addendum
+├── steward-health.md     # Health focus addendum
+├── steward-ops.md        # Ops focus addendum
+├── steward-reminder.md   # Reminder focus addendum
+└── steward-docs.md       # Docs focus addendum
 ```
 
 ## Loading Prompts
@@ -47,6 +48,13 @@ const result = loadRolePrompt('worker', undefined, {
 console.log(result?.prompt);   // The prompt content
 console.log(result?.source);   // 'built-in' or path to override
 
+// Load persistent worker prompt
+const persistent = loadRolePrompt('worker', undefined, {
+  projectRoot: '/my/project',
+  workerMode: 'persistent',
+});
+// Returns: persistent-worker.md instead of worker.md
+
 // Load built-in only (skip overrides)
 const builtIn = loadBuiltInPrompt('director');
 
@@ -55,8 +63,9 @@ const mergePrompt = loadRolePrompt('steward', 'merge');
 // Returns: steward-base.md + steward-merge.md combined
 
 // Check existence
-hasBuiltInPrompt('worker');              // true
-hasBuiltInPrompt('steward', 'merge');    // true
+hasBuiltInPrompt('worker');                      // true
+hasBuiltInPrompt('worker', undefined, 'persistent'); // true
+hasBuiltInPrompt('steward', 'merge');            // true
 
 // List all prompts
 const files = listBuiltInPrompts();
@@ -122,6 +131,7 @@ const prompt = buildAgentPrompt({
 interface BuildAgentPromptOptions {
   role: AgentRole;
   stewardFocus?: StewardFocus;
+  workerMode?: WorkerMode;       // 'ephemeral' | 'persistent'
   taskContext?: string;
   additionalInstructions?: string;
   projectRoot?: string;
@@ -207,6 +217,16 @@ You are a {role} agent in the Elemental system.
 
 Used by triage sessions spawned by the dispatch daemon. Provides instructions for evaluating incoming messages, categorizing them by urgency and type, and producing structured triage results. Triage sessions run in read-only worktrees and do not perform any task execution.
 
+### Persistent Worker Prompt
+
+The persistent worker prompt (`persistent-worker.md`) is loaded when `workerMode` is `'persistent'`. It differs from the ephemeral worker prompt in several ways:
+
+- Workers receive direct instructions from the human operator (not daemon-dispatched tasks)
+- Work is merged via `el merge` (squash merge into master), not `el task complete`
+- Discovered issues are reported to the Director via messages, not created as tasks
+- No auto-shutdown, handoff, or nudge response sections
+- Workers operate in a dedicated worktree on a `session/{name}-{timestamp}` branch
+
 ### Worker Prompt: Proactive Communication
 
 The worker prompt (`worker.md`) includes a **Proactive Communication** section that instructs workers on when and how to proactively send status updates to the director. This covers situations such as reporting progress on long-running tasks, flagging potential blockers early, and communicating completion status.
@@ -279,8 +299,9 @@ This allows agents to identify themselves and know their director for escalation
 
 ```typescript
 interface LoadPromptOptions {
-  projectRoot?: string;   // Project root for override lookup
-  builtInOnly?: boolean;  // Skip project overrides
+  projectRoot?: string;      // Project root for override lookup
+  builtInOnly?: boolean;     // Skip project overrides
+  workerMode?: WorkerMode;   // 'ephemeral' | 'persistent' (for worker role)
 }
 ```
 
@@ -297,13 +318,15 @@ loadRolePrompt(
 // Load built-in only
 loadBuiltInPrompt(
   role: AgentRole,
-  stewardFocus?: StewardFocus
+  stewardFocus?: StewardFocus,
+  workerMode?: WorkerMode
 ): string | undefined
 
 // Check existence
 hasBuiltInPrompt(
   role: AgentRole,
-  stewardFocus?: StewardFocus
+  stewardFocus?: StewardFocus,
+  workerMode?: WorkerMode
 ): boolean
 
 // List all prompt files

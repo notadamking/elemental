@@ -74,10 +74,14 @@ Workers are the implementers. Multiple Workers operate in parallel.
 
 ### Worker Types
 
-| Type | Session | Spawning | Use Case |
-|------|---------|----------|----------|
-| **Ephemeral** | Task-scoped | Spawned by Dispatch Daemon | Automated task execution |
-| **Persistent** | Session-scoped | Started by Human | Interactive work with human |
+| Type | Session | Spawning | Merge Method | Use Case |
+|------|---------|----------|--------------|----------|
+| **Ephemeral** | Task-scoped | Spawned by Dispatch Daemon | `el task complete` (PR-based) | Automated task execution |
+| **Persistent** | Session-scoped | Started by Human | `el merge` (squash merge) | Interactive work with human |
+
+Each type receives a tailored prompt: ephemeral workers get `worker.md` with task lifecycle instructions (handoff, complete, auto-shutdown), while persistent workers get `persistent-worker.md` with direct operator collaboration instructions and `el merge` workflow.
+
+**Persistent worker worktree:** When a persistent worker session starts, the system automatically creates an isolated worktree on a `session/{worker-name}-{timestamp}` branch. The worker operates in this worktree and uses `el merge` to squash-merge completed work into master. The worktree stays active for the next unit of work.
 
 ### Responsibilities
 - **Execution** - Complete assigned tasks
@@ -215,14 +219,15 @@ Located in `packages/orchestrator-sdk/src/prompts/`:
 
 ```
 prompts/
-├── director.md        # Director role
-├── worker.md          # Worker role
-├── steward-base.md    # Base steward (all focuses)
-├── steward-merge.md   # Merge focus addendum
-├── steward-health.md  # Health focus addendum
-├── steward-ops.md     # Ops focus addendum
-├── steward-reminder.md # Reminder focus addendum
-└── steward-docs.md    # Docs focus addendum
+├── director.md           # Director role
+├── worker.md             # Ephemeral worker role
+├── persistent-worker.md  # Persistent worker role
+├── steward-base.md       # Base steward (all focuses)
+├── steward-merge.md      # Merge focus addendum
+├── steward-health.md     # Health focus addendum
+├── steward-ops.md        # Ops focus addendum
+├── steward-reminder.md   # Reminder focus addendum
+└── steward-docs.md       # Docs focus addendum
 ```
 
 ### Project Overrides

@@ -1539,7 +1539,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
     // Load and include the worker role prompt, framed as operating instructions
     // so Claude understands this is its role definition, not file content
-    const roleResult = loadRolePrompt('worker', undefined, { projectRoot: this.config.projectRoot });
+    const roleResult = loadRolePrompt('worker', undefined, { projectRoot: this.config.projectRoot, workerMode: 'ephemeral' });
     if (roleResult) {
       parts.push(
         'Please read and internalize the following operating instructions. These define your role and how you should behave:',

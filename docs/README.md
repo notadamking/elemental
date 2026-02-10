@@ -177,9 +177,11 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | Session manager | `runtime/session-manager.ts` | `runtime/session-manager.test.ts` |
 | Handoff service | `runtime/handoff.ts` | `runtime/handoff.test.ts` |
 | Message mapper | `runtime/message-mapper.ts` | - |
-| Prompts | `prompts/index.ts` | - |
+| Prompts | `prompts/index.ts` | `prompts/index.test.ts` |
+| Persistent worker prompt | `prompts/persistent-worker.md` | - |
 | Message triage prompt | `prompts/message-triage.md` | - |
 | Docs steward prompt | `prompts/steward-docs.md` | - |
+| Merge CLI command | `cli/commands/merge.ts` | `cli/commands/merge.test.ts` |
 | Worktree manager | `git/worktree-manager.ts` | `git/worktree-manager.test.ts` |
 | Docs steward service | `services/docs-steward-service.ts` | `services/docs-steward-service.test.ts` |
 

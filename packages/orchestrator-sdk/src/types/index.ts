@@ -61,6 +61,8 @@ export {
   // Naming utilities
   generateBranchName,
   generateWorktreePath,
+  generateSessionBranchName,
+  generateSessionWorktreePath,
   createSlugFromTitle,
 } from './task-meta.js';
 

@@ -17,6 +17,8 @@ import {
   isOrchestratorTaskMeta,
   generateBranchName,
   generateWorktreePath,
+  generateSessionBranchName,
+  generateSessionWorktreePath,
   createSlugFromTitle,
 } from './task-meta.js';
 
@@ -240,6 +242,40 @@ describe('Branch and Worktree naming utilities', () => {
     test('sanitizes worker name', () => {
       const result = generateWorktreePath('Bob_Worker', 'feature');
       expect(result).toBe('.elemental/.worktrees/bob-worker-feature');
+    });
+  });
+
+  describe('generateSessionBranchName', () => {
+    test('generates session branch name', () => {
+      const result = generateSessionBranchName('bob', '20240115143022');
+      expect(result).toBe('session/bob-20240115143022');
+    });
+
+    test('sanitizes worker name', () => {
+      const result = generateSessionBranchName('Alice_Worker', '20240115143022');
+      expect(result).toBe('session/alice-worker-20240115143022');
+    });
+
+    test('handles special characters in name', () => {
+      const result = generateSessionBranchName('My Worker!', '20240115143022');
+      expect(result).toBe('session/my-worker--20240115143022');
+    });
+  });
+
+  describe('generateSessionWorktreePath', () => {
+    test('generates session worktree path', () => {
+      const result = generateSessionWorktreePath('bob', '20240115143022');
+      expect(result).toBe('.elemental/.worktrees/bob-session-20240115143022');
+    });
+
+    test('sanitizes worker name', () => {
+      const result = generateSessionWorktreePath('Alice_Worker', '20240115143022');
+      expect(result).toBe('.elemental/.worktrees/alice-worker-session-20240115143022');
+    });
+
+    test('handles special characters in name', () => {
+      const result = generateSessionWorktreePath('My Worker!', '20240115143022');
+      expect(result).toBe('.elemental/.worktrees/my-worker--session-20240115143022');
     });
   });
 });
