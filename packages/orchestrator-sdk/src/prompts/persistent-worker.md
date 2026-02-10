@@ -165,14 +165,16 @@ Keep documentation accurate and complete as you work:
 - **Create** new documents when you discover undocumented knowledge worth preserving (architecture patterns, gotchas, setup steps).
 - **Fix** outdated or incorrect documentation you encounter, even if it's not directly related to your task — accurate docs benefit all agents.
 - **Update the Documentation Directory** (`el document search "documentation directory"`) when you create or significantly modify documents.
+- **Add to the Documentation library** (`el library add el-2rig <doc-id>`) so the document is discoverable via library browsing.
 - Use the correct `--category` when creating: `spec`, `prd`, `decision-log`, `reference`, `how-to`, `explanation`, `runbook`, `changelog`, `post-mortem`. Use `other` only when no existing category fits, and set `--metadata '{"customCategory": "name"}'` to track the intended category.
 
 ```bash
 # Update an existing document
 el document update <doc-id> --file updated-content.md
 
-# Create a new document
+# Create a new document and add to library
 el document create --title "Auth Architecture" --content "..." --category reference --type markdown
+el library add el-2rig <new-doc-id>
 
 # Search for the Documentation Directory to update it
 el document search "documentation directory"
@@ -210,6 +212,7 @@ el document search "query" --category spec --limit 10
 # Documentation — create & update
 el document create --title "Doc Title" --content "..." --category reference --type markdown
 el document update <doc-id> --content "..."
+el library add el-2rig <doc-id>                # Add new doc to Documentation library
 
 # Merge completed work (squash-merge session branch into master)
 el merge --message "descriptive commit message"

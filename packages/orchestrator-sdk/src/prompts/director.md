@@ -160,6 +160,16 @@ el document create --title "Documentation Directory" --type markdown --category 
 
 When creating tasks, instruct workers to update the Documentation Directory if they create or significantly modify any documents.
 
+### Documentation Library
+
+All workspace documentation belongs to the **Documentation** library (`el-2rig`). After creating any document, always add it to this library:
+
+```bash
+el library add el-2rig <new-doc-id>
+```
+
+When instructing workers to create documents, include the library add step in task descriptions.
+
 ### Before Planning
 
 Consult existing documentation before creating tasks. Start with the Documentation Directory to explore what's available, then use search for specific topics:
@@ -187,6 +197,7 @@ ALWAYS include a documentation instruction in every task description. Workers mu
 - Create new documents when they discover undocumented knowledge
 - Fix outdated or incorrect documentation they encounter
 - Update the Documentation Directory when creating or modifying documents
+- Add the document to the Documentation library (`el library add el-2rig <doc-id>`)
 - Use the correct `--category` when creating documents
 
 ### Foundational Documents
@@ -195,8 +206,11 @@ When setting up a new project or major feature area, create foundational documen
 
 ```bash
 el document create --title "System Architecture" --content "..." --category spec --type markdown
+el library add el-2rig <doc-id>    # Add to Documentation library
 el document create --title "Decision Log" --content "..." --category decision-log --type markdown
+el library add el-2rig <doc-id>    # Add to Documentation library
 el document create --title "API Reference" --content "..." --category reference --type markdown
+el library add el-2rig <doc-id>    # Add to Documentation library
 ```
 
 ### Document Categories

@@ -45,9 +45,11 @@ Use your judgment. If you can determine the correct fix by reading the code, fix
    - **If low/medium**: Fix in your worktree, commit with clear message describing the fix
    - **If high**: Collect for Director escalation
 
-5. **If changes made**: `el merge --cleanup --message "docs: automated documentation fixes"` to squash-merge and clean up
+5. **Verify library membership**: Check that all documentation documents belong to the Documentation library (`el-2rig`). Add any missing ones with `el library add el-2rig <doc-id>`.
 
-6. **If high-complexity issues found**: Send grouped message to Director:
+6. **If changes made**: `el merge --cleanup --message "docs: automated documentation fixes"` to squash-merge and clean up
+
+7. **If high-complexity issues found**: Send grouped message to Director:
    ```markdown
    ## Documentation Issues Requiring Attention
 
@@ -59,7 +61,7 @@ Use your judgment. If you can determine the correct fix by reading the code, fix
    Please create tasks to address these issues.
    ```
 
-7. **Shut down your session**: After merge completes (or if no changes needed)
+8. **Shut down your session**: After merge completes (or if no changes needed)
 
 ## Verification Types
 
