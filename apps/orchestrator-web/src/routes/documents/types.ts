@@ -36,6 +36,7 @@ export interface DocumentType {
   title?: string;
   content?: string;
   contentType: string;
+  category?: string;
   version?: number;
   createdAt: string;
   updatedAt: string;

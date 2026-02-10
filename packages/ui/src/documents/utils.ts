@@ -41,19 +41,20 @@ export function setStoredSort(field: DocumentSortField, direction: SortDirection
 
 /**
  * Creates a filter function that can be used to filter documents.
- * Combines content type filters, tag filters, and optional search query.
+ * Combines content type filters, tag filters, category filters, and optional search query.
  */
 export function createDocumentFilter(
   config: DocumentFilterConfig,
   search?: string
-): (doc: { title?: string; contentType?: string; tags?: string[] }) => boolean {
+): (doc: { title?: string; contentType?: string; tags?: string[]; category?: string }) => boolean {
   const searchLower = search?.toLowerCase().trim() || '';
   const hasContentTypeFilter = config.contentTypes.length > 0;
   const hasTagFilter = config.tags.length > 0;
+  const hasCategoryFilter = config.categories.length > 0;
   const hasSearch = searchLower.length > 0;
 
   // No filters active
-  if (!hasContentTypeFilter && !hasTagFilter && !hasSearch) {
+  if (!hasContentTypeFilter && !hasTagFilter && !hasCategoryFilter && !hasSearch) {
     return () => true;
   }
 
@@ -82,6 +83,14 @@ export function createDocumentFilter(
       }
     }
 
+    // Category filter: doc must match one of selected categories
+    if (hasCategoryFilter) {
+      const docCategory = (doc.category || 'other').toLowerCase();
+      if (!config.categories.some((c) => c.toLowerCase() === docCategory)) {
+        return false;
+      }
+    }
+
     return true;
   };
 }
@@ -90,7 +99,7 @@ export function createDocumentFilter(
  * Returns the count of active filters in a filter config.
  */
 export function getActiveFilterCount(config: DocumentFilterConfig): number {
-  return config.contentTypes.length + config.tags.length;
+  return config.contentTypes.length + config.tags.length + config.categories.length;
 }
 
 /**

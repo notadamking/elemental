@@ -19,7 +19,14 @@ export interface ContentTypeFilterOption {
   color: string;
 }
 
+export interface CategoryFilterOption {
+  value: string;
+  label: string;
+  color: string;
+}
+
 export interface DocumentFilterConfig {
   contentTypes: string[];  // Multi-select
   tags: string[];          // Multi-select
+  categories: string[];    // Multi-select
 }

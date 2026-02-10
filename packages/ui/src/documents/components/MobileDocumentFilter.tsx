@@ -3,9 +3,9 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { ChevronLeft, Check, Tag } from 'lucide-react';
-import type { DocumentFilterConfig } from '../types';
-import { CONTENT_TYPE_FILTER_OPTIONS } from '../constants';
+import { ChevronLeft, Check, Tag, Folder } from 'lucide-react';
+import type { DocumentFilterConfig, CategoryFilterOption } from '../types';
+import { CONTENT_TYPE_FILTER_OPTIONS, CATEGORY_FILTER_OPTIONS } from '../constants';
 import { getActiveFilterCount } from '../utils';
 
 interface MobileDocumentFilterProps {
@@ -15,6 +15,7 @@ interface MobileDocumentFilterProps {
   onFilterChange: (filters: DocumentFilterConfig) => void;
   onClearFilters: () => void;
   availableTags: string[];
+  availableCategories?: string[];
 }
 
 export function MobileDocumentFilter({
@@ -24,11 +25,17 @@ export function MobileDocumentFilter({
   onFilterChange,
   onClearFilters,
   availableTags,
+  availableCategories = [],
 }: MobileDocumentFilterProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const startYRef = useRef<number | null>(null);
   const currentYRef = useRef<number>(0);
   const activeCount = getActiveFilterCount(filters);
+
+  // Filter category options to only show categories that exist in the documents
+  const filteredCategoryOptions: CategoryFilterOption[] = availableCategories.length > 0
+    ? CATEGORY_FILTER_OPTIONS.filter((opt) => availableCategories.includes(opt.value))
+    : [];
 
   // Prevent body scroll when sheet is open
   useEffect(() => {
@@ -133,6 +140,13 @@ export function MobileDocumentFilter({
     onFilterChange({ ...filters, tags: newTags });
   };
 
+  const handleCategoryToggle = (category: string) => {
+    const newCategories = filters.categories.includes(category)
+      ? filters.categories.filter((c) => c !== category)
+      : [...filters.categories, category];
+    onFilterChange({ ...filters, categories: newCategories });
+  };
+
   const handleClearAndClose = () => {
     onClearFilters();
     onClose();
@@ -211,6 +225,36 @@ export function MobileDocumentFilter({
               })}
             </div>
           </div>
+
+          {/* Category filter */}
+          {filteredCategoryOptions.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-text)] mb-2">
+                Category
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {filteredCategoryOptions.map((option) => {
+                  const isSelected = filters.categories.includes(option.value);
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => handleCategoryToggle(option.value)}
+                      className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors touch-target ${
+                        isSelected
+                          ? `${option.color} border-transparent font-medium`
+                          : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                      }`}
+                      data-testid={`mobile-filter-category-${option.value}`}
+                    >
+                      <Folder className="w-4 h-4" />
+                      {option.label}
+                      {isSelected && <Check className="w-4 h-4" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Tags filter */}
           {availableTags.length > 0 && (

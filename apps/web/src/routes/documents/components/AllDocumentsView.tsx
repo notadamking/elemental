@@ -88,6 +88,19 @@ export function AllDocumentsView({
     return Array.from(tagSet).sort();
   }, [allDocuments]);
 
+  // Extract all unique categories from documents
+  const availableCategories = useMemo(() => {
+    if (!allDocuments) return [];
+    const docs = allDocuments as unknown as DocumentType[];
+    const categorySet = new Set<string>();
+    docs.forEach((doc) => {
+      if (doc.category) {
+        categorySet.add(doc.category);
+      }
+    });
+    return Array.from(categorySet).sort();
+  }, [allDocuments]);
+
   // Client-side filtering with instant results
   const filteredDocuments = useMemo((): DocumentType[] => {
     if (!allDocuments) return [];
@@ -209,6 +222,7 @@ export function AllDocumentsView({
                   onFilterChange={setFilters}
                   onClearFilters={handleClearFilters}
                   availableTags={availableTags}
+                  availableCategories={availableCategories}
                 />
               </div>
             </div>
@@ -269,6 +283,7 @@ export function AllDocumentsView({
           onFilterChange={setFilters}
           onClearFilters={handleClearFilters}
           availableTags={availableTags}
+          availableCategories={availableCategories}
         />
       )}
     </div>

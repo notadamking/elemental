@@ -3,9 +3,9 @@
  */
 
 import { useState } from 'react';
-import { Filter, ChevronDown, ChevronUp, X, Check, Tag } from 'lucide-react';
-import type { DocumentFilterConfig } from '../types';
-import { CONTENT_TYPE_FILTER_OPTIONS } from '../constants';
+import { Filter, ChevronDown, ChevronUp, X, Check, Tag, Folder } from 'lucide-react';
+import type { DocumentFilterConfig, CategoryFilterOption } from '../types';
+import { CONTENT_TYPE_FILTER_OPTIONS, CATEGORY_FILTER_OPTIONS } from '../constants';
 import { getActiveFilterCount, hasActiveFilters } from '../utils';
 
 interface DocumentFilterBarProps {
@@ -13,6 +13,7 @@ interface DocumentFilterBarProps {
   onFilterChange: (filters: DocumentFilterConfig) => void;
   onClearFilters: () => void;
   availableTags: string[];
+  availableCategories?: string[];
 }
 
 export function DocumentFilterBar({
@@ -20,11 +21,18 @@ export function DocumentFilterBar({
   onFilterChange,
   onClearFilters,
   availableTags,
+  availableCategories = [],
 }: DocumentFilterBarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isTagsDropdownOpen, setIsTagsDropdownOpen] = useState(false);
+  const [isCategoriesDropdownOpen, setIsCategoriesDropdownOpen] = useState(false);
   const activeCount = getActiveFilterCount(filters);
   const hasFilters = hasActiveFilters(filters);
+
+  // Filter category options to only show categories that exist in the documents
+  const filteredCategoryOptions: CategoryFilterOption[] = availableCategories.length > 0
+    ? CATEGORY_FILTER_OPTIONS.filter((opt) => availableCategories.includes(opt.value))
+    : [];
 
   const handleContentTypeToggle = (type: string) => {
     const newTypes = filters.contentTypes.includes(type)
@@ -51,6 +59,20 @@ export function DocumentFilterBar({
     onFilterChange({
       ...filters,
       tags: filters.tags.filter((t) => t !== tag),
+    });
+  };
+
+  const handleCategoryToggle = (category: string) => {
+    const newCategories = filters.categories.includes(category)
+      ? filters.categories.filter((c) => c !== category)
+      : [...filters.categories, category];
+    onFilterChange({ ...filters, categories: newCategories });
+  };
+
+  const removeCategory = (category: string) => {
+    onFilterChange({
+      ...filters,
+      categories: filters.categories.filter((c) => c !== category),
     });
   };
 
@@ -122,6 +144,84 @@ export function DocumentFilterBar({
               })}
             </div>
           </div>
+
+          {/* Category filter - dropdown select */}
+          {filteredCategoryOptions.length > 0 && (
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                Category
+              </label>
+              <div className="relative">
+                {/* Selected categories as chips + input */}
+                <div
+                  className="flex flex-wrap items-center gap-1.5 min-h-[38px] px-2 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 cursor-text"
+                  onClick={() => setIsCategoriesDropdownOpen(true)}
+                >
+                  {/* Selected category chips */}
+                  {filters.categories.map((category) => {
+                    const option = filteredCategoryOptions.find((o) => o.value === category);
+                    return (
+                      <span
+                        key={category}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded ${option?.color || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'}`}
+                      >
+                        {option?.label || category}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCategoryToggle(category);
+                          }}
+                          className="hover:opacity-70 transition-opacity"
+                          data-testid={`remove-category-input-${category}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                  {/* Placeholder when empty */}
+                  {filters.categories.length === 0 && (
+                    <span className="text-sm text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+                      <Folder className="w-4 h-4" />
+                      Click to select categories...
+                    </span>
+                  )}
+                </div>
+
+                {/* Categories dropdown */}
+                {isCategoriesDropdownOpen && (
+                  <>
+                    {/* Backdrop to close dropdown */}
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setIsCategoriesDropdownOpen(false)}
+                    />
+                    <div className="absolute left-0 top-full mt-1 w-full max-h-48 overflow-y-auto py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20">
+                      {filteredCategoryOptions.filter((opt) => !filters.categories.includes(opt.value)).length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                          All categories selected
+                        </div>
+                      ) : (
+                        filteredCategoryOptions
+                          .filter((opt) => !filters.categories.includes(opt.value))
+                          .map((option) => (
+                            <button
+                              key={option.value}
+                              onClick={() => handleCategoryToggle(option.value)}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                              data-testid={`filter-category-${option.value}`}
+                            >
+                              <Folder className="w-3 h-3 text-gray-400" />
+                              <span>{option.label}</span>
+                            </button>
+                          ))
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Tags filter - multi-tag input */}
           {availableTags.length > 0 && (
@@ -216,6 +316,26 @@ export function DocumentFilterBar({
                   onClick={() => removeContentType(type)}
                   className="hover:opacity-70 transition-opacity"
                   data-testid={`remove-type-${type}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            );
+          })}
+          {/* Category chips */}
+          {filters.categories.map((category) => {
+            const option = CATEGORY_FILTER_OPTIONS.find((o) => o.value === category);
+            return (
+              <span
+                key={`category-${category}`}
+                className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${option?.color || 'bg-gray-100 text-gray-700'}`}
+              >
+                <Folder className="w-3 h-3" />
+                {option?.label || category}
+                <button
+                  onClick={() => removeCategory(category)}
+                  className="hover:opacity-70 transition-opacity"
+                  data-testid={`remove-category-${category}`}
                 >
                   <X className="w-3 h-3" />
                 </button>

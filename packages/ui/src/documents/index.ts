@@ -17,6 +17,7 @@ export type {
   SortDirection,
   DocumentSortOption,
   ContentTypeFilterOption,
+  CategoryFilterOption,
   DocumentFilterConfig,
 } from './types';
 
@@ -24,6 +25,7 @@ export type {
 export {
   DOCUMENT_SORT_OPTIONS,
   CONTENT_TYPE_FILTER_OPTIONS,
+  CATEGORY_FILTER_OPTIONS,
   DOCUMENT_STORAGE_KEYS,
   EMPTY_DOCUMENT_FILTER,
 } from './constants';
