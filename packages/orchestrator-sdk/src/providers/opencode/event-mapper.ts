@@ -12,7 +12,7 @@
  * @module
  */
 
-import type { AgentMessage } from '../types.js';
+import type { AgentMessage } from "../types.js";
 
 // ============================================================================
 // OpenCode Event Types (matching @opencode-ai/sdk v1.x)
@@ -20,41 +20,45 @@ import type { AgentMessage } from '../types.js';
 
 /** Tool state objects — the `state` field on ToolPart is a discriminated union */
 interface ToolStatePending {
-  status: 'pending';
+  status: "pending";
   input: Record<string, unknown>;
 }
 
 interface ToolStateRunning {
-  status: 'running';
+  status: "running";
   input: Record<string, unknown>;
   title?: string;
 }
 
 interface ToolStateCompleted {
-  status: 'completed';
+  status: "completed";
   input: Record<string, unknown>;
   output: string;
   title: string;
 }
 
 interface ToolStateError {
-  status: 'error';
+  status: "error";
   input: Record<string, unknown>;
   error: string;
 }
 
-type ToolState = ToolStatePending | ToolStateRunning | ToolStateCompleted | ToolStateError;
+type ToolState =
+  | ToolStatePending
+  | ToolStateRunning
+  | ToolStateCompleted
+  | ToolStateError;
 
 /** Part types emitted by OpenCode */
 interface TextPart {
-  type: 'text';
+  type: "text";
   id: string;
   sessionID: string;
   text: string;
 }
 
 interface ToolPart {
-  type: 'tool';
+  type: "tool";
   id: string;
   sessionID: string;
   callID: string;
@@ -63,30 +67,36 @@ interface ToolPart {
 }
 
 interface ReasoningPart {
-  type: 'reasoning';
+  type: "reasoning";
   id: string;
   sessionID: string;
 }
 
 interface StepStartPart {
-  type: 'step-start';
+  type: "step-start";
   id: string;
   sessionID: string;
 }
 
 interface StepFinishPart {
-  type: 'step-finish';
+  type: "step-finish";
   id: string;
   sessionID: string;
 }
 
 interface AgentPart {
-  type: 'agent';
+  type: "agent";
   id: string;
   sessionID: string;
 }
 
-type OpenCodePart = TextPart | ReasoningPart | ToolPart | StepStartPart | StepFinishPart | AgentPart;
+type OpenCodePart =
+  | TextPart
+  | ReasoningPart
+  | ToolPart
+  | StepStartPart
+  | StepFinishPart
+  | AgentPart;
 
 /** OpenCode SSE event structure */
 export interface OpenCodeEvent {
@@ -141,24 +151,24 @@ export class OpenCodeEventMapper {
     }
 
     switch (event.type) {
-      case 'message.part.updated':
+      case "message.part.updated":
         return this.mapPartUpdated(event);
 
-      case 'session.idle': {
+      case "session.idle": {
         // Flush buffered text before emitting result
         const messages = this.flushPendingText();
         messages.push({
-          type: 'result',
-          subtype: 'success',
+          type: "result",
+          subtype: "success",
           raw: event,
         });
         return messages;
       }
 
-      case 'session.error': {
+      case "session.error": {
         const messages = this.flushPendingText();
         messages.push({
-          type: 'error',
+          type: "error",
           content: this.extractErrorMessage(event.properties?.error),
           raw: event,
         });
@@ -166,8 +176,8 @@ export class OpenCodeEventMapper {
       }
 
       // Internal state events - no AgentMessage needed
-      case 'session.status':
-      case 'message.updated':
+      case "session.status":
+      case "message.updated":
         return [];
 
       default:
@@ -192,18 +202,20 @@ export class OpenCodeEventMapper {
   // ----------------------------------------
 
   private extractSessionId(event: OpenCodeEvent): string | undefined {
-    return event.properties?.sessionID
-      ?? event.properties?.part?.sessionID
-      ?? event.properties?.info?.id;
+    return (
+      event.properties?.sessionID ??
+      event.properties?.part?.sessionID ??
+      event.properties?.info?.id
+    );
   }
 
   private extractErrorMessage(error: unknown): string {
-    if (!error) return 'Unknown session error';
-    if (typeof error === 'string') return error;
-    if (typeof error === 'object' && error !== null) {
+    if (!error) return "Unknown session error";
+    if (typeof error === "string") return error;
+    if (typeof error === "object" && error !== null) {
       const obj = error as Record<string, unknown>;
-      if (typeof obj.message === 'string') return obj.message;
-      if (typeof obj.type === 'string') return obj.type;
+      if (typeof obj.message === "string") return obj.message;
+      if (typeof obj.type === "string") return obj.type;
     }
     return String(error);
   }
@@ -214,7 +226,7 @@ export class OpenCodeEventMapper {
       return [];
     }
     const msg: AgentMessage = {
-      type: 'assistant',
+      type: "assistant",
       content: this.pendingText.content,
       raw: null,
     };
@@ -227,10 +239,10 @@ export class OpenCodeEventMapper {
     if (!part) return [];
 
     switch (part.type) {
-      case 'text':
+      case "text":
         return this.bufferTextPart(part as TextPart, event);
 
-      case 'tool': {
+      case "tool": {
         // Flush buffered text before emitting tool events
         const messages = this.flushPendingText();
         messages.push(...this.mapToolPart(part as ToolPart, event));
@@ -238,10 +250,10 @@ export class OpenCodeEventMapper {
       }
 
       // Non-text parts flush any buffered text
-      case 'reasoning':
-      case 'step-start':
-      case 'step-finish':
-      case 'agent':
+      case "reasoning":
+      case "step-start":
+      case "step-finish":
+      case "agent":
         return this.flushPendingText();
 
       default:
@@ -280,12 +292,12 @@ export class OpenCodeEventMapper {
     const status = part.state?.status;
     const messages: AgentMessage[] = [];
 
-    // Emit tool_use once when running (pending state often has empty input {}).
-    // Also emit on completed/error if we never saw a running state.
-    if (!this.emittedToolUses.has(partId) && status !== 'pending') {
+    // Emit tool_use once when running (pending state often has empty input {})
+    // Also emit on completed/error if we never saw running state
+    if (!this.emittedToolUses.has(partId) && status !== "pending") {
       this.emittedToolUses.add(partId);
       messages.push({
-        type: 'tool_use',
+        type: "tool_use",
         tool: {
           name: part.tool,
           id: partId,
@@ -296,13 +308,17 @@ export class OpenCodeEventMapper {
     }
 
     // Emit tool_result once when completed or error
-    if ((status === 'completed' || status === 'error') && !this.emittedToolResults.has(partId)) {
+    if (
+      (status === "completed" || status === "error") &&
+      !this.emittedToolResults.has(partId)
+    ) {
       this.emittedToolResults.add(partId);
-      const resultContent = status === 'error'
-        ? ((part.state as ToolStateError).error ?? 'Tool error')
-        : ((part.state as ToolStateCompleted).output ?? '');
+      const resultContent =
+        status === "error"
+          ? ((part.state as ToolStateError).error ?? "Tool error")
+          : ((part.state as ToolStateCompleted).output ?? "");
       messages.push({
-        type: 'tool_result',
+        type: "tool_result",
         content: resultContent,
         tool: { id: partId },
         raw: event,
