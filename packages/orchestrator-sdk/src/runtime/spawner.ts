@@ -77,6 +77,8 @@ export interface SpawnOptions extends SpawnConfig {
   readonly cols?: number;
   /** Terminal rows (for interactive mode, default 30) */
   readonly rows?: number;
+  /** Model identifier to use (e.g., 'claude-sonnet-4-20250514'). If not set, uses provider default. */
+  readonly model?: string;
 }
 
 /**
@@ -885,6 +887,7 @@ export class SpawnerServiceImpl implements SpawnerService {
         },
         elementalRoot: options?.elementalRoot ?? this.defaultConfig.elementalRoot,
         timeout: options?.timeout ?? this.defaultConfig.timeout,
+        model: options?.model,
       });
 
       session.headlessSession = headlessSession;
@@ -1009,6 +1012,7 @@ export class SpawnerServiceImpl implements SpawnerService {
         elementalRoot: options?.elementalRoot ?? this.defaultConfig.elementalRoot,
         cols: options?.cols,
         rows: options?.rows,
+        model: options?.model,
       });
 
       session.interactiveSession = interactiveSession;

@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { AgentProvider, HeadlessProvider, InteractiveProvider } from '../types.js';
+import type { AgentProvider, HeadlessProvider, InteractiveProvider, ModelInfo } from '../types.js';
 import { OpenCodeHeadlessProvider } from './headless.js';
 import { OpenCodeInteractiveProvider } from './interactive.js';
 
@@ -44,5 +44,10 @@ export class OpenCodeAgentProvider implements AgentProvider {
 
   getInstallInstructions(): string {
     return 'Install OpenCode SDK: npm install @opencode-ai/sdk\nInstall OpenCode CLI: see https://opencode.ai';
+  }
+
+  async listModels(): Promise<ModelInfo[]> {
+    // TODO: Implement actual model listing via OpenCode SDK
+    return [];
   }
 }

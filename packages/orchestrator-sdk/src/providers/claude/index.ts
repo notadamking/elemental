@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { AgentProvider, HeadlessProvider, InteractiveProvider } from '../types.js';
+import type { AgentProvider, HeadlessProvider, InteractiveProvider, ModelInfo } from '../types.js';
 import { ClaudeHeadlessProvider } from './headless.js';
 import { ClaudeInteractiveProvider } from './interactive.js';
 
@@ -34,5 +34,10 @@ export class ClaudeAgentProvider implements AgentProvider {
 
   getInstallInstructions(): string {
     return 'Install Claude Code: npm install -g @anthropic-ai/claude-code\nInstall Claude Agent SDK: npm install @anthropic-ai/claude-agent-sdk';
+  }
+
+  async listModels(): Promise<ModelInfo[]> {
+    // TODO: Implement actual model listing via Claude SDK
+    return [];
   }
 }

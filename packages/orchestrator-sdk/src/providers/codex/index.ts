@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { AgentProvider, HeadlessProvider, InteractiveProvider } from '../types.js';
+import type { AgentProvider, HeadlessProvider, InteractiveProvider, ModelInfo } from '../types.js';
 import { CodexHeadlessProvider } from './headless.js';
 import { CodexInteractiveProvider } from './interactive.js';
 
@@ -42,5 +42,10 @@ export class CodexAgentProvider implements AgentProvider {
 
   getInstallInstructions(): string {
     return 'Install Codex CLI: npm install -g @openai/codex';
+  }
+
+  async listModels(): Promise<ModelInfo[]> {
+    // TODO: Implement actual model listing via Codex SDK
+    return [];
   }
 }

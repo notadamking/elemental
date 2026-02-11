@@ -184,6 +184,8 @@ export interface BaseAgentMetadata {
   readonly roleDefinitionRef?: ElementId;
   /** Agent provider name (e.g., 'claude', 'opencode'). Defaults to 'claude'. */
   readonly provider?: string;
+  /** Model identifier to use (e.g., 'claude-sonnet-4-20250514'). If not set, uses provider default. */
+  readonly model?: string;
 }
 
 /**
@@ -265,6 +267,8 @@ export interface RegisterDirectorInput {
   readonly roleDefinitionRef?: ElementId;
   /** Agent provider (e.g., 'claude', 'opencode'). Defaults to 'claude'. */
   readonly provider?: string;
+  /** Model identifier to use (e.g., 'claude-sonnet-4-20250514'). If not set, uses provider default. */
+  readonly model?: string;
 }
 
 /**
@@ -287,6 +291,8 @@ export interface RegisterWorkerInput {
   readonly roleDefinitionRef?: ElementId;
   /** Agent provider (e.g., 'claude', 'opencode'). Defaults to 'claude'. */
   readonly provider?: string;
+  /** Model identifier to use (e.g., 'claude-sonnet-4-20250514'). If not set, uses provider default. */
+  readonly model?: string;
 }
 
 /**
@@ -311,6 +317,8 @@ export interface RegisterStewardInput {
   readonly roleDefinitionRef?: ElementId;
   /** Agent provider (e.g., 'claude', 'opencode'). Defaults to 'claude'. */
   readonly provider?: string;
+  /** Model identifier to use (e.g., 'claude-sonnet-4-20250514'). If not set, uses provider default. */
+  readonly model?: string;
 }
 
 // ============================================================================

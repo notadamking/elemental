@@ -19,6 +19,7 @@ export type {
   InteractiveSpawnOptions,
   InteractiveProvider,
   AgentProvider,
+  ModelInfo,
 } from './types.js';
 
 // Registry

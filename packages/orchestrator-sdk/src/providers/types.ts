@@ -78,6 +78,8 @@ export interface HeadlessSpawnOptions {
   readonly environmentVariables?: Record<string, string>;
   readonly elementalRoot?: string;
   readonly timeout?: number;
+  /** Model identifier to use (e.g., 'claude-sonnet-4-20250514'). If not set, uses provider default. */
+  readonly model?: string;
 }
 
 /** Headless agent provider (SDK/API-based) */
@@ -122,6 +124,8 @@ export interface InteractiveSpawnOptions {
   readonly elementalRoot?: string;
   readonly cols?: number;
   readonly rows?: number;
+  /** Model identifier to use (e.g., 'claude-sonnet-4-20250514'). If not set, uses provider default. */
+  readonly model?: string;
 }
 
 /** Interactive (PTY) agent provider */
@@ -133,6 +137,20 @@ export interface InteractiveProvider {
 
   /** Check if provider is available (e.g., CLI installed) */
   isAvailable(): Promise<boolean>;
+}
+
+// ============================================================================
+// Model Information
+// ============================================================================
+
+/** Information about an available model */
+export interface ModelInfo {
+  /** Model identifier (e.g., 'claude-sonnet-4-20250514') */
+  readonly id: string;
+  /** Human-readable display name (e.g., 'Claude Sonnet 4') */
+  readonly displayName: string;
+  /** Optional description of the model's capabilities */
+  readonly description?: string;
 }
 
 // ============================================================================
@@ -153,4 +171,7 @@ export interface AgentProvider {
    * e.g., "Install OpenCode SDK: npm install @opencode-ai/sdk"
    */
   getInstallInstructions(): string;
+
+  /** List available models for this provider */
+  listModels(): Promise<ModelInfo[]>;
 }
