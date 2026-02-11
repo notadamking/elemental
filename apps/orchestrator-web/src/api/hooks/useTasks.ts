@@ -313,6 +313,25 @@ export function useReopenTask() {
 }
 
 /**
+ * Hook to reset a task to open status, clearing assignee and all work-in-progress data
+ */
+export function useResetTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation<TaskResponse, Error, { taskId: string }>({
+    mutationFn: async ({ taskId }) => {
+      return fetchApi<TaskResponse>(`/tasks/${taskId}/reset`, {
+        method: 'POST',
+      });
+    },
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+    },
+  });
+}
+
+/**
  * Hook to update merge status
  */
 export function useUpdateMergeStatus() {

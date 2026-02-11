@@ -565,6 +565,80 @@ export function createTaskRoutes(services: Services) {
     }
   });
 
+  // POST /api/tasks/:id/reset - Reset task to open, clearing all work-in-progress data
+  app.post('/api/tasks/:id/reset', async (c) => {
+    try {
+      const taskId = c.req.param('id') as ElementId;
+
+      const task = await api.get<Task>(taskId);
+      if (!task || task.type !== ElementType.TASK) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+      }
+
+      // Only allow reset if task has an assignee or is in_progress/review/closed
+      const canReset = task.assignee ||
+        task.status === TaskStatus.IN_PROGRESS ||
+        task.status === TaskStatus.REVIEW ||
+        task.status === TaskStatus.CLOSED;
+
+      if (!canReset) {
+        return c.json(
+          { error: { code: 'BAD_REQUEST', message: 'Task cannot be reset - no assignee or work-in-progress state' } },
+          400
+        );
+      }
+
+      // Update status to OPEN (clears closedAt)
+      const updated = updateTaskStatus(task, { status: TaskStatus.OPEN });
+
+      // Clear assignee
+      updated.assignee = undefined;
+      updated.closeReason = undefined;
+
+      // Clear all orchestrator metadata
+      const existingMeta = (updated.metadata as Record<string, unknown> | undefined)?.orchestrator as OrchestratorTaskMeta | undefined;
+      if (existingMeta) {
+        const reconciliationCount = existingMeta.reconciliationCount ?? 0;
+        updated.metadata = updateOrchestratorTaskMeta(updated.metadata as Record<string, unknown>, {
+          // Clear all orchestrator fields
+          branch: undefined,
+          worktree: undefined,
+          mergeStatus: undefined,
+          mergedAt: undefined,
+          mergeFailureReason: undefined,
+          assignedAgent: undefined,
+          sessionId: undefined,
+          startedAt: undefined,
+          completedAt: undefined,
+          completionSummary: undefined,
+          lastCommitHash: undefined,
+          testRunCount: undefined,
+          lastTestResult: undefined,
+          lastSyncResult: undefined,
+          reconciliationCount: reconciliationCount + 1,
+        });
+      }
+
+      // Save the update
+      await api.update<Task>(taskId, updated, {
+        expectedUpdatedAt: task.updatedAt,
+      });
+
+      // Re-fetch the task to get the latest state
+      const finalTask = await api.get<Task>(taskId);
+      const hydratedDescription = await hydrateTaskDescription(finalTask!, api);
+
+      return c.json({
+        success: true,
+        task: formatTaskResponse(finalTask!, hydratedDescription),
+        resetAt: finalTask!.updatedAt,
+      });
+    } catch (error) {
+      console.error('[orchestrator] Failed to reset task:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
   // POST /api/tasks/:id/reopen
   app.post('/api/tasks/:id/reopen', async (c) => {
     try {

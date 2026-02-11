@@ -32,6 +32,7 @@ import {
   Plus,
   Search,
   RotateCcw,
+  RefreshCcw,
 } from 'lucide-react';
 import {
   useTask,
@@ -40,6 +41,7 @@ import {
   useStartTask,
   useCompleteTask,
   useReopenTask,
+  useResetTask,
   useUpdateMergeStatus,
   useTaskAttachments,
   useAddAttachment,
@@ -97,10 +99,12 @@ export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetai
   const startTask = useStartTask();
   const completeTask = useCompleteTask();
   const reopenTask = useReopenTask();
+  const resetTask = useResetTask();
   const updateMergeStatus = useUpdateMergeStatus();
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReopenDialog, setShowReopenDialog] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
 
   const task = data?.task;
@@ -116,6 +120,11 @@ export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetai
   const canStart = task?.status === 'open' && task?.assignee;
   const canComplete = task?.status === 'in_progress';
   const canReopen = task?.status === 'closed';
+  // Can reset if task has an assignee or is in_progress/review/closed
+  const canReset = task?.assignee ||
+    task?.status === 'in_progress' ||
+    task?.status === 'review' ||
+    task?.status === 'closed';
 
   const handleUpdate = async (updates: Omit<UpdateTaskInput, 'taskId'>) => {
     if (!task) return;
@@ -160,6 +169,12 @@ export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetai
     if (!task) return;
     await reopenTask.mutateAsync({ taskId: task.id, message: message || undefined });
     setShowReopenDialog(false);
+  };
+
+  const handleReset = async () => {
+    if (!task) return;
+    await resetTask.mutateAsync({ taskId: task.id });
+    setShowResetDialog(false);
   };
 
   if (isLoading) {
@@ -218,6 +233,16 @@ export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetai
         />
       )}
 
+      {/* Reset Dialog */}
+      {showResetDialog && (
+        <ResetDialog
+          taskTitle={task.title}
+          onConfirm={handleReset}
+          onCancel={() => setShowResetDialog(false)}
+          isResetting={resetTask.isPending}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between p-4 border-b border-[var(--color-border)]">
         <div className="flex-1 min-w-0">
@@ -248,6 +273,17 @@ export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetai
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {canReset && (
+            <button
+              onClick={() => setShowResetDialog(true)}
+              className="p-1.5 text-[var(--color-text-tertiary)] hover:text-amber-600 hover:bg-amber-100 dark:hover:text-amber-400 dark:hover:bg-amber-900/30 rounded transition-colors"
+              aria-label="Reset task"
+              title="Reset task to open, clearing assignee and work data"
+              data-testid="task-reset-btn"
+            >
+              <RefreshCcw className="w-5 h-5" />
+            </button>
+          )}
           <button
             onClick={() => setShowDeleteConfirm(true)}
             className="p-1.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger-muted)] rounded transition-colors"
@@ -1596,6 +1632,82 @@ export function ReopenDialog({
               <>
                 <RotateCcw className="w-4 h-4" />
                 Reopen
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Reset Dialog
+function ResetDialog({
+  taskTitle,
+  onConfirm,
+  onCancel,
+  isResetting,
+}: {
+  taskTitle: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isResetting: boolean;
+}) {
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isResetting) onCancel();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isResetting, onCancel]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" data-testid="reset-dialog">
+      <div className="absolute inset-0 bg-black/50" onClick={() => !isResetting && onCancel()} />
+      <div className="relative bg-[var(--color-surface)] rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+        <div className="flex items-start gap-4">
+          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+            <RefreshCcw className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-[var(--color-text)]">Reset Task</h3>
+            <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
+              Reset <span className="font-medium text-[var(--color-text)]">"{taskTitle}"</span>?
+              This will:
+            </p>
+            <ul className="mt-2 text-sm text-[var(--color-text-secondary)] list-disc list-inside space-y-1">
+              <li>Set status back to open</li>
+              <li>Remove the assignee</li>
+              <li>Clear merge status</li>
+              <li>Remove branch/worktree metadata</li>
+              <li>Remove session ID</li>
+            </ul>
+          </div>
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            disabled={isResetting}
+            className="px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md hover:bg-[var(--color-surface-hover)] disabled:opacity-50"
+            data-testid="reset-cancel-btn"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isResetting}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700 disabled:opacity-50"
+            data-testid="reset-confirm-btn"
+          >
+            {isResetting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Resetting...
+              </>
+            ) : (
+              <>
+                <RefreshCcw className="w-4 h-4" />
+                Reset Task
               </>
             )}
           </button>
