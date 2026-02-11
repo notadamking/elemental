@@ -716,6 +716,125 @@ el dispatch smart el-task123
 el dispatch smart el-task123 --branch feature/task
 ```
 
+### Pool Commands
+
+| Command                   | Description                          |
+| ------------------------- | ------------------------------------ |
+| `el pool list`            | List agent pools                     |
+| `el pool show <id\|name>` | Show pool details                    |
+| `el pool create <name>`   | Create a new agent pool              |
+| `el pool update <id\|name>` | Update pool configuration          |
+| `el pool delete <id\|name>` | Delete an agent pool               |
+| `el pool status <id\|name>` | Show pool status with active agents|
+| `el pool refresh`         | Refresh pool status from sessions    |
+
+Agent pools limit the maximum number of agents running concurrently. The dispatch daemon respects pool limits when spawning agents.
+
+#### pool list
+
+List all agent pools.
+
+| Option                  | Description                        |
+| ----------------------- | ---------------------------------- |
+| `-e, --enabled`         | Only show enabled pools            |
+| `-a, --available`       | Only show pools with available slots |
+| `-t, --tag <tag>`       | Filter by tag                      |
+
+```bash
+el pool list
+el pool list --enabled
+el pool list --available
+el pool list --tag production
+```
+
+#### pool show
+
+Show detailed information about an agent pool.
+
+```bash
+el pool show default
+el pool show el-abc123
+```
+
+#### pool create
+
+Create a new agent pool.
+
+| Option                       | Description                                                   |
+| ---------------------------- | ------------------------------------------------------------- |
+| `-s, --size <n>`             | Maximum pool size (default: 5)                                |
+| `-d, --description <text>`   | Pool description                                              |
+| `-t, --agentType <config>`   | Agent type config (can repeat). Format: `role[:mode\|focus][:priority][:maxSlots]` |
+| `--tags <tags>`              | Comma-separated tags                                          |
+| `--disabled`                 | Create pool in disabled state                                 |
+
+**Agent Type Format:**
+- `worker` — All workers with default settings
+- `worker:ephemeral` — Ephemeral workers only
+- `worker:ephemeral:100` — Ephemeral workers with priority 100
+- `worker:persistent:50:3` — Persistent workers, priority 50, max 3 slots
+- `steward:merge` — Merge stewards
+- `steward:health:80` — Health stewards with priority 80
+
+```bash
+el pool create default --size 5
+el pool create workers --size 10 -t worker:ephemeral -t worker:persistent
+el pool create merge-pool --size 2 -t steward:merge:100
+el pool create production --size 20 --tags "prod,critical"
+```
+
+#### pool update
+
+Update an agent pool configuration.
+
+| Option                       | Description                                      |
+| ---------------------------- | ------------------------------------------------ |
+| `-s, --size <n>`             | Maximum pool size                                |
+| `-d, --description <text>`   | Pool description                                 |
+| `-t, --agentType <config>`   | Agent type config (replaces existing, can repeat)|
+| `--tags <tags>`              | Comma-separated tags (replaces existing)         |
+| `--enable`                   | Enable the pool                                  |
+| `--disable`                  | Disable the pool                                 |
+
+```bash
+el pool update default --size 10
+el pool update workers --enable
+el pool update merge-pool --disable
+el pool update production --description "Production agent pool"
+```
+
+#### pool delete
+
+Delete an agent pool.
+
+| Option          | Description                       |
+| --------------- | --------------------------------- |
+| `-f, --force`   | Delete even if agents are active  |
+
+```bash
+el pool delete old-pool
+el pool delete el-abc123 --force
+```
+
+#### pool status
+
+Show the current status of an agent pool including active agents.
+
+```bash
+el pool status default
+el pool status el-abc123
+```
+
+#### pool refresh
+
+Refresh the status of all agent pools based on current sessions.
+
+```bash
+el pool refresh
+```
+
+---
+
 ### Merge Command
 
 | Command    | Description                                      |

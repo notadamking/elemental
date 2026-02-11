@@ -812,3 +812,179 @@ await mergeSteward.updateMergeStatus(taskId, 'not_applicable');
 - A fix task is created with `tags: ['fix']` and assigned to the original task's agent
 
 All cleanup operations are best-effort and log warnings on failure without blocking the merge result.
+
+---
+
+## AgentPoolService
+
+**File:** `services/agent-pool-service.ts`
+
+Manages agent pools for controlling concurrent agent execution. Pools limit the maximum number of agents running simultaneously, and the dispatch daemon respects pool constraints when spawning agents.
+
+```typescript
+import { createAgentPoolService } from '@elemental/orchestrator-sdk';
+
+const poolService = createAgentPoolService(api, sessionManager, agentRegistry);
+```
+
+### Key Concepts
+
+- **Pool size:** Maximum number of concurrent agents across all types in the pool
+- **Agent type slots:** Which agent types (worker, steward) can occupy pool slots
+- **Priority scores:** Per-type priority for tie-breaking when multiple tasks are ready
+- **Directors are not pool-managed** — pools only apply to workers and stewards
+
+### Create Pool
+
+```typescript
+const pool = await poolService.createPool({
+  name: 'default',
+  description: 'Default agent pool',
+  maxSize: 5,
+  agentTypes: [
+    { role: 'worker', workerMode: 'ephemeral', priority: 100 },
+    { role: 'worker', workerMode: 'persistent', priority: 50, maxSlots: 2 },
+    { role: 'steward', stewardFocus: 'merge', priority: 80 },
+  ],
+  enabled: true,
+  tags: ['production'],
+  createdBy: userEntityId,
+});
+```
+
+### Pool Configuration
+
+```typescript
+interface AgentPoolConfig {
+  name: string;                      // Unique pool name
+  description?: string;              // Human-readable description
+  maxSize: number;                   // Maximum concurrent agents (1-1000)
+  agentTypes: PoolAgentTypeConfig[]; // Agent types in this pool
+  enabled?: boolean;                 // Whether pool is active (default: true)
+  tags?: string[];                   // Tags for categorization
+}
+
+interface PoolAgentTypeConfig {
+  role: 'worker' | 'steward';        // Agent role (not director)
+  workerMode?: 'ephemeral' | 'persistent';  // For workers
+  stewardFocus?: 'merge' | 'health' | 'reminder' | 'ops' | 'docs';  // For stewards
+  priority?: number;                 // Spawn priority (higher = higher priority)
+  maxSlots?: number;                 // Max slots for this type within the pool
+}
+```
+
+### Query Pools
+
+```typescript
+// Get by ID
+const pool = await poolService.getPool(poolId);
+
+// Get by name
+const pool = await poolService.getPoolByName('default');
+
+// List all pools
+const allPools = await poolService.listPools();
+
+// Filter pools
+const enabledPools = await poolService.listPools({ enabled: true });
+const availablePools = await poolService.listPools({ hasAvailableSlots: true });
+const taggedPools = await poolService.listPools({ tags: ['production'] });
+const namedPools = await poolService.listPools({ nameContains: 'worker' });
+```
+
+### Update Pool
+
+```typescript
+// Update configuration
+const updated = await poolService.updatePool(poolId, {
+  description: 'Updated description',
+  maxSize: 10,  // Cannot reduce below current activeCount
+  enabled: true,
+  agentTypes: [
+    { role: 'worker', workerMode: 'ephemeral', priority: 100 },
+  ],
+  tags: ['updated'],
+});
+```
+
+### Delete Pool
+
+```typescript
+await poolService.deletePool(poolId);
+// Warns if agents are active but still deletes
+```
+
+### Pool Status
+
+```typescript
+// Get current status
+const status = await poolService.getPoolStatus(poolId);
+// status.activeCount      - Number of active agents
+// status.availableSlots   - Number of available slots
+// status.activeByType     - Breakdown by agent type (e.g., 'worker:ephemeral': 3)
+// status.activeAgentIds   - IDs of active agents
+// status.lastUpdatedAt    - When status was last updated
+
+// Refresh all pool statuses from session manager
+await poolService.refreshAllPoolStatus();
+```
+
+### Spawn Decisions
+
+The dispatch daemon uses these methods to check pool constraints before spawning:
+
+```typescript
+// Check if an agent can spawn
+const check = await poolService.canSpawn({
+  role: 'worker',
+  workerMode: 'ephemeral',
+  agentId: agentEntityId,
+});
+
+if (check.canSpawn) {
+  // Safe to spawn
+} else {
+  console.log(check.reason);  // e.g., "Pool 'default' is at capacity (5 agents)"
+}
+
+// Get pools governing an agent type
+const pools = await poolService.getPoolsForAgentType('worker', 'ephemeral');
+
+// Get next spawn priority when multiple tasks are pending
+const nextRequest = await poolService.getNextSpawnPriority(poolId, pendingRequests);
+```
+
+### Agent Lifecycle Tracking
+
+The service tracks agent spawns and session ends to maintain accurate pool status:
+
+```typescript
+// Called when an agent is spawned
+await poolService.onAgentSpawned(agentId);
+
+// Called when an agent session ends
+await poolService.onAgentSessionEnded(agentId);
+```
+
+### Pool Spawn Check Result
+
+```typescript
+interface PoolSpawnCheck {
+  canSpawn: boolean;           // Whether spawn is allowed
+  poolId?: ElementId;          // Pool governing the decision
+  poolName?: string;           // Pool name for display
+  reason?: string;             // Reason if canSpawn is false
+  slotsAfterSpawn?: number;    // Slots used after spawn
+  maxSlots?: number;           // Maximum slots in pool
+}
+```
+
+### Constants
+
+```typescript
+import { POOL_DEFAULTS } from '@elemental/orchestrator-sdk';
+
+POOL_DEFAULTS.maxSize        // Default max size: 5
+POOL_DEFAULTS.enabled        // Default enabled: true
+POOL_DEFAULTS.defaultPriority // Default priority: 0
+```
