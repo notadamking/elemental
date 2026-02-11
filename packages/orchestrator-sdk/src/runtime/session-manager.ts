@@ -800,11 +800,20 @@ export class SessionManagerImpl implements SessionManager {
       return undefined;
     }
 
-    // Validate that the process is actually alive (PID available for interactive sessions)
-    if (session.pid && !this.isProcessAlive(session.pid)) {
-      // Process crashed without exit handler firing — clean up
-      this.cleanupDeadSession(session);
-      return undefined;
+    // Validate that the process/session is actually alive
+    if (session.pid) {
+      // Interactive sessions: check OS process liveness
+      if (!this.isProcessAlive(session.pid)) {
+        this.cleanupDeadSession(session);
+        return undefined;
+      }
+    } else {
+      // Headless sessions (no PID): cross-reference with spawner
+      const spawnerSession = this.spawner.getSession(sessionId);
+      if (!spawnerSession || spawnerSession.status === 'terminated') {
+        this.cleanupDeadSession(session);
+        return undefined;
+      }
     }
 
     return this.toPublicSession(session);
@@ -813,16 +822,34 @@ export class SessionManagerImpl implements SessionManager {
   listSessions(filter?: SessionFilter): SessionRecord[] {
     let sessions = Array.from(this.sessions.values());
 
-    // Validate PID liveness for sessions in active states.
-    // This catches sessions whose processes crashed without the exit handler firing.
+    // Validate liveness for sessions in active states.
+    // This catches sessions whose processes exited without the exit handler firing.
     const activeStatuses: SessionStatus[] = ['starting', 'running', 'terminating'];
+    let didCleanup = false;
     for (const session of sessions) {
-      if (activeStatuses.includes(session.status) && session.pid && !this.isProcessAlive(session.pid)) {
-        this.cleanupDeadSession(session);
+      if (!activeStatuses.includes(session.status)) continue;
+
+      if (session.pid) {
+        // Interactive sessions: check if the OS process is still alive
+        if (!this.isProcessAlive(session.pid)) {
+          this.cleanupDeadSession(session);
+          didCleanup = true;
+        }
+      } else {
+        // Headless sessions (no PID): cross-reference with the spawner.
+        // If the spawner no longer tracks this session, the process has exited
+        // and the exit event was lost or already processed by the spawner.
+        const spawnerSession = this.spawner.getSession(session.id);
+        if (!spawnerSession || spawnerSession.status === 'terminated') {
+          this.cleanupDeadSession(session);
+          didCleanup = true;
+        }
       }
     }
     // Re-read after potential cleanups
-    sessions = Array.from(this.sessions.values());
+    if (didCleanup) {
+      sessions = Array.from(this.sessions.values());
+    }
 
     if (filter) {
       if (filter.agentId !== undefined) {

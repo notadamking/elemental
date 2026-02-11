@@ -79,12 +79,13 @@ function createMockAgent(
   } as unknown as AgentEntity;
 }
 
-function createMockSpawnerService(): SpawnerService & { _mockEmitters: Map<string, EventEmitter> } {
+function createMockSpawnerService(): SpawnerService & { _mockEmitters: Map<string, EventEmitter>; _mockSessions: Map<string, SpawnedSession> } {
   const sessions = new Map<string, SpawnedSession>();
   const emitters = new Map<string, EventEmitter>();
 
   return {
     _mockEmitters: emitters,
+    _mockSessions: sessions,
 
     async spawn(
       agentId: EntityId,
@@ -336,7 +337,7 @@ function createMockApi(): ElementalAPI {
 
 describe('SessionManager', () => {
   let sessionManager: SessionManager;
-  let spawner: SpawnerService & { _mockEmitters: Map<string, EventEmitter> };
+  let spawner: SpawnerService & { _mockEmitters: Map<string, EventEmitter>; _mockSessions: Map<string, SpawnedSession> };
   let registry: AgentRegistry;
   let api: ElementalAPI;
   let agents: Map<EntityId, AgentEntity>;
@@ -1283,6 +1284,49 @@ describe('SessionManager', () => {
 
       const startingSessions = sessionManager.listSessions({ status: ['starting', 'running'] });
       expect(startingSessions).toHaveLength(0);
+    });
+
+    test('listSessions cleans up headless sessions when spawner no longer tracks them', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      // The session is headless (worker), so it has no PID.
+      // Simulate the spawner having already cleaned up (process exited, 5s elapsed).
+      spawner._mockSessions.delete(session.id);
+
+      // listSessions should detect the orphaned session via spawner cross-reference
+      const runningSessions = sessionManager.listSessions({ status: ['starting', 'running'] });
+      expect(runningSessions).toHaveLength(0);
+
+      // The session should now be terminated
+      const terminatedSessions = sessionManager.listSessions({ status: 'terminated' });
+      expect(terminatedSessions).toHaveLength(1);
+      expect(terminatedSessions[0].terminationReason).toContain('Process no longer alive');
+    });
+
+    test('getActiveSession cleans up headless sessions when spawner no longer tracks them', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      // Simulate the spawner cleaning up (headless process exited)
+      spawner._mockSessions.delete(session.id);
+
+      // getActiveSession should detect the orphan and return undefined
+      const active = sessionManager.getActiveSession(testAgentId);
+      expect(active).toBeUndefined();
+
+      // Session should be terminated
+      const found = sessionManager.getSession(session.id);
+      expect(found?.status).toBe('terminated');
+    });
+
+    test('listSessions cleans up headless sessions when spawner shows terminated', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      // Simulate the spawner marking the session as terminated (but not yet deleted)
+      const spawnerSession = spawner._mockSessions.get(session.id)!;
+      spawner._mockSessions.set(session.id, { ...spawnerSession, status: 'terminated' });
+
+      const runningSessions = sessionManager.listSessions({ status: ['starting', 'running'] });
+      expect(runningSessions).toHaveLength(0);
     });
 
     test('scheduleTerminatedSessionCleanup removes session without persisted flag', async () => {
