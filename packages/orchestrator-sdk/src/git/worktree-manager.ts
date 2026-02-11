@@ -112,6 +112,8 @@ export interface CreateWorktreeOptions {
   readonly baseBranch?: string;
   /** Track remote branch (default: true) */
   readonly trackRemote?: boolean;
+  /** Install dependencies after worktree creation (default: false) */
+  readonly installDependencies?: boolean;
 }
 
 /**
@@ -452,6 +454,11 @@ export class WorktreeManagerImpl implements WorktreeManager {
             // Ignore - remote may not exist
           }
         }
+      }
+
+      // Install dependencies if requested
+      if (options.installDependencies) {
+        await this.installDependencies(fullPath);
       }
 
       // Update state to active
@@ -826,6 +833,60 @@ export class WorktreeManagerImpl implements WorktreeManager {
       encoding: 'utf8',
       timeout: GIT_OPERATION_TIMEOUT_MS,
     });
+  }
+
+  /**
+   * Installs dependencies in a worktree directory.
+   * Detects the package manager (pnpm, npm, yarn, bun) and runs install.
+   * Uses a longer timeout since dependency installation can take a while.
+   */
+  private async installDependencies(worktreePath: string): Promise<void> {
+    // Check if package.json exists
+    const packageJsonPath = path.join(worktreePath, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) {
+      // No package.json, nothing to install
+      return;
+    }
+
+    // Detect package manager by lockfile presence
+    const hasLockfile = (name: string) => fs.existsSync(path.join(worktreePath, name));
+
+    let command: string;
+    let args: string[];
+
+    if (hasLockfile('pnpm-lock.yaml')) {
+      command = 'pnpm';
+      args = ['install', '--frozen-lockfile'];
+    } else if (hasLockfile('bun.lockb') || hasLockfile('bun.lock')) {
+      command = 'bun';
+      args = ['install', '--frozen-lockfile'];
+    } else if (hasLockfile('yarn.lock')) {
+      command = 'yarn';
+      args = ['install', '--frozen-lockfile'];
+    } else if (hasLockfile('package-lock.json')) {
+      command = 'npm';
+      args = ['ci'];
+    } else {
+      // Default to pnpm if no lockfile detected (monorepo case)
+      command = 'pnpm';
+      args = ['install'];
+    }
+
+    try {
+      // Use a longer timeout for dependency installation (5 minutes)
+      const INSTALL_TIMEOUT_MS = 5 * 60 * 1000;
+      await execFileAsync(command, args, {
+        cwd: worktreePath,
+        encoding: 'utf8',
+        timeout: INSTALL_TIMEOUT_MS,
+      });
+    } catch (error) {
+      throw new WorktreeError(
+        `Failed to install dependencies in worktree: ${worktreePath}`,
+        'DEPENDENCY_INSTALL_FAILED',
+        (error as Error).message
+      );
+    }
   }
 
   private resolvePath(worktreePath: string): string {
