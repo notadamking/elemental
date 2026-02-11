@@ -1,79 +1,54 @@
 /**
- * Activity Page - Real-time feed of all orchestrator events
- * Home page showing live agent activity
+ * Activity Page - Command center for the orchestrator
+ *
+ * Answers: "What is actively happening?" and "What has been accomplished?"
+ * with the ability to jump to workspaces or stop agents directly.
  */
 
-import { useState, useMemo, useCallback } from 'react';
-import { Activity as ActivityIcon, RefreshCw, Radio, WifiOff, Filter } from 'lucide-react';
+import { useCallback } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { Activity as ActivityIcon, RefreshCw, Radio, WifiOff } from 'lucide-react';
 import { useKeyboardShortcut } from '@elemental/ui';
 import { getCurrentBinding, formatKeyBinding } from '../../lib/keyboard';
-import { ActivityList, SessionActivityCard } from '../../components/activity/index.js';
-import { useInfiniteActivity, useActivityStream } from '../../api/hooks/useActivity.js';
-import type { ActivityFilterCategory, ActivityEvent } from '../../api/types.js';
-
-// Filter category options
-const FILTER_CATEGORIES: { value: ActivityFilterCategory; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'tasks', label: 'Tasks' },
-  { value: 'agents', label: 'Agents' },
-  { value: 'workflows', label: 'Workflows' },
-];
+import { useActivityStream } from '../../api/hooks/useActivity.js';
+import { useStopAgentSession } from '../../api/hooks/useAgents.js';
+import { useDaemonStatus } from '../../api/hooks/useDaemon.js';
+import {
+  SystemStatusBar,
+  ActiveAgentsDashboard,
+  RecentCompletions,
+  CollapsibleActivityFeed,
+} from '../../components/activity/index.js';
 
 export function ActivityPage() {
-  const [filterCategory, setFilterCategory] = useState<ActivityFilterCategory>('all');
-
-  // Fetch activity events with infinite scroll
-  const {
-    data,
-    isLoading,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    refetch,
-  } = useInfiniteActivity({ category: filterCategory, limit: 20 });
-
-  // Real-time session streaming
-  const {
-    isConnected,
-    sessionEvents,
-    clearSessionEvents,
-  } = useActivityStream(filterCategory);
-
-  // Flatten pages into a single array of events
-  const events = useMemo(() => {
-    if (!data?.pages) return [];
-    return data.pages.flatMap((page) => page.events);
-  }, [data]);
+  const navigate = useNavigate();
+  const { isConnected } = useActivityStream('all');
+  const { data: daemonStatus } = useDaemonStatus();
+  const stopSession = useStopAgentSession();
 
   const handleRefresh = useCallback(() => {
-    clearSessionEvents();
-    refetch();
-  }, [clearSessionEvents, refetch]);
+    window.location.reload();
+  }, []);
 
-  // Register keyboard shortcut for refresh
   useKeyboardShortcut(
     getCurrentBinding('action.refreshActivity'),
     handleRefresh,
     'Refresh Activity'
   );
 
-  const handleLoadMore = () => {
-    if (hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
-    }
-  };
+  const handleOpenTerminal = useCallback(
+    (agentId: string) => {
+      navigate({ to: '/workspaces', search: { layout: 'single', agent: agentId } });
+    },
+    [navigate]
+  );
 
-  const handleOpenInWorkspace = (event: ActivityEvent) => {
-    // Navigate to workspace with the element
-    // This would typically use React Router navigation
-    console.log('Open in workspace:', event.elementId);
-    // For now, just log - full implementation would integrate with workspace routing
-  };
-
-  const handleOpenSessionInWorkspace = (sessionId: string) => {
-    // Navigate to workspace with the session
-    console.log('Open session in workspace:', sessionId);
-  };
+  const handleStopAgent = useCallback(
+    async (agentId: string) => {
+      await stopSession.mutateAsync({ agentId, graceful: true });
+    },
+    [stopSession]
+  );
 
   return (
     <div className="space-y-6 animate-fade-in" data-testid="activity-page">
@@ -86,12 +61,12 @@ export function ActivityPage() {
           <div>
             <h1 className="text-xl font-semibold text-[var(--color-text)]">Activity</h1>
             <p className="text-sm text-[var(--color-text-secondary)]">
-              Real-time feed of agent events and updates
+              Command center for agent orchestration
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* Connection status indicator */}
+          {/* Connection status */}
           <div
             className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${
               isConnected
@@ -113,12 +88,28 @@ export function ActivityPage() {
             )}
           </div>
 
+          {/* Daemon status */}
+          <div
+            className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${
+              daemonStatus?.isRunning
+                ? 'bg-[var(--color-success-muted)] text-[var(--color-success)]'
+                : 'bg-[var(--color-surface)] text-[var(--color-text-tertiary)]'
+            }`}
+          >
+            <span
+              className={`inline-block w-1.5 h-1.5 rounded-full ${
+                daemonStatus?.isRunning ? 'bg-[var(--color-success)]' : 'bg-[var(--color-text-tertiary)]'
+              }`}
+            />
+            Daemon
+          </div>
+
           <button
             onClick={handleRefresh}
             className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[var(--color-text-secondary)] rounded-md border border-[var(--color-border)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150"
             data-testid="activity-refresh"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className="w-4 h-4" />
             Refresh
             <kbd className="ml-1 text-xs bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)] px-1 py-0.5 rounded border border-[var(--color-border)]">
               {formatKeyBinding(getCurrentBinding('action.refreshActivity'))}
@@ -127,69 +118,25 @@ export function ActivityPage() {
         </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex items-center gap-1 p-1 bg-[var(--color-surface)] rounded-lg border border-[var(--color-border)]">
-        <Filter className="w-4 h-4 text-[var(--color-text-tertiary)] ml-2 mr-1" />
-        {FILTER_CATEGORIES.map((category) => (
-          <button
-            key={category.value}
-            onClick={() => setFilterCategory(category.value)}
-            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors duration-150 ${
-              filterCategory === category.value
-                ? 'bg-[var(--color-primary)] text-white'
-                : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
-            }`}
-            data-testid={`activity-filter-${category.value}`}
-          >
-            {category.label}
-          </button>
-        ))}
-      </div>
+      {/* Section 1: System Status Bar */}
+      <SystemStatusBar />
 
-      {/* Real-time session activity (if any) */}
-      {sessionEvents.length > 0 && (
-        <div className="space-y-2" data-testid="session-activity-section">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-[var(--color-text-secondary)]">
-              Live Activity
-            </h2>
-            <button
-              onClick={clearSessionEvents}
-              className="text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
-            >
-              Clear
-            </button>
-          </div>
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {sessionEvents.slice(0, 5).map((event, index) => (
-              <SessionActivityCard
-                key={`${event.sessionId}-${index}`}
-                event={event}
-                onOpenInWorkspace={handleOpenSessionInWorkspace}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Historical activity feed */}
-      <div data-testid="activity-feed-section">
+      {/* Section 2: Active Agents Dashboard */}
+      <div>
         <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-3">
-          {sessionEvents.length > 0 ? 'Recent Activity' : 'Activity Feed'}
+          Active Agents
         </h2>
-        <ActivityList
-          events={events}
-          isLoading={isLoading || isFetchingNextPage}
-          hasMore={hasNextPage}
-          onLoadMore={handleLoadMore}
-          onOpenInWorkspace={handleOpenInWorkspace}
-          emptyMessage={
-            filterCategory === 'all'
-              ? 'No activity yet. Activity will appear here when agents start working on tasks.'
-              : `No ${filterCategory} activity to show.`
-          }
+        <ActiveAgentsDashboard
+          onOpenTerminal={handleOpenTerminal}
+          onStopAgent={handleStopAgent}
         />
       </div>
+
+      {/* Section 3: Recent Completions */}
+      <RecentCompletions />
+
+      {/* Section 4: Activity Feed (collapsed by default) */}
+      <CollapsibleActivityFeed />
     </div>
   );
 }
