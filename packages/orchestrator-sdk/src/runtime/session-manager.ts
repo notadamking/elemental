@@ -453,6 +453,7 @@ export class SessionManagerImpl implements SessionManager {
   private readonly sessions: Map<string, InternalSessionState> = new Map();
   private readonly agentSessions: Map<EntityId, string> = new Map(); // agentId -> active sessionId
   private readonly sessionHistory: Map<EntityId, SessionHistoryEntry[]> = new Map();
+  private readonly sessionCleanupFns: Map<string, () => void> = new Map(); // sessionId -> cleanup function
 
   constructor(
     private readonly spawner: SpawnerService,
@@ -674,6 +675,9 @@ export class SessionManagerImpl implements SessionManager {
       throw new Error(`Session not found: ${sessionId}`);
     }
 
+    // Clean up event listeners to prevent leaks
+    this.cleanupSessionEventListeners(sessionId);
+
     // Update session state BEFORE terminating to prevent race with exit event handler
     const updatedSession: InternalSessionState = {
       ...session,
@@ -730,6 +734,9 @@ export class SessionManagerImpl implements SessionManager {
     if (!session) {
       throw new Error(`Session not found: ${sessionId}`);
     }
+
+    // Clean up event listeners to prevent leaks
+    this.cleanupSessionEventListeners(sessionId);
 
     // Update session state BEFORE suspending to prevent race with exit event handler
     const updatedSession: InternalSessionState = {
@@ -1192,8 +1199,8 @@ export class SessionManagerImpl implements SessionManager {
     session: InternalSessionState,
     spawnerEvents: EventEmitter
   ): void {
-    // Forward all events from spawner to session's event emitter
-    spawnerEvents.on('event', (event) => {
+    // Create named handler functions so we can remove them later
+    const onEvent = (event: unknown) => {
       const current = this.sessions.get(session.id);
       if (!current) return;
       current.events.emit('event', event);
@@ -1203,22 +1210,43 @@ export class SessionManagerImpl implements SessionManager {
         lastActivityAt: createTimestamp(),
         persisted: false,
       });
-    });
+    };
 
-    spawnerEvents.on('pty-data', (data) => {
+    const onPtyData = (data: unknown) => {
       const current = this.sessions.get(session.id);
       if (!current) return;
       current.events.emit('pty-data', data);
-    });
+      // Update last activity
+      this.sessions.set(session.id, {
+        ...current,
+        lastActivityAt: createTimestamp(),
+        persisted: false,
+      });
+    };
 
-    spawnerEvents.on('error', (error) => {
+    const onError = (error: unknown) => {
       const current = this.sessions.get(session.id);
       if (!current) return;
       current.events.emit('error', error);
-    });
+    };
 
-    spawnerEvents.on('exit', async (code, signal) => {
+    const onStderr = (data: unknown) => {
+      const current = this.sessions.get(session.id);
+      if (!current) return;
+      current.events.emit('stderr', data);
+    };
+
+    const onRaw = (data: unknown) => {
+      const current = this.sessions.get(session.id);
+      if (!current) return;
+      current.events.emit('raw', data);
+    };
+
+    const onExit = async (code: number | null, signal: string | null) => {
       console.log(`[session-manager] Exit event received for session ${session.id}, agent ${session.agentId}, code=${code}, signal=${signal}`);
+
+      // Clean up all spawner event listeners immediately to prevent leaks
+      this.cleanupSessionEventListeners(session.id, spawnerEvents);
 
       const exitingSession = this.sessions.get(session.id);
       if (exitingSession) {
@@ -1269,32 +1297,39 @@ export class SessionManagerImpl implements SessionManager {
       } else {
         console.log(`[session-manager] Session ${session.id} already in status: ${currentSession?.status ?? 'not found'}`);
       }
-    });
+    };
 
-    spawnerEvents.on('stderr', (data) => {
-      const current = this.sessions.get(session.id);
-      if (!current) return;
-      current.events.emit('stderr', data);
-    });
+    // Attach all event listeners
+    spawnerEvents.on('event', onEvent);
+    spawnerEvents.on('pty-data', onPtyData);
+    spawnerEvents.on('error', onError);
+    spawnerEvents.on('stderr', onStderr);
+    spawnerEvents.on('raw', onRaw);
+    spawnerEvents.on('exit', onExit);
 
-    spawnerEvents.on('raw', (data) => {
-      const current = this.sessions.get(session.id);
-      if (!current) return;
-      current.events.emit('raw', data);
-    });
+    // Store cleanup function to remove all listeners
+    const cleanup = () => {
+      spawnerEvents.off('event', onEvent);
+      spawnerEvents.off('pty-data', onPtyData);
+      spawnerEvents.off('error', onError);
+      spawnerEvents.off('stderr', onStderr);
+      spawnerEvents.off('raw', onRaw);
+      spawnerEvents.off('exit', onExit);
+    };
+    this.sessionCleanupFns.set(session.id, cleanup);
+  }
 
-    // Forward PTY data for interactive sessions
-    spawnerEvents.on('pty-data', (data) => {
-      const current = this.sessions.get(session.id);
-      if (!current) return;
-      current.events.emit('pty-data', data);
-      // Update last activity
-      this.sessions.set(session.id, {
-        ...current,
-        lastActivityAt: createTimestamp(),
-        persisted: false,
-      });
-    });
+  /**
+   * Cleans up event listeners for a session.
+   * Called when a session exits to prevent listener leaks.
+   */
+  private cleanupSessionEventListeners(sessionId: string, _spawnerEvents?: EventEmitter): void {
+    const cleanup = this.sessionCleanupFns.get(sessionId);
+    if (cleanup) {
+      cleanup();
+      this.sessionCleanupFns.delete(sessionId);
+      console.log(`[session-manager] Cleaned up event listeners for session ${sessionId}`);
+    }
   }
 
   private createSessionState(

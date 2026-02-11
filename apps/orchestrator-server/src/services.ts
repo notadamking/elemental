@@ -176,10 +176,23 @@ export async function initializeServices(): Promise<Services> {
           }).catch(() => {
             // Session may already be terminated - ignore errors
           });
-          events.off('event', onResultEvent);
+          cleanup();
         }
       };
+
+      // Clean up onResultEvent listener on session exit to prevent leaks
+      // This handles sessions that terminate without emitting a 'result' event
+      const onExit = () => {
+        cleanup();
+      };
+
+      const cleanup = () => {
+        events.off('event', onResultEvent);
+        events.off('exit', onExit);
+      };
+
       events.on('event', onResultEvent);
+      events.on('exit', onExit);
     };
 
     dispatchDaemon = createDispatchDaemon(
