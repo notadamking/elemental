@@ -27,7 +27,7 @@ import {
   AddPaneDialog,
   type LayoutPreset,
 } from '../../components/workspace';
-import { useAgent } from '../../api/hooks/useAgents';
+import { useAgent, useResumeAgentSession } from '../../api/hooks/useAgents';
 
 /** Layout preset configuration */
 const layoutPresets: { id: LayoutPreset; icon: typeof Square; label: string }[] = [
@@ -38,7 +38,13 @@ const layoutPresets: { id: LayoutPreset; icon: typeof Square; label: string }[] 
 ];
 
 export function WorkspacesPage() {
-  const search = useSearch({ from: '/workspaces' }) as { layout?: string; agent?: string; action?: string };
+  const search = useSearch({ from: '/workspaces' }) as {
+    layout?: string;
+    agent?: string;
+    action?: string;
+    resumeSessionId?: string;
+    resumePrompt?: string;
+  };
   const navigate = useNavigate();
   const [showAddPane, setShowAddPane] = useState(false);
 
@@ -85,10 +91,13 @@ export function WorkspacesPage() {
   } = usePaneManager();
 
   // Handle agent URL parameter - open agent in pane when navigating from Agents page
+  // Also handles resumeSessionId and resumePrompt for session resume from task detail navigation
   const agentIdFromUrl = search.agent;
   const { data: agentResponse } = useAgent(agentIdFromUrl ?? '');
   const agentFromUrl = agentResponse?.agent;
   const processedAgentRef = useRef<string | null>(null);
+  const resumeProcessedRef = useRef<string | null>(null);
+  const resumeAgent = useResumeAgentSession();
 
   useEffect(() => {
     // If agent ID is in URL and we fetched the agent data, add it as a pane
@@ -101,15 +110,28 @@ export function WorkspacesPage() {
         // Agent already exists, just activate it
         setActivePane(existingPane.id);
       }
-      // Mark as processed and clear the URL param
+      // Mark as processed
       processedAgentRef.current = agentIdFromUrl;
+
+      // If resume params are present, trigger the resume
+      const resumeSessionId = search.resumeSessionId;
+      if (resumeSessionId && resumeProcessedRef.current !== resumeSessionId) {
+        resumeProcessedRef.current = resumeSessionId;
+        resumeAgent.mutate({
+          agentId: agentIdFromUrl,
+          providerSessionId: resumeSessionId,
+          resumePrompt: search.resumePrompt,
+        });
+      }
+
+      // Clear all URL params
       navigate({
         to: '/workspaces',
         search: { layout: search.layout ?? 'single', agent: undefined, resumeSessionId: undefined, resumePrompt: undefined },
         replace: true,
       });
     }
-  }, [agentFromUrl, agentIdFromUrl, layout.panes, addPane, setActivePane, navigate, search.layout]);
+  }, [agentFromUrl, agentIdFromUrl, layout.panes, addPane, setActivePane, navigate, search.layout, search.resumeSessionId, search.resumePrompt, resumeAgent]);
 
   const currentPreset = layoutPresets.find(p => p.id === layout.preset) || layoutPresets[0];
   const existingAgentIds = layout.panes.map(p => p.agentId);
