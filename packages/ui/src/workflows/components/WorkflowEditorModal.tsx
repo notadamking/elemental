@@ -25,8 +25,11 @@ import {
   ArrowDown,
   Edit3,
   FileText,
+  Terminal,
+  ClipboardList,
+  ChevronDown,
 } from 'lucide-react';
-import type { Playbook, VariableType, TaskTypeValue, Priority, Complexity } from '../types';
+import type { Playbook, VariableType, TaskTypeValue, Priority, Complexity, StepType, FunctionRuntime } from '../types';
 import {
   usePlaybook,
   useCreatePlaybook,
@@ -37,6 +40,8 @@ import {
   PRIORITIES,
   COMPLEXITIES,
   VARIABLE_TYPES,
+  STEP_TYPES,
+  FUNCTION_RUNTIMES,
 } from '../constants';
 import { generateStepId } from '../utils';
 
@@ -59,10 +64,18 @@ interface StepFormData {
   id: string;
   title: string;
   description: string;
+  stepType: StepType;
+  // Task step fields
   taskType: TaskTypeValue | '';
   priority: Priority | '';
   complexity: Complexity | '';
   assignee: string;
+  // Function step fields
+  runtime: FunctionRuntime;
+  code: string;
+  command: string;
+  timeout: string;
+  // Common fields
   dependsOn: string[];
   condition: string;
 }
@@ -80,39 +93,58 @@ interface VariableFormData {
 // Helper Functions
 // ============================================================================
 
-function formDataToStep(data: StepFormData): {
+type StepOutput = {
   id: string;
   title: string;
   description?: string;
+  stepType?: StepType;
+  // Task step fields
   taskType?: TaskTypeValue;
   priority?: Priority;
   complexity?: Complexity;
   assignee?: string;
+  // Function step fields
+  runtime?: FunctionRuntime;
+  code?: string;
+  command?: string;
+  timeout?: number;
+  // Common fields
   dependsOn?: string[];
   condition?: string;
-} {
-  const step: {
-    id: string;
-    title: string;
-    description?: string;
-    taskType?: TaskTypeValue;
-    priority?: Priority;
-    complexity?: Complexity;
-    assignee?: string;
-    dependsOn?: string[];
-    condition?: string;
-  } = {
+};
+
+function formDataToStep(data: StepFormData): StepOutput {
+  const step: StepOutput = {
     id: data.id,
     title: data.title,
   };
 
   if (data.description.trim()) step.description = data.description.trim();
-  if (data.taskType) step.taskType = data.taskType as TaskTypeValue;
-  if (data.priority) step.priority = data.priority as Priority;
-  if (data.complexity) step.complexity = data.complexity as Complexity;
-  if (data.assignee.trim()) step.assignee = data.assignee.trim();
   if (data.dependsOn.length > 0) step.dependsOn = data.dependsOn;
   if (data.condition.trim()) step.condition = data.condition.trim();
+
+  if (data.stepType === 'function') {
+    // Function step
+    step.stepType = 'function';
+    step.runtime = data.runtime;
+    if (data.runtime === 'shell') {
+      if (data.command.trim()) step.command = data.command.trim();
+    } else {
+      if (data.code.trim()) step.code = data.code.trim();
+    }
+    if (data.timeout.trim()) {
+      const timeoutNum = parseInt(data.timeout, 10);
+      if (!isNaN(timeoutNum) && timeoutNum > 0) {
+        step.timeout = timeoutNum;
+      }
+    }
+  } else {
+    // Task step (default)
+    if (data.taskType) step.taskType = data.taskType as TaskTypeValue;
+    if (data.priority) step.priority = data.priority as Priority;
+    if (data.complexity) step.complexity = data.complexity as Complexity;
+    if (data.assignee.trim()) step.assignee = data.assignee.trim();
+  }
 
   return step;
 }
@@ -211,10 +243,38 @@ function generateYaml(
       lines.push(`  - id: ${s.id}`);
       lines.push(`    title: "${s.title}"`);
       if (s.description) lines.push(`    description: "${s.description}"`);
-      if (s.taskType) lines.push(`    task_type: ${s.taskType}`);
-      if (s.priority) lines.push(`    priority: ${s.priority}`);
-      if (s.complexity) lines.push(`    complexity: ${s.complexity}`);
-      if (s.assignee) lines.push(`    assignee: "${s.assignee}"`);
+
+      // Function step fields
+      if (s.stepType === 'function') {
+        lines.push(`    step_type: function`);
+        lines.push(`    runtime: ${s.runtime}`);
+        if (s.runtime === 'shell' && s.command) {
+          // Use block scalar for multi-line commands
+          if (s.command.includes('\n')) {
+            lines.push(`    command: |`);
+            for (const cmdLine of s.command.split('\n')) {
+              lines.push(`      ${cmdLine}`);
+            }
+          } else {
+            lines.push(`    command: "${s.command}"`);
+          }
+        } else if (s.code) {
+          // Use block scalar for code
+          lines.push(`    code: |`);
+          for (const codeLine of s.code.split('\n')) {
+            lines.push(`      ${codeLine}`);
+          }
+        }
+        if (s.timeout) lines.push(`    timeout: ${s.timeout}`);
+      } else {
+        // Task step fields
+        if (s.taskType) lines.push(`    task_type: ${s.taskType}`);
+        if (s.priority) lines.push(`    priority: ${s.priority}`);
+        if (s.complexity) lines.push(`    complexity: ${s.complexity}`);
+        if (s.assignee) lines.push(`    assignee: "${s.assignee}"`);
+      }
+
+      // Common fields
       if (s.dependsOn.length > 0) {
         lines.push('    depends_on:');
         for (const d of s.dependsOn) {
@@ -255,6 +315,8 @@ function StepListItem({
   isFirst,
   isLast,
 }: StepListItemProps) {
+  const isFunctionStep = step.stepType === 'function';
+
   return (
     <div
       className={`flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-colors duration-150 ${
@@ -270,12 +332,26 @@ function StepListItem({
         <span className="w-6 h-6 flex items-center justify-center bg-[var(--color-bg)] border border-[var(--color-border)] rounded text-xs font-medium text-[var(--color-text-secondary)] flex-shrink-0">
           {index + 1}
         </span>
+        {/* Step type indicator */}
+        <span
+          className={`flex items-center justify-center w-6 h-6 rounded flex-shrink-0 ${
+            isFunctionStep
+              ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+              : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+          }`}
+          title={isFunctionStep ? 'Function step' : 'Task step'}
+        >
+          {isFunctionStep ? <Terminal className="w-3.5 h-3.5" /> : <ClipboardList className="w-3.5 h-3.5" />}
+        </span>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-[var(--color-text)] truncate">
             {step.title || 'Untitled step'}
           </div>
           <div className="text-xs text-[var(--color-text-tertiary)] font-mono truncate">
             {step.id}
+            {isFunctionStep && step.runtime && (
+              <span className="ml-1 text-purple-500">• {step.runtime}</span>
+            )}
           </div>
         </div>
       </div>
@@ -326,6 +402,7 @@ interface StepFormProps {
 
 function StepForm({ step, onChange, allStepIds, onClose }: StepFormProps) {
   const availableDependencies = allStepIds.filter(id => id !== step.id);
+  const isFunctionStep = step.stepType === 'function';
 
   const handleChange = (field: keyof StepFormData, value: unknown) => {
     onChange({ ...step, [field]: value });
@@ -339,12 +416,36 @@ function StepForm({ step, onChange, allStepIds, onClose }: StepFormProps) {
   };
 
   return (
-    <div className="space-y-4" data-testid="step-form">
+    <div className="space-y-4 max-h-[500px] overflow-y-auto" data-testid="step-form">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-medium text-[var(--color-text)]">Edit Step</h4>
         <button onClick={onClose} className="p-1 rounded hover:bg-[var(--color-surface-hover)]">
           <X className="w-4 h-4 text-[var(--color-text-secondary)]" />
         </button>
+      </div>
+
+      {/* Step Type Toggle */}
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-[var(--color-text-secondary)]">Step Type</label>
+        <div className="flex gap-2">
+          {STEP_TYPES.map(t => (
+            <button
+              key={t.value}
+              onClick={() => handleChange('stepType', t.value)}
+              className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+                step.stepType === t.value
+                  ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
+                  : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-primary)]'
+              }`}
+              data-testid={`step-type-${t.value}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-[var(--color-text-tertiary)]">
+          {step.stepType === 'function' ? 'Execute code directly' : 'Create an agent task'}
+        </p>
       </div>
 
       {/* Step ID */}
@@ -386,70 +487,156 @@ function StepForm({ step, onChange, allStepIds, onClose }: StepFormProps) {
           value={step.description}
           onChange={(e) => handleChange('description', e.target.value)}
           placeholder="Step description"
-          rows={3}
+          rows={2}
           className="w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 resize-none"
           data-testid="step-description-input"
         />
       </div>
 
-      {/* Task Type, Priority, Complexity */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-[var(--color-text-secondary)]">Task Type</label>
-          <select
-            value={step.taskType}
-            onChange={(e) => handleChange('taskType', e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
-            data-testid="step-tasktype-select"
-          >
-            <option value="">None</option>
-            {TASK_TYPES.map(t => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-[var(--color-text-secondary)]">Priority</label>
-          <select
-            value={step.priority}
-            onChange={(e) => handleChange('priority', e.target.value ? Number(e.target.value) : '')}
-            className="w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
-            data-testid="step-priority-select"
-          >
-            <option value="">None</option>
-            {PRIORITIES.map(p => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-[var(--color-text-secondary)]">Complexity</label>
-          <select
-            value={step.complexity}
-            onChange={(e) => handleChange('complexity', e.target.value ? Number(e.target.value) : '')}
-            className="w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
-            data-testid="step-complexity-select"
-          >
-            <option value="">None</option>
-            {COMPLEXITIES.map(c => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      {/* Function Step Fields */}
+      {isFunctionStep && (
+        <>
+          {/* Runtime */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-[var(--color-text-secondary)]">
+              Runtime <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={step.runtime}
+              onChange={(e) => handleChange('runtime', e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
+              data-testid="step-runtime-select"
+            >
+              {FUNCTION_RUNTIMES.map(r => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-[var(--color-text-tertiary)]">
+              {FUNCTION_RUNTIMES.find(r => r.value === step.runtime)?.description}
+            </p>
+          </div>
 
-      {/* Assignee */}
-      <div className="space-y-1">
-        <label className="text-xs font-medium text-[var(--color-text-secondary)]">Assignee</label>
-        <input
-          type="text"
-          value={step.assignee}
-          onChange={(e) => handleChange('assignee', e.target.value)}
-          placeholder="{{variable}} or entity name"
-          className="w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
-          data-testid="step-assignee-input"
-        />
-      </div>
+          {/* Code (for typescript/python) */}
+          {step.runtime !== 'shell' && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-[var(--color-text-secondary)]">
+                Code <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={step.code}
+                onChange={(e) => handleChange('code', e.target.value)}
+                placeholder={step.runtime === 'typescript'
+                  ? '// TypeScript code to execute\nexport default async function() {\n  // Your code here\n}'
+                  : '# Python code to execute\ndef main():\n    # Your code here\n    pass'}
+                rows={8}
+                className="w-full px-3 py-2 text-sm font-mono bg-gray-900 text-green-400 border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 resize-none"
+                data-testid="step-code-input"
+              />
+            </div>
+          )}
+
+          {/* Command (for shell) */}
+          {step.runtime === 'shell' && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-[var(--color-text-secondary)]">
+                Command <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={step.command}
+                onChange={(e) => handleChange('command', e.target.value)}
+                placeholder="echo 'Hello World' && ls -la"
+                rows={4}
+                className="w-full px-3 py-2 text-sm font-mono bg-gray-900 text-green-400 border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 resize-none"
+                data-testid="step-command-input"
+              />
+            </div>
+          )}
+
+          {/* Timeout */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-[var(--color-text-secondary)]">
+              Timeout (ms)
+            </label>
+            <input
+              type="number"
+              value={step.timeout}
+              onChange={(e) => handleChange('timeout', e.target.value)}
+              placeholder="30000"
+              min="1"
+              max="600000"
+              className="w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
+              data-testid="step-timeout-input"
+            />
+            <p className="text-xs text-[var(--color-text-tertiary)]">
+              Default: 30000ms (30 seconds). Max: 600000ms (10 minutes)
+            </p>
+          </div>
+        </>
+      )}
+
+      {/* Task Step Fields */}
+      {!isFunctionStep && (
+        <>
+          {/* Task Type, Priority, Complexity */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-[var(--color-text-secondary)]">Task Type</label>
+              <select
+                value={step.taskType}
+                onChange={(e) => handleChange('taskType', e.target.value)}
+                className="w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
+                data-testid="step-tasktype-select"
+              >
+                <option value="">None</option>
+                {TASK_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-[var(--color-text-secondary)]">Priority</label>
+              <select
+                value={step.priority}
+                onChange={(e) => handleChange('priority', e.target.value ? Number(e.target.value) : '')}
+                className="w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
+                data-testid="step-priority-select"
+              >
+                <option value="">None</option>
+                {PRIORITIES.map(p => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-[var(--color-text-secondary)]">Complexity</label>
+              <select
+                value={step.complexity}
+                onChange={(e) => handleChange('complexity', e.target.value ? Number(e.target.value) : '')}
+                className="w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
+                data-testid="step-complexity-select"
+              >
+                <option value="">None</option>
+                {COMPLEXITIES.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Assignee */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-[var(--color-text-secondary)]">Assignee</label>
+            <input
+              type="text"
+              value={step.assignee}
+              onChange={(e) => handleChange('assignee', e.target.value)}
+              placeholder="{{variable}} or entity name"
+              className="w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
+              data-testid="step-assignee-input"
+            />
+          </div>
+        </>
+      )}
 
       {/* Dependencies */}
       <div className="space-y-1">
@@ -821,17 +1008,29 @@ export function WorkflowEditorModal({
     if (playbook && isEditing) {
       setName(playbook.name);
       setTitle(playbook.title);
-      setSteps(playbook.steps.map(s => ({
-        id: s.id,
-        title: s.title,
-        description: s.description ?? '',
-        taskType: s.taskType ?? '',
-        priority: s.priority ?? '',
-        complexity: s.complexity ?? '',
-        assignee: s.assignee ?? '',
-        dependsOn: s.dependsOn ?? [],
-        condition: s.condition ?? '',
-      })));
+      setSteps(playbook.steps.map(s => {
+        const stepType = s.stepType ?? 'task';
+        const isFunctionStep = stepType === 'function';
+        return {
+          id: s.id,
+          title: s.title,
+          description: s.description ?? '',
+          stepType: stepType as StepType,
+          // Task step fields
+          taskType: isFunctionStep ? '' : (s as { taskType?: TaskTypeValue }).taskType ?? '',
+          priority: isFunctionStep ? '' : (s as { priority?: Priority }).priority ?? '',
+          complexity: isFunctionStep ? '' : (s as { complexity?: Complexity }).complexity ?? '',
+          assignee: isFunctionStep ? '' : (s as { assignee?: string }).assignee ?? '',
+          // Function step fields
+          runtime: isFunctionStep ? ((s as { runtime?: FunctionRuntime }).runtime ?? 'typescript') : 'typescript',
+          code: isFunctionStep ? ((s as { code?: string }).code ?? '') : '',
+          command: isFunctionStep ? ((s as { command?: string }).command ?? '') : '',
+          timeout: isFunctionStep ? ((s as { timeout?: number }).timeout?.toString() ?? '') : '',
+          // Common fields
+          dependsOn: s.dependsOn ?? [],
+          condition: s.condition ?? '',
+        };
+      }));
       setVariables(playbook.variables.map(v => ({
         name: v.name,
         description: v.description ?? '',
@@ -886,15 +1085,23 @@ export function WorkflowEditorModal({
   const canSave = validationErrors.length === 0 && !createPlaybook.isPending && !updatePlaybook.isPending;
 
   // Handlers
-  const handleAddStep = useCallback(() => {
+  const handleAddStep = useCallback((stepType: StepType = 'task') => {
     const newStep: StepFormData = {
       id: generateStepId(),
       title: '',
       description: '',
+      stepType,
+      // Task step fields
       taskType: '',
       priority: '',
       complexity: '',
       assignee: '',
+      // Function step fields
+      runtime: 'typescript',
+      code: '',
+      command: '',
+      timeout: '',
+      // Common fields
       dependsOn: [],
       condition: '',
     };
@@ -997,10 +1204,15 @@ export function WorkflowEditorModal({
                 id: currentItem.id || generateStepId(),
                 title: currentItem.title || '',
                 description: currentItem.description || '',
+                stepType: 'task',
                 taskType: '',
                 priority: '',
                 complexity: '',
                 assignee: '',
+                runtime: 'typescript',
+                code: '',
+                command: '',
+                timeout: '',
                 dependsOn: [],
                 condition: '',
               } as StepFormData);
@@ -1040,10 +1252,15 @@ export function WorkflowEditorModal({
             id: currentItem.id || generateStepId(),
             title: currentItem.title || '',
             description: currentItem.description || '',
+            stepType: 'task',
             taskType: '',
             priority: '',
             complexity: '',
             assignee: '',
+            runtime: 'typescript',
+            code: '',
+            command: '',
+            timeout: '',
             dependsOn: [],
             condition: '',
           } as StepFormData);
@@ -1257,14 +1474,41 @@ export function WorkflowEditorModal({
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-medium text-[var(--color-text)]">Steps</h3>
-                        <button
-                          onClick={handleAddStep}
-                          className="flex items-center gap-1 px-2 py-1 text-sm text-[var(--color-primary)] hover:bg-[var(--color-primary-muted)] rounded"
-                          data-testid="add-step-button"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Add Step
-                        </button>
+                        <div className="relative group">
+                          <button
+                            className="flex items-center gap-1 px-2 py-1 text-sm text-[var(--color-primary)] hover:bg-[var(--color-primary-muted)] rounded"
+                            data-testid="add-step-button"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add Step
+                            <ChevronDown className="w-3 h-3 ml-0.5" />
+                          </button>
+                          {/* Dropdown menu */}
+                          <div className="absolute right-0 mt-1 w-48 py-1 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                            <button
+                              onClick={() => handleAddStep('task')}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+                              data-testid="add-task-step"
+                            >
+                              <ClipboardList className="w-4 h-4 text-blue-500" />
+                              <div className="text-left">
+                                <div className="font-medium">Task Step</div>
+                                <div className="text-xs text-[var(--color-text-tertiary)]">Agent-executed task</div>
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => handleAddStep('function')}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+                              data-testid="add-function-step"
+                            >
+                              <Terminal className="w-4 h-4 text-purple-500" />
+                              <div className="text-left">
+                                <div className="font-medium">Function Step</div>
+                                <div className="text-xs text-[var(--color-text-tertiary)]">Execute code directly</div>
+                              </div>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                       <div className="space-y-2 max-h-[400px] overflow-auto" data-testid="step-list">
                         {steps.length === 0 ? (

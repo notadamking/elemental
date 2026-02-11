@@ -19,7 +19,10 @@ import {
   type PlaybookStep,
   type CreatePlaybookInput,
   VariableType,
+  FunctionRuntime,
   isValidVariableType,
+  isValidFunctionRuntime,
+  isFunctionStep,
   PLAYBOOK_NAME_PATTERN,
   MAX_PLAYBOOK_NAME_LENGTH,
   MAX_PLAYBOOK_TITLE_LENGTH,
@@ -29,6 +32,9 @@ import {
   MAX_STEP_DESCRIPTION_LENGTH,
   MAX_CONDITION_LENGTH,
   MAX_ASSIGNEE_LENGTH,
+  MAX_FUNCTION_CODE_LENGTH,
+  MAX_FUNCTION_COMMAND_LENGTH,
+  MAX_FUNCTION_TIMEOUT,
   MAX_STEPS,
   MAX_VARIABLES,
   MAX_EXTENDS,
@@ -82,14 +88,24 @@ export interface YamlPlaybookStep {
   title: string;
   /** Step description (supports variable substitution) */
   description?: string;
-  /** Task type */
+  /** Step type: 'task' (default) or 'function' */
+  step_type?: string;
+  /** Task type (for task steps) */
   task_type?: string;
-  /** Priority (1-5) */
+  /** Priority (1-5) (for task steps) */
   priority?: number;
-  /** Complexity (1-5) */
+  /** Complexity (1-5) (for task steps) */
   complexity?: number;
-  /** Assignee (supports variable substitution) */
+  /** Assignee (supports variable substitution) (for task steps) */
   assignee?: string;
+  /** Function runtime: 'typescript', 'python', or 'shell' (for function steps) */
+  runtime?: string;
+  /** Code to execute (for typescript/python function steps) */
+  code?: string;
+  /** Command to execute (for shell function steps) */
+  command?: string;
+  /** Timeout in milliseconds (for function steps) */
+  timeout?: number;
   /** Step dependencies */
   depends_on?: string[];
   /** Condition for inclusion */
@@ -270,6 +286,33 @@ function convertYamlVariable(yamlVar: YamlPlaybookVariable, index: number): Play
  * Converts a YAML step to internal PlaybookStep format
  */
 function convertYamlStep(yamlStep: YamlPlaybookStep, _index: number): PlaybookStep {
+  // Check if this is a function step
+  if (yamlStep.step_type === 'function') {
+    const functionStep = {
+      id: yamlStep.id,
+      title: yamlStep.title,
+      stepType: 'function' as const,
+      runtime: (yamlStep.runtime ?? 'typescript') as FunctionRuntime,
+      description: yamlStep.description,
+      code: yamlStep.code,
+      command: yamlStep.command,
+      timeout: yamlStep.timeout,
+      dependsOn: yamlStep.depends_on,
+      condition: yamlStep.condition,
+    };
+
+    // Clean up undefined values
+    if (functionStep.description === undefined) delete functionStep.description;
+    if (functionStep.code === undefined) delete functionStep.code;
+    if (functionStep.command === undefined) delete functionStep.command;
+    if (functionStep.timeout === undefined) delete functionStep.timeout;
+    if (functionStep.dependsOn === undefined) delete functionStep.dependsOn;
+    if (functionStep.condition === undefined) delete functionStep.condition;
+
+    return functionStep;
+  }
+
+  // Default to task step
   const step: PlaybookStep = {
     id: yamlStep.id,
     title: yamlStep.title,
@@ -280,19 +323,19 @@ function convertYamlStep(yamlStep: YamlPlaybookStep, _index: number): PlaybookSt
   }
 
   if (yamlStep.task_type !== undefined) {
-    step.taskType = yamlStep.task_type as TaskTypeValue;
+    (step as any).taskType = yamlStep.task_type as TaskTypeValue;
   }
 
   if (yamlStep.priority !== undefined) {
-    step.priority = yamlStep.priority as Priority;
+    (step as any).priority = yamlStep.priority as Priority;
   }
 
   if (yamlStep.complexity !== undefined) {
-    step.complexity = yamlStep.complexity as Complexity;
+    (step as any).complexity = yamlStep.complexity as Complexity;
   }
 
   if (yamlStep.assignee !== undefined) {
-    step.assignee = yamlStep.assignee;
+    (step as any).assignee = yamlStep.assignee;
   }
 
   if (yamlStep.depends_on !== undefined) {
@@ -746,6 +789,56 @@ function validateYamlStep(
       );
     }
   }
+
+  // Validate function step fields
+  if (step.step_type === 'function') {
+    // Validate runtime
+    if (step.runtime !== undefined && !isValidFunctionRuntime(step.runtime)) {
+      throw new ValidationError(
+        `Invalid function runtime '${step.runtime}' at steps[${index}]${context}. Must be one of: ${Object.values(FunctionRuntime).join(', ')}`,
+        ErrorCode.INVALID_INPUT,
+        { field: `steps[${index}].runtime`, value: step.runtime }
+      );
+    }
+
+    // Validate code length
+    if (step.code !== undefined && typeof step.code === 'string' && step.code.length > MAX_FUNCTION_CODE_LENGTH) {
+      throw new ValidationError(
+        `Function code exceeds maximum length at steps[${index}]${context}`,
+        ErrorCode.INVALID_INPUT,
+        { field: `steps[${index}].code`, expected: `<= ${MAX_FUNCTION_CODE_LENGTH} characters`, actual: step.code.length }
+      );
+    }
+
+    // Validate command length
+    if (step.command !== undefined && typeof step.command === 'string' && step.command.length > MAX_FUNCTION_COMMAND_LENGTH) {
+      throw new ValidationError(
+        `Function command exceeds maximum length at steps[${index}]${context}`,
+        ErrorCode.INVALID_INPUT,
+        { field: `steps[${index}].command`, expected: `<= ${MAX_FUNCTION_COMMAND_LENGTH} characters`, actual: step.command.length }
+      );
+    }
+
+    // Validate timeout
+    if (step.timeout !== undefined) {
+      if (typeof step.timeout !== 'number' || !Number.isInteger(step.timeout) || step.timeout < 1 || step.timeout > MAX_FUNCTION_TIMEOUT) {
+        throw new ValidationError(
+          `Function timeout must be an integer between 1 and ${MAX_FUNCTION_TIMEOUT} at steps[${index}]${context}`,
+          ErrorCode.INVALID_INPUT,
+          { field: `steps[${index}].timeout`, value: step.timeout, expected: `1-${MAX_FUNCTION_TIMEOUT}` }
+        );
+      }
+    }
+
+    // Function steps should not have task-specific fields
+    if (step.task_type !== undefined || step.priority !== undefined || step.complexity !== undefined || step.assignee !== undefined) {
+      throw new ValidationError(
+        `Function steps should not have task-specific fields (task_type, priority, complexity, assignee) at steps[${index}]${context}`,
+        ErrorCode.INVALID_INPUT,
+        { field: `steps[${index}]` }
+      );
+    }
+  }
 }
 
 // ============================================================================
@@ -966,22 +1059,42 @@ function convertStepToYaml(step: PlaybookStep): YamlPlaybookStep {
     yamlStep.description = step.description;
   }
 
-  if (step.taskType !== undefined) {
-    yamlStep.task_type = step.taskType;
+  // Handle function steps
+  if (isFunctionStep(step)) {
+    yamlStep.step_type = 'function';
+    yamlStep.runtime = step.runtime;
+
+    if (step.code !== undefined) {
+      yamlStep.code = step.code;
+    }
+
+    if (step.command !== undefined) {
+      yamlStep.command = step.command;
+    }
+
+    if (step.timeout !== undefined) {
+      yamlStep.timeout = step.timeout;
+    }
+  } else {
+    // Handle task steps
+    if (step.taskType !== undefined) {
+      yamlStep.task_type = step.taskType;
+    }
+
+    if (step.priority !== undefined) {
+      yamlStep.priority = step.priority;
+    }
+
+    if (step.complexity !== undefined) {
+      yamlStep.complexity = step.complexity;
+    }
+
+    if (step.assignee !== undefined) {
+      yamlStep.assignee = step.assignee;
+    }
   }
 
-  if (step.priority !== undefined) {
-    yamlStep.priority = step.priority;
-  }
-
-  if (step.complexity !== undefined) {
-    yamlStep.complexity = step.complexity;
-  }
-
-  if (step.assignee !== undefined) {
-    yamlStep.assignee = step.assignee;
-  }
-
+  // Common fields
   if (step.dependsOn !== undefined && step.dependsOn.length > 0) {
     yamlStep.depends_on = step.dependsOn;
   }

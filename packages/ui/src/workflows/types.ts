@@ -38,6 +38,51 @@ export interface WorkflowTask {
 }
 
 // ============================================================================
+// Function Step Types (used in workflow context)
+// ============================================================================
+
+export type FunctionStepStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+/**
+ * Function step entity for workflow context
+ */
+export interface WorkflowFunctionStep {
+  id: ElementId;
+  type: 'function';
+  stepId: string;
+  title: string;
+  description?: string;
+  status: FunctionStepStatus;
+  runtime: FunctionRuntime;
+  code?: string;
+  command?: string;
+  timeout: number;
+  startedAt?: string;
+  finishedAt?: string;
+  error?: string;
+  output?: string;
+}
+
+/**
+ * Union type for any workflow step (task or function)
+ */
+export type WorkflowStep = WorkflowTask | WorkflowFunctionStep;
+
+/**
+ * Type guard for function steps
+ */
+export function isWorkflowFunctionStep(step: WorkflowStep): step is WorkflowFunctionStep {
+  return step.type === 'function';
+}
+
+/**
+ * Type guard for task steps
+ */
+export function isWorkflowTask(step: WorkflowStep): step is WorkflowTask {
+  return step.type === 'task';
+}
+
+// ============================================================================
 // Workflow Types
 // ============================================================================
 
@@ -118,6 +163,8 @@ export interface WorkflowFilter {
 // ============================================================================
 
 export type VariableType = 'string' | 'number' | 'boolean';
+export type StepType = 'task' | 'function';
+export type FunctionRuntime = 'typescript' | 'python' | 'shell';
 
 /**
  * Variable definition in a playbook
@@ -132,19 +179,42 @@ export interface PlaybookVariable {
 }
 
 /**
- * Step definition in a playbook
+ * Base step definition (shared properties)
  */
-export interface PlaybookStep {
+export interface PlaybookStepBase {
   id: string;
   title: string;
   description?: string;
+  dependsOn?: string[];
+  condition?: string;
+}
+
+/**
+ * Task step - creates an agent task to be executed
+ */
+export interface PlaybookTaskStep extends PlaybookStepBase {
+  stepType?: 'task';
   taskType?: TaskTypeValue;
   priority?: Priority;
   complexity?: Complexity;
   assignee?: string;
-  dependsOn?: string[];
-  condition?: string;
 }
+
+/**
+ * Function step - executes code directly
+ */
+export interface PlaybookFunctionStep extends PlaybookStepBase {
+  stepType: 'function';
+  runtime: FunctionRuntime;
+  code?: string;
+  command?: string;
+  timeout?: number;
+}
+
+/**
+ * Step definition in a playbook (union of task and function steps)
+ */
+export type PlaybookStep = PlaybookTaskStep | PlaybookFunctionStep;
 
 /**
  * Playbook entity as returned by the API
@@ -189,6 +259,8 @@ export interface WorkflowResponse {
 
 export interface WorkflowTasksResponse {
   tasks: WorkflowTask[];
+  functionSteps?: WorkflowFunctionStep[];
+  steps?: WorkflowStep[];
   total: number;
   progress: WorkflowProgress;
   dependencies: WorkflowDependency[];

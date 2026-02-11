@@ -15,8 +15,20 @@ import {
   Play,
   AlertTriangle,
   ListTodo,
+  Terminal,
+  XCircle,
+  Code,
 } from 'lucide-react';
-import type { Workflow, WorkflowTask, WorkflowProgress, WorkflowDependency, WorkflowStatus } from '../types';
+import type {
+  Workflow,
+  WorkflowTask,
+  WorkflowProgress,
+  WorkflowDependency,
+  WorkflowStatus,
+  WorkflowFunctionStep,
+  WorkflowStep,
+} from '../types';
+import { isWorkflowFunctionStep } from '../types';
 import { WORKFLOW_STATUS_CONFIG } from '../constants';
 
 // ============================================================================
@@ -26,6 +38,8 @@ import { WORKFLOW_STATUS_CONFIG } from '../constants';
 interface WorkflowProgressDashboardProps {
   workflow: Workflow;
   tasks: WorkflowTask[];
+  functionSteps?: WorkflowFunctionStep[];
+  steps?: WorkflowStep[];
   progress: WorkflowProgress;
   dependencies: WorkflowDependency[];
   isLoading?: boolean;
@@ -232,14 +246,144 @@ function getTaskStatusStyle(status: string): string {
 }
 
 // ============================================================================
-// Task List Component
+// Function Step List Item Component
 // ============================================================================
 
-function TaskList({
+interface FunctionStepListItemProps {
+  step: WorkflowFunctionStep;
+  dependsOn: string[];
+  blockedBy: string[];
+}
+
+function FunctionStepListItem({ step, dependsOn, blockedBy }: FunctionStepListItemProps) {
+  const statusIcon = useMemo(() => {
+    switch (step.status) {
+      case 'completed':
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'running':
+        return <Loader2 className="w-4 h-4 text-purple-500 animate-spin" />;
+      case 'failed':
+        return <XCircle className="w-4 h-4 text-red-500" />;
+      case 'pending':
+      default:
+        return <Clock className="w-4 h-4 text-gray-400" />;
+    }
+  }, [step.status]);
+
+  const runtimeLabel = useMemo(() => {
+    const runtime = step.runtime;
+    switch (runtime) {
+      case 'typescript':
+        return 'TS';
+      case 'python':
+        return 'PY';
+      case 'shell':
+        return 'SH';
+      default:
+        return (runtime as string)?.toUpperCase() ?? '';
+    }
+  }, [step.runtime]);
+
+  const getRuntimeColor = (runtime: string) => {
+    switch (runtime) {
+      case 'typescript':
+        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400';
+      case 'python':
+        return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400';
+      case 'shell':
+        return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400';
+      default:
+        return 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400';
+    }
+  };
+
+  const getFunctionStatusStyle = (status: string): string => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400';
+      case 'failed':
+        return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400';
+      case 'running':
+        return 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400';
+      default:
+        return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400';
+    }
+  };
+
+  return (
+    <div
+      className="flex items-center gap-3 p-3 border border-purple-200 dark:border-purple-800/50 rounded-lg bg-purple-50/50 dark:bg-purple-900/10 hover:bg-purple-100/50 dark:hover:bg-purple-900/20 transition-colors"
+      data-testid={`workflow-function-step-${step.id}`}
+    >
+      {/* Status Icon */}
+      <div className="flex-shrink-0">{statusIcon}</div>
+
+      {/* Function indicator */}
+      <div className="flex-shrink-0">
+        <div className="flex items-center justify-center w-6 h-6 rounded bg-purple-100 dark:bg-purple-900/30">
+          <Terminal className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+        </div>
+      </div>
+
+      {/* Step Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-[var(--color-text)] truncate">
+            {step.title}
+          </span>
+          <span className={`px-1.5 py-0.5 rounded text-xs font-mono ${getRuntimeColor(step.runtime)}`}>
+            {runtimeLabel}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 mt-1 text-xs">
+          <span className={`px-1.5 py-0.5 rounded ${getFunctionStatusStyle(step.status)}`}>
+            {step.status}
+          </span>
+          {dependsOn.length > 0 && (
+            <span className="text-[var(--color-text-tertiary)]">
+              Depends on {dependsOn.length} step{dependsOn.length > 1 ? 's' : ''}
+            </span>
+          )}
+          {step.timeout && (
+            <span className="text-[var(--color-text-tertiary)]">
+              Timeout: {step.timeout / 1000}s
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Error indicator */}
+      {step.error && (
+        <div className="flex items-center gap-1 text-xs text-red-500" title={step.error}>
+          <AlertTriangle className="w-3 h-3" />
+          <span>Error</span>
+        </div>
+      )}
+
+      {/* Blocked indicator */}
+      {blockedBy.length > 0 && (
+        <div className="flex items-center gap-1 text-xs text-red-500">
+          <AlertTriangle className="w-3 h-3" />
+          <span>Blocked</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Step List Component (handles both tasks and function steps)
+// ============================================================================
+
+function StepList({
   tasks,
+  functionSteps = [],
+  steps = [],
   dependencies,
 }: {
   tasks: WorkflowTask[];
+  functionSteps?: WorkflowFunctionStep[];
+  steps?: WorkflowStep[];
   dependencies: WorkflowDependency[];
 }) {
   // Build dependency maps
@@ -262,42 +406,64 @@ function TaskList({
     return { dependsOnMap: dependsOn, blockedByMap: blockedBy };
   }, [dependencies]);
 
-  // Sort tasks by status priority
-  const sortedTasks = useMemo(() => {
+  // Combine and sort all steps by status priority
+  const sortedSteps = useMemo(() => {
+    // If steps array is provided, use it directly
+    let allSteps: WorkflowStep[] = steps.length > 0
+      ? steps
+      : [...tasks, ...functionSteps];
+
     const statusOrder: Record<string, number> = {
+      // Task statuses
       in_progress: 0,
+      running: 0, // Function step running
       blocked: 1,
       open: 2,
+      pending: 2, // Function step pending
       closed: 3,
-      deferred: 4,
-      tombstone: 5,
+      completed: 3, // Function step completed
+      failed: 4,
+      deferred: 5,
+      tombstone: 6,
     };
 
-    return [...tasks].sort((a, b) => {
+    return allSteps.sort((a, b) => {
       const aOrder = statusOrder[a.status] ?? 99;
       const bOrder = statusOrder[b.status] ?? 99;
       return aOrder - bOrder;
     });
-  }, [tasks]);
+  }, [tasks, functionSteps, steps]);
 
-  if (tasks.length === 0) {
+  if (sortedSteps.length === 0) {
     return (
       <div className="text-center py-8 text-[var(--color-text-secondary)]">
-        No tasks in this workflow
+        No steps in this workflow
       </div>
     );
   }
 
   return (
-    <div className="space-y-2" data-testid="workflow-task-list">
-      {sortedTasks.map((task) => (
-        <TaskListItem
-          key={task.id}
-          task={task}
-          dependsOn={dependsOnMap.get(task.id) ?? []}
-          blockedBy={blockedByMap.get(task.id) ?? []}
-        />
-      ))}
+    <div className="space-y-2" data-testid="workflow-step-list">
+      {sortedSteps.map((step) => {
+        if (isWorkflowFunctionStep(step)) {
+          return (
+            <FunctionStepListItem
+              key={step.id}
+              step={step}
+              dependsOn={dependsOnMap.get(step.id) ?? []}
+              blockedBy={blockedByMap.get(step.id) ?? []}
+            />
+          );
+        }
+        return (
+          <TaskListItem
+            key={step.id}
+            task={step as WorkflowTask}
+            dependsOn={dependsOnMap.get(step.id) ?? []}
+            blockedBy={blockedByMap.get(step.id) ?? []}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -388,6 +554,8 @@ function DependencyGraph({
 export function WorkflowProgressDashboard({
   workflow,
   tasks,
+  functionSteps = [],
+  steps = [],
   progress,
   dependencies,
   isLoading,
@@ -402,6 +570,10 @@ export function WorkflowProgressDashboard({
 
   const statusConfig = WORKFLOW_STATUS_CONFIG[workflow.status as WorkflowStatus];
 
+  // Calculate total steps count (tasks + function steps)
+  const totalSteps = steps.length > 0 ? steps.length : tasks.length + functionSteps.length;
+  const hasFunctionSteps = functionSteps.length > 0 || steps.some(s => isWorkflowFunctionStep(s));
+
   return (
     <div className="space-y-6" data-testid="workflow-progress-dashboard">
       {/* Workflow Status Header */}
@@ -411,7 +583,15 @@ export function WorkflowProgressDashboard({
             {workflow.title}
           </h2>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            {progress.total} task{progress.total !== 1 ? 's' : ''} in workflow
+            {totalSteps} step{totalSteps !== 1 ? 's' : ''} in workflow
+            {hasFunctionSteps && (
+              <span className="ml-2 inline-flex items-center gap-1">
+                <Terminal className="w-3 h-3 text-purple-500" />
+                <span className="text-purple-600 dark:text-purple-400">
+                  includes function steps
+                </span>
+              </span>
+            )}
           </p>
         </div>
         <div className={`px-3 py-1.5 rounded-full text-sm font-medium ${statusConfig?.bgColor ?? ''} ${statusConfig?.color ?? ''}`}>
@@ -425,12 +605,17 @@ export function WorkflowProgressDashboard({
       {/* Progress Bar */}
       <DashboardProgressBar progress={progress} />
 
-      {/* Two Column Layout: Task List and Dependencies */}
+      {/* Two Column Layout: Step List and Dependencies */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Task List - 2 columns */}
+        {/* Step List - 2 columns */}
         <div className="lg:col-span-2">
-          <h3 className="text-sm font-medium text-[var(--color-text)] mb-3">Tasks</h3>
-          <TaskList tasks={tasks} dependencies={dependencies} />
+          <h3 className="text-sm font-medium text-[var(--color-text)] mb-3">Steps</h3>
+          <StepList
+            tasks={tasks}
+            functionSteps={functionSteps}
+            steps={steps}
+            dependencies={dependencies}
+          />
         </div>
 
         {/* Dependencies - 1 column */}

@@ -118,6 +118,23 @@ export const VARIABLE_TYPES = [
 ] as const;
 
 /**
+ * Step type options
+ */
+export const STEP_TYPES = [
+  { value: 'task', label: 'Task', description: 'Agent-executed task' },
+  { value: 'function', label: 'Function', description: 'Execute code directly' },
+] as const;
+
+/**
+ * Function runtime options
+ */
+export const FUNCTION_RUNTIMES = [
+  { value: 'typescript', label: 'TypeScript', description: 'Execute TypeScript/JavaScript code' },
+  { value: 'python', label: 'Python', description: 'Execute Python code' },
+  { value: 'shell', label: 'Shell', description: 'Execute shell commands' },
+] as const;
+
+/**
  * Status filter options for workflow list
  */
 export const STATUS_FILTER_OPTIONS = [

@@ -69,15 +69,50 @@ export interface PlaybookVariable {
 // ============================================================================
 
 /**
- * Playbook step definition (task template)
+ * Step type determines how the step is executed
+ * - 'task': Creates an agent task to be executed by an assignee
+ * - 'function': Executes code directly (TypeScript, Python, or shell)
  */
-export interface PlaybookStep {
+export const StepType = {
+  TASK: 'task',
+  FUNCTION: 'function',
+} as const;
+
+export type StepType = (typeof StepType)[keyof typeof StepType];
+
+/**
+ * Runtime environment for function steps
+ */
+export const FunctionRuntime = {
+  TYPESCRIPT: 'typescript',
+  PYTHON: 'python',
+  SHELL: 'shell',
+} as const;
+
+export type FunctionRuntime = (typeof FunctionRuntime)[keyof typeof FunctionRuntime];
+
+/**
+ * Base playbook step definition (shared properties)
+ */
+export interface PlaybookStepBase {
   /** Unique step identifier within playbook */
   id: string;
-  /** Task title (supports {{variable}} substitution) */
+  /** Step title (supports {{variable}} substitution) */
   title: string;
-  /** Task description (supports {{variable}} substitution) */
+  /** Step description (supports {{variable}} substitution) */
   description?: string;
+  /** Step IDs this step depends on */
+  dependsOn?: string[];
+  /** Condition expression for inclusion */
+  condition?: string;
+}
+
+/**
+ * Task step - creates an agent task to be executed
+ */
+export interface PlaybookTaskStep extends PlaybookStepBase {
+  /** Step type - 'task' for agent-executed steps */
+  stepType?: 'task';
   /** Task type classification */
   taskType?: TaskTypeValue;
   /** Default priority */
@@ -86,11 +121,29 @@ export interface PlaybookStep {
   complexity?: Complexity;
   /** Assignee (supports {{variable}} substitution) */
   assignee?: string;
-  /** Step IDs this step depends on */
-  dependsOn?: string[];
-  /** Condition expression for inclusion */
-  condition?: string;
 }
+
+/**
+ * Function step - executes code directly
+ */
+export interface PlaybookFunctionStep extends PlaybookStepBase {
+  /** Step type - 'function' for code execution */
+  stepType: 'function';
+  /** Runtime environment for the function */
+  runtime: FunctionRuntime;
+  /** Code to execute (for typescript/python) */
+  code?: string;
+  /** Command to execute (for shell) */
+  command?: string;
+  /** Timeout in milliseconds (default: 30000) */
+  timeout?: number;
+}
+
+/**
+ * Playbook step definition (task template or function)
+ * Union type supporting both task and function steps
+ */
+export type PlaybookStep = PlaybookTaskStep | PlaybookFunctionStep;
 
 // ============================================================================
 // Validation Constants
@@ -125,6 +178,18 @@ export const MAX_ASSIGNEE_LENGTH = 200;
 
 /** Maximum condition length */
 export const MAX_CONDITION_LENGTH = 500;
+
+/** Maximum code length for function steps */
+export const MAX_FUNCTION_CODE_LENGTH = 50000;
+
+/** Maximum command length for shell steps */
+export const MAX_FUNCTION_COMMAND_LENGTH = 5000;
+
+/** Default function timeout in milliseconds */
+export const DEFAULT_FUNCTION_TIMEOUT = 30000;
+
+/** Maximum function timeout in milliseconds (10 minutes) */
+export const MAX_FUNCTION_TIMEOUT = 600000;
 
 /** Maximum number of steps */
 export const MAX_STEPS = 1000;
@@ -531,6 +596,42 @@ export function validateStepDescription(value: unknown): string | undefined {
 }
 
 // ============================================================================
+// Validation Functions - Step Type
+// ============================================================================
+
+/**
+ * Validates a step type value
+ */
+export function isValidStepType(value: unknown): value is StepType {
+  return value === undefined || value === StepType.TASK || value === StepType.FUNCTION;
+}
+
+/**
+ * Validates a function runtime value
+ */
+export function isValidFunctionRuntime(value: unknown): value is FunctionRuntime {
+  return (
+    value === FunctionRuntime.TYPESCRIPT ||
+    value === FunctionRuntime.PYTHON ||
+    value === FunctionRuntime.SHELL
+  );
+}
+
+/**
+ * Type guard for task steps
+ */
+export function isTaskStep(step: PlaybookStep): step is PlaybookTaskStep {
+  return step.stepType === undefined || step.stepType === StepType.TASK;
+}
+
+/**
+ * Type guard for function steps
+ */
+export function isFunctionStep(step: PlaybookStep): step is PlaybookFunctionStep {
+  return step.stepType === StepType.FUNCTION;
+}
+
+// ============================================================================
 // Validation Functions - PlaybookStep
 // ============================================================================
 
@@ -542,22 +643,42 @@ export function isValidPlaybookStep(value: unknown): value is PlaybookStep {
 
   const obj = value as Record<string, unknown>;
 
-  // Required fields
+  // Required fields for all steps
   if (!isValidStepId(obj.id)) return false;
   if (!isValidStepTitle(obj.title)) return false;
 
-  // Optional fields
+  // Common optional fields
   if (obj.description !== undefined && typeof obj.description !== 'string') return false;
-  if (obj.taskType !== undefined && typeof obj.taskType !== 'string') return false;
-  if (obj.priority !== undefined && typeof obj.priority !== 'number') return false;
-  if (obj.complexity !== undefined && typeof obj.complexity !== 'number') return false;
-  if (obj.assignee !== undefined && typeof obj.assignee !== 'string') return false;
   if (obj.condition !== undefined && typeof obj.condition !== 'string') return false;
 
   // dependsOn must be an array of strings
   if (obj.dependsOn !== undefined) {
     if (!Array.isArray(obj.dependsOn)) return false;
     if (!obj.dependsOn.every((d) => typeof d === 'string')) return false;
+  }
+
+  // Validate based on step type
+  const stepType = obj.stepType;
+
+  if (stepType === StepType.FUNCTION) {
+    // Function step validation
+    if (!isValidFunctionRuntime(obj.runtime)) return false;
+    if (obj.code !== undefined && typeof obj.code !== 'string') return false;
+    if (obj.command !== undefined && typeof obj.command !== 'string') return false;
+    if (obj.timeout !== undefined && typeof obj.timeout !== 'number') return false;
+    // Must have either code or command based on runtime
+    if (obj.runtime === FunctionRuntime.SHELL) {
+      if (typeof obj.command !== 'string') return false;
+    } else {
+      if (typeof obj.code !== 'string') return false;
+    }
+  } else {
+    // Task step validation (stepType is undefined or 'task')
+    if (stepType !== undefined && stepType !== StepType.TASK) return false;
+    if (obj.taskType !== undefined && typeof obj.taskType !== 'string') return false;
+    if (obj.priority !== undefined && typeof obj.priority !== 'number') return false;
+    if (obj.complexity !== undefined && typeof obj.complexity !== 'number') return false;
+    if (obj.assignee !== undefined && typeof obj.assignee !== 'string') return false;
   }
 
   return true;
@@ -575,34 +696,12 @@ export function validatePlaybookStep(value: unknown): PlaybookStep {
 
   const obj = value as Record<string, unknown>;
 
-  // Validate required fields
+  // Validate required fields for all step types
   validateStepId(obj.id);
   validateStepTitle(obj.title);
 
   // Validate optional description
   validateStepDescription(obj.description);
-
-  // Validate optional assignee
-  if (obj.assignee !== undefined) {
-    if (typeof obj.assignee !== 'string') {
-      throw new ValidationError('Step assignee must be a string', ErrorCode.INVALID_INPUT, {
-        field: 'assignee',
-        value: obj.assignee,
-        expected: 'string',
-      });
-    }
-    if (obj.assignee.length > MAX_ASSIGNEE_LENGTH) {
-      throw new ValidationError(
-        `Step assignee exceeds maximum length of ${MAX_ASSIGNEE_LENGTH} characters`,
-        ErrorCode.INVALID_INPUT,
-        {
-          field: 'assignee',
-          expected: `<= ${MAX_ASSIGNEE_LENGTH} characters`,
-          actual: obj.assignee.length,
-        }
-      );
-    }
-  }
 
   // Validate optional condition
   if (obj.condition !== undefined) {
@@ -650,7 +749,165 @@ export function validatePlaybookStep(value: unknown): PlaybookStep {
     }
   }
 
+  // Validate based on step type
+  const stepType = obj.stepType;
+
+  if (stepType === StepType.FUNCTION) {
+    // Validate function step
+    validateFunctionStep(obj);
+  } else if (stepType !== undefined && stepType !== StepType.TASK) {
+    throw new ValidationError(
+      `Invalid step type: ${stepType}. Must be 'task' or 'function'`,
+      ErrorCode.INVALID_INPUT,
+      { field: 'stepType', value: stepType, expected: ['task', 'function'] }
+    );
+  } else {
+    // Validate task step
+    validateTaskStep(obj);
+  }
+
   return value as PlaybookStep;
+}
+
+/**
+ * Validates task step specific fields
+ */
+function validateTaskStep(obj: Record<string, unknown>): void {
+  // Validate optional assignee
+  if (obj.assignee !== undefined) {
+    if (typeof obj.assignee !== 'string') {
+      throw new ValidationError('Step assignee must be a string', ErrorCode.INVALID_INPUT, {
+        field: 'assignee',
+        value: obj.assignee,
+        expected: 'string',
+      });
+    }
+    if (obj.assignee.length > MAX_ASSIGNEE_LENGTH) {
+      throw new ValidationError(
+        `Step assignee exceeds maximum length of ${MAX_ASSIGNEE_LENGTH} characters`,
+        ErrorCode.INVALID_INPUT,
+        {
+          field: 'assignee',
+          expected: `<= ${MAX_ASSIGNEE_LENGTH} characters`,
+          actual: obj.assignee.length,
+        }
+      );
+    }
+  }
+
+  // Validate optional taskType
+  if (obj.taskType !== undefined && typeof obj.taskType !== 'string') {
+    throw new ValidationError('Step taskType must be a string', ErrorCode.INVALID_INPUT, {
+      field: 'taskType',
+      value: obj.taskType,
+      expected: 'string',
+    });
+  }
+
+  // Validate optional priority
+  if (obj.priority !== undefined && typeof obj.priority !== 'number') {
+    throw new ValidationError('Step priority must be a number', ErrorCode.INVALID_INPUT, {
+      field: 'priority',
+      value: obj.priority,
+      expected: 'number',
+    });
+  }
+
+  // Validate optional complexity
+  if (obj.complexity !== undefined && typeof obj.complexity !== 'number') {
+    throw new ValidationError('Step complexity must be a number', ErrorCode.INVALID_INPUT, {
+      field: 'complexity',
+      value: obj.complexity,
+      expected: 'number',
+    });
+  }
+}
+
+/**
+ * Validates function step specific fields
+ */
+function validateFunctionStep(obj: Record<string, unknown>): void {
+  // Runtime is required for function steps
+  if (!isValidFunctionRuntime(obj.runtime)) {
+    throw new ValidationError(
+      `Invalid function runtime: ${obj.runtime}. Must be 'typescript', 'python', or 'shell'`,
+      ErrorCode.INVALID_INPUT,
+      { field: 'runtime', value: obj.runtime, expected: ['typescript', 'python', 'shell'] }
+    );
+  }
+
+  const runtime = obj.runtime as FunctionRuntime;
+
+  // Shell steps require command
+  if (runtime === FunctionRuntime.SHELL) {
+    if (typeof obj.command !== 'string') {
+      throw new ValidationError(
+        'Shell function steps require a command',
+        ErrorCode.MISSING_REQUIRED_FIELD,
+        { field: 'command' }
+      );
+    }
+    if (obj.command.length > MAX_FUNCTION_COMMAND_LENGTH) {
+      throw new ValidationError(
+        `Function command exceeds maximum length of ${MAX_FUNCTION_COMMAND_LENGTH} characters`,
+        ErrorCode.INVALID_INPUT,
+        {
+          field: 'command',
+          expected: `<= ${MAX_FUNCTION_COMMAND_LENGTH} characters`,
+          actual: obj.command.length,
+        }
+      );
+    }
+  } else {
+    // TypeScript and Python steps require code
+    if (typeof obj.code !== 'string') {
+      throw new ValidationError(
+        `${runtime} function steps require code`,
+        ErrorCode.MISSING_REQUIRED_FIELD,
+        { field: 'code' }
+      );
+    }
+    if (obj.code.length > MAX_FUNCTION_CODE_LENGTH) {
+      throw new ValidationError(
+        `Function code exceeds maximum length of ${MAX_FUNCTION_CODE_LENGTH} characters`,
+        ErrorCode.INVALID_INPUT,
+        {
+          field: 'code',
+          expected: `<= ${MAX_FUNCTION_CODE_LENGTH} characters`,
+          actual: obj.code.length,
+        }
+      );
+    }
+  }
+
+  // Validate optional timeout
+  if (obj.timeout !== undefined) {
+    if (typeof obj.timeout !== 'number') {
+      throw new ValidationError('Function timeout must be a number', ErrorCode.INVALID_INPUT, {
+        field: 'timeout',
+        value: obj.timeout,
+        expected: 'number',
+      });
+    }
+    if (obj.timeout <= 0) {
+      throw new ValidationError('Function timeout must be positive', ErrorCode.INVALID_INPUT, {
+        field: 'timeout',
+        value: obj.timeout,
+        expected: '> 0',
+      });
+    }
+    if (obj.timeout > MAX_FUNCTION_TIMEOUT) {
+      throw new ValidationError(
+        `Function timeout exceeds maximum of ${MAX_FUNCTION_TIMEOUT}ms`,
+        ErrorCode.INVALID_INPUT,
+        {
+          field: 'timeout',
+          expected: `<= ${MAX_FUNCTION_TIMEOUT}ms`,
+          actual: obj.timeout,
+        }
+      );
+    }
+  }
 }
 
 // ============================================================================

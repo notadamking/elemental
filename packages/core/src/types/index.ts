@@ -51,6 +51,9 @@ export {
   // Types and interfaces
   type PlaybookId,
   type PlaybookVariable,
+  type PlaybookStepBase,
+  type PlaybookTaskStep,
+  type PlaybookFunctionStep,
   type PlaybookStep,
   type Playbook,
   type HydratedPlaybook,
@@ -62,8 +65,10 @@ export {
   type PlaybookLoader,
   type ResolvedInheritanceChain,
   type ResolvedPlaybook,
-  // VariableType enum
+  // Enums
   VariableType,
+  StepType,
+  FunctionRuntime,
   // Constants
   MIN_PLAYBOOK_NAME_LENGTH,
   MAX_PLAYBOOK_NAME_LENGTH,
@@ -75,6 +80,10 @@ export {
   MAX_STEP_DESCRIPTION_LENGTH,
   MAX_ASSIGNEE_LENGTH,
   MAX_CONDITION_LENGTH,
+  MAX_FUNCTION_CODE_LENGTH,
+  MAX_FUNCTION_COMMAND_LENGTH,
+  DEFAULT_FUNCTION_TIMEOUT,
+  MAX_FUNCTION_TIMEOUT,
   MAX_STEPS,
   MAX_VARIABLES,
   MAX_EXTENDS,
@@ -91,6 +100,11 @@ export {
   isValidEnumForType,
   isValidPlaybookVariable,
   validatePlaybookVariable,
+  // Step type validation
+  isValidStepType,
+  isValidFunctionRuntime,
+  isTaskStep,
+  isFunctionStep,
   // Step validation
   isValidStepId,
   validateStepId,
@@ -384,6 +398,8 @@ export {
   // Types
   type CreateWorkflowFromPlaybookInput,
   type CreatedTask,
+  type CreatedFunctionStep,
+  type CreatedStep,
   type CreateWorkflowFromPlaybookResult,
   type TaskCreator,
   type CreateWorkflowOptions,

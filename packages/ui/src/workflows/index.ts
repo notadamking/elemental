@@ -16,6 +16,18 @@ export type {
   Playbook,
   PlaybookStep,
   PlaybookVariable,
+  // Function step types
+  FunctionStepStatus,
+  WorkflowFunctionStep,
+  WorkflowStep,
+  StepType,
+  FunctionRuntime,
+} from './types';
+
+// Type guards
+export {
+  isWorkflowFunctionStep,
+  isWorkflowTask,
 } from './types';
 
 // Constants
@@ -24,6 +36,8 @@ export {
   STATUS_FILTER_OPTIONS,
   TASK_PRIORITY_COLORS,
   VARIABLE_TYPES,
+  STEP_TYPES,
+  FUNCTION_RUNTIMES,
 } from './constants';
 
 // Utilities
