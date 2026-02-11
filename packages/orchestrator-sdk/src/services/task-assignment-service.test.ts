@@ -321,8 +321,9 @@ describe('TaskAssignmentService', () => {
         message: 'Completed backend, need frontend help',
       });
 
-      // Task should be unassigned
+      // Task should be unassigned and status reset to OPEN
       expect(handedOff.assignee).toBeUndefined();
+      expect(handedOff.status).toBe(TaskStatus.OPEN);
 
       // Metadata should preserve handoff context
       const meta = getOrchestratorTaskMeta(handedOff.metadata as Record<string, unknown>);
@@ -333,6 +334,8 @@ describe('TaskAssignmentService', () => {
       // handoffNote/handoffMessage removed (L-1): handoff notes are now appended to the description Document
       expect(meta?.handoffHistory).toBeDefined();
       expect(meta?.handoffHistory?.[0]?.message).toBe('Completed backend, need frontend help');
+      // mergeStatus should be cleared so merge steward doesn't pick up the task
+      expect(meta?.mergeStatus).toBeUndefined();
     });
 
     test('builds handoff history across multiple handoffs', async () => {
@@ -378,6 +381,50 @@ describe('TaskAssignmentService', () => {
       expect(
         service.handoffTask('el-nonexistent' as ElementId, { sessionId: 'sess-1' })
       ).rejects.toThrow('Task not found');
+    });
+
+    test('resets REVIEW task to OPEN and clears mergeStatus on handoff', async () => {
+      // This test verifies the fix for the infinite loop bug where a merge steward
+      // hands off a task but it stays in REVIEW with mergeStatus, causing the
+      // merge steward to pick it up again instead of the dispatch daemon.
+      const task = await createTestTask('Task in review', TaskStatus.REVIEW);
+      const steward = await createTestWorker('merge-steward');
+      const stewardId = steward.id as unknown as EntityId;
+
+      // Assign to steward and set mergeStatus (simulating task in review)
+      await service.assignToAgent(task.id, stewardId, {
+        branch: 'feature/review-task',
+        worktree: '.elemental/.worktrees/review-task',
+        markAsStarted: true,
+      });
+
+      // Manually set mergeStatus to 'testing' to simulate merge steward state
+      const assignedTask = await api.get<Task>(task.id);
+      const meta = getOrchestratorTaskMeta(assignedTask?.metadata as Record<string, unknown>);
+      await api.update<Task>(task.id, {
+        metadata: {
+          ...assignedTask?.metadata,
+          orchestrator: {
+            ...meta,
+            mergeStatus: 'testing',
+          },
+        },
+      });
+
+      // Steward hands off the task (e.g., needs worker to address review feedback)
+      const handedOff = await service.handoffTask(task.id, {
+        sessionId: 'steward-sess-1',
+        message: 'Tests failed, worker needs to fix issues',
+      });
+
+      // Task should be reset to OPEN so dispatch daemon picks it up
+      expect(handedOff.status).toBe(TaskStatus.OPEN);
+      expect(handedOff.assignee).toBeUndefined();
+
+      // mergeStatus should be cleared so merge steward doesn't pick it up
+      const handoffMeta = getOrchestratorTaskMeta(handedOff.metadata as Record<string, unknown>);
+      expect(handoffMeta?.mergeStatus).toBeUndefined();
+      expect(handoffMeta?.handoffHistory?.[0]?.message).toBe('Tests failed, worker needs to fix issues');
     });
   });
 

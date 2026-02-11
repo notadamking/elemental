@@ -613,6 +613,8 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       assignedAgent: undefined,
       sessionId: undefined,
       startedAt: undefined,
+      // Clear mergeStatus so merge steward doesn't pick up the task
+      mergeStatus: undefined,
       // Store handoff context
       handoffBranch,
       handoffWorktree,
@@ -627,10 +629,12 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       metaUpdates as Partial<OrchestratorTaskMeta>
     );
 
-    // Update task: clear assignee, update metadata
+    // Update task: clear assignee, reset status to OPEN, update metadata
     // Note: We store the handoff note in metadata since tasks use descriptionRef
+    // Setting status to OPEN ensures dispatch daemon can pick up the task
     return this.api.update<Task>(taskId, {
       assignee: undefined,
+      status: TaskStatus.OPEN,
       metadata: newMeta,
     });
   }
