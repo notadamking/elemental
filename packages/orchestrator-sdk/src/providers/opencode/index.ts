@@ -10,6 +10,7 @@
 import type { AgentProvider, HeadlessProvider, InteractiveProvider, ModelInfo } from '../types.js';
 import { OpenCodeHeadlessProvider } from './headless.js';
 import { OpenCodeInteractiveProvider } from './interactive.js';
+import { serverManager } from './server-manager.js';
 
 export { OpenCodeHeadlessProvider } from './headless.js';
 export { OpenCodeInteractiveProvider } from './interactive.js';
@@ -30,8 +31,10 @@ export class OpenCodeAgentProvider implements AgentProvider {
   readonly name = 'opencode';
   readonly headless: HeadlessProvider;
   readonly interactive: InteractiveProvider;
+  private readonly config?: OpenCodeProviderConfig;
 
   constructor(config?: OpenCodeProviderConfig) {
+    this.config = config;
     this.headless = new OpenCodeHeadlessProvider({ port: config?.port });
     this.interactive = new OpenCodeInteractiveProvider(config?.executablePath);
   }
@@ -47,7 +50,6 @@ export class OpenCodeAgentProvider implements AgentProvider {
   }
 
   async listModels(): Promise<ModelInfo[]> {
-    // TODO: Implement actual model listing via OpenCode SDK
-    return [];
+    return serverManager.listModels({ port: this.config?.port });
   }
 }

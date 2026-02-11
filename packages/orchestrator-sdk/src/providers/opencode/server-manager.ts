@@ -36,16 +36,48 @@ export interface TextPartInput {
   text: string;
 }
 
+/** Model information from OpenCode SDK */
+export interface OpencodeModel {
+  id: string;
+  providerID: string;
+  name: string;
+}
+
+/** Provider information from OpenCode SDK */
+export interface OpencodeProvider {
+  id: string;
+  name: string;
+  models: Record<string, OpencodeModel>;
+}
+
+/** Response from config.providers() */
+export interface ConfigProvidersResponse {
+  providers: OpencodeProvider[];
+  default: Record<string, string>;
+}
+
+/** Model specification for promptAsync */
+export interface ModelSpec {
+  providerID: string;
+  modelID: string;
+}
+
 /** Minimal OpenCode client shape matching the real SDK response wrappers */
 export interface OpencodeClient {
   session: {
     create(opts: { body: { title?: string } }): Promise<SdkResponse<OpencodeSession>>;
     get(opts: { path: { id: string } }): Promise<SdkResponse<OpencodeSession>>;
     abort(opts: { path: { id: string } }): Promise<SdkResponse<unknown>>;
-    promptAsync(opts: { path: { id: string }; body: { parts: TextPartInput[] } }): Promise<SdkResponse<void>>;
+    promptAsync(opts: {
+      path: { id: string };
+      body: { parts: TextPartInput[]; model?: ModelSpec };
+    }): Promise<SdkResponse<void>>;
   };
   event: {
     subscribe(): Promise<SseSubscribeResult>;
+  };
+  config: {
+    providers(): Promise<SdkResponse<ConfigProvidersResponse>>;
   };
 }
 
@@ -116,6 +148,45 @@ class OpenCodeServerManager {
     this.client = null;
     this.startPromise = null;
     this.refCount = 0;
+  }
+
+  /**
+   * List all available models from OpenCode providers.
+   * Each model ID is formatted as `providerID/modelID`.
+   * @returns Flattened array of models with composite IDs
+   */
+  async listModels(
+    config?: ServerManagerConfig
+  ): Promise<Array<{ id: string; displayName: string; description?: string }>> {
+    const client = await this.acquire(config);
+
+    try {
+      const response = await client.config.providers();
+
+      if (!response.data?.providers) {
+        return [];
+      }
+
+      const models: Array<{ id: string; displayName: string; description?: string }> = [];
+
+      for (const provider of response.data.providers) {
+        if (!provider.models) continue;
+
+        for (const [modelKey, model] of Object.entries(provider.models)) {
+          // Format ID as providerID/modelID
+          const id = `${provider.id}/${modelKey}`;
+          models.push({
+            id,
+            displayName: model.name || modelKey,
+            description: undefined, // OpenCode SDK doesn't provide model descriptions
+          });
+        }
+      }
+
+      return models;
+    } finally {
+      this.release();
+    }
   }
 
   private async startServer(config?: ServerManagerConfig): Promise<OpencodeClient> {

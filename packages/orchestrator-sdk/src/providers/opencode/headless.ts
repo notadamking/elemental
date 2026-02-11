@@ -19,7 +19,23 @@ import { AsyncQueue } from './async-queue.js';
 import { OpenCodeEventMapper } from './event-mapper.js';
 import type { OpenCodeEvent } from './event-mapper.js';
 import { serverManager } from './server-manager.js';
-import type { OpencodeClient } from './server-manager.js';
+import type { OpencodeClient, ModelSpec } from './server-manager.js';
+
+/**
+ * Parse a composite model ID (e.g., 'anthropic/claude-sonnet-4-5-20250929')
+ * into separate providerID and modelID.
+ */
+function parseModelId(model: string): ModelSpec | undefined {
+  const slashIndex = model.indexOf('/');
+  if (slashIndex === -1) {
+    // No slash found - cannot parse as composite ID
+    return undefined;
+  }
+  return {
+    providerID: model.slice(0, slashIndex),
+    modelID: model.slice(slashIndex + 1),
+  };
+}
 
 // ============================================================================
 // OpenCode Headless Session
@@ -28,6 +44,7 @@ import type { OpencodeClient } from './server-manager.js';
 class OpenCodeHeadlessSession implements HeadlessSession {
   private client: OpencodeClient;
   private sessionId: string;
+  private model: ModelSpec | undefined;
   private eventMapper: OpenCodeEventMapper;
   private messageQueue: AsyncQueue<AgentMessage>;
   private closed = false;
@@ -35,10 +52,12 @@ class OpenCodeHeadlessSession implements HeadlessSession {
   constructor(
     client: OpencodeClient,
     sessionId: string,
-    eventSubscription: AsyncIterable<unknown>
+    eventSubscription: AsyncIterable<unknown>,
+    model?: ModelSpec
   ) {
     this.client = client;
     this.sessionId = sessionId;
+    this.model = model;
     this.eventMapper = new OpenCodeEventMapper();
     this.messageQueue = new AsyncQueue<AgentMessage>();
 
@@ -49,11 +68,19 @@ class OpenCodeHeadlessSession implements HeadlessSession {
   sendMessage(content: string): void {
     if (this.closed) return;
 
+    // Build the request body, including model if provided
+    const body: { parts: Array<{ type: 'text'; text: string }>; model?: ModelSpec } = {
+      parts: [{ type: 'text' as const, text: content }],
+    };
+    if (this.model) {
+      body.model = this.model;
+    }
+
     // Fire-and-forget: promptAsync returns 204 immediately, SSE events drive the stream
     this.client.session
       .promptAsync({
         path: { id: this.sessionId },
-        body: { parts: [{ type: 'text' as const, text: content }] },
+        body,
       })
       .catch((error) => {
         this.messageQueue.push({
@@ -156,6 +183,9 @@ export class OpenCodeHeadlessProvider implements HeadlessProvider {
 
     let sessionId: string;
 
+    // Parse the model ID if provided (e.g., 'anthropic/claude-sonnet-4-5-20250929')
+    const modelSpec = options.model ? parseModelId(options.model) : undefined;
+
     try {
       // 2. Create or resume session
       if (options.resumeSessionId) {
@@ -175,8 +205,8 @@ export class OpenCodeHeadlessProvider implements HeadlessProvider {
       // 3. Subscribe to SSE events (SDK returns { stream: AsyncGenerator })
       const { stream } = await client.event.subscribe();
 
-      // 4. Create session object
-      const headlessSession = new OpenCodeHeadlessSession(client, sessionId, stream);
+      // 4. Create session object with model if provided
+      const headlessSession = new OpenCodeHeadlessSession(client, sessionId, stream, modelSpec);
 
       // 5. Synthesize system init message
       headlessSession.injectInitMessage();

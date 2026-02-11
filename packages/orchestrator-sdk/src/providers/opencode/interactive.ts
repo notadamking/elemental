@@ -162,6 +162,11 @@ export class OpenCodeInteractiveProvider implements InteractiveProvider {
       args.push('--continue', shellQuote(options.resumeSessionId));
     }
 
+    // Pass model via --model flag (format: provider/model, e.g., 'anthropic/claude-sonnet-4-5-20250929')
+    if (options.model) {
+      args.push('--model', shellQuote(options.model));
+    }
+
     return args;
   }
 }
