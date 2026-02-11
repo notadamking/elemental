@@ -2003,7 +2003,11 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     } else if (meta.agentRole === 'worker' && (meta as WorkerMetadata).workerMode === 'persistent') {
       return this.processPersistentAgentMessage(agent, message, item, activeSession);
     } else if (meta.agentRole === 'director') {
-      return this.processPersistentAgentMessage(agent, message, item, activeSession);
+      // Skip message forwarding for directors — leave inbox items unread.
+      // The director checks its own inbox at natural breakpoints (e.g., `el inbox <director-id>`).
+      // Forwarding messages would interrupt the director's workflow by injecting
+      // unsolicited messages as user input into the running session.
+      return false;
     }
 
     return false;
