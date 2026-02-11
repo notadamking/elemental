@@ -237,3 +237,13 @@ export {
   // Factory
   createDispatchDaemon,
 } from './dispatch-daemon.js';
+
+// Agent pool service
+export {
+  // Types
+  type AgentPoolService,
+  // Implementation
+  AgentPoolServiceImpl,
+  // Factory
+  createAgentPoolService,
+} from './agent-pool-service.js';

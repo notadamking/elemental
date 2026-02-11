@@ -131,3 +131,31 @@ export {
   parseMessageMetadata,
   getMessageType,
 } from './message-types.js';
+
+// Agent pool types
+export {
+  // Pool configuration types
+  type PoolAgentTypeConfig,
+  type AgentPoolConfig,
+  type AgentPoolStatus,
+  type AgentPool,
+  // Query types
+  type AgentPoolFilter,
+  // Operation types
+  type CreatePoolInput,
+  type UpdatePoolInput,
+  // Spawn decision types
+  type PoolSpawnCheck,
+  type PoolSpawnRequest,
+  // Validation functions
+  isValidPoolName,
+  isValidPoolSize,
+  isValidPriorityScore,
+  isValidPoolAgentTypeConfig,
+  isValidPoolConfig,
+  // Type guards
+  isAgentPool,
+  // Constants
+  POOL_DEFAULTS,
+  POOL_METADATA_KEY,
+} from './agent-pool.js';

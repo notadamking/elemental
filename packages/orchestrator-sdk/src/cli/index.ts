@@ -12,4 +12,5 @@ export { agentCommand, agentListCommand, agentShowCommand, agentRegisterCommand,
 export { daemonCommand, daemonStartCommand, daemonStopCommand, daemonStatusCommand } from './commands/daemon.js';
 export { dispatchCommand } from './commands/dispatch.js';
 export { mergeCommand } from './commands/merge.js';
+export { poolCommand, poolListCommand, poolShowCommand, poolCreateCommand, poolUpdateCommand, poolDeleteCommand, poolStatusCommand, poolRefreshCommand } from './commands/pool.js';
 export { taskCommand, taskHandoffCommand, taskCompleteCommand } from './commands/task.js';

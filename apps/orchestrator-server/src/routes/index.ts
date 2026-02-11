@@ -15,3 +15,4 @@ export { createEventRoutes } from './events.js';
 export { createUploadRoutes } from './upload.js';
 export { createDaemonRoutes, markDaemonAsServerManaged } from './daemon.js';
 export { createWorkflowRoutes } from './workflows.js';
+export { createPoolRoutes } from './pools.js';

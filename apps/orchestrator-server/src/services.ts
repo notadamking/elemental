@@ -24,6 +24,7 @@ import {
   createDefaultStewardExecutor,
   createPluginExecutor,
   createDispatchDaemon,
+  createAgentPoolService,
   GitRepositoryNotFoundError,
   type OrchestratorAPI,
   type AgentRegistry,
@@ -37,6 +38,7 @@ import {
   type StewardScheduler,
   type PluginExecutor,
   type DispatchDaemon,
+  type AgentPoolService,
   type OnSessionStartedCallback,
 } from '@elemental/orchestrator-sdk';
 import { attachSessionEventSaver } from './routes/sessions.js';
@@ -55,6 +57,7 @@ export interface Services {
   workerTaskService: WorkerTaskService;
   stewardScheduler: StewardScheduler;
   pluginExecutor: PluginExecutor;
+  poolService: AgentPoolService | undefined;
   inboxService: InboxService;
   dispatchDaemon: DispatchDaemon | undefined;
   sessionInitialPrompts: Map<string, string>;
@@ -134,6 +137,9 @@ export async function initializeServices(): Promise<Services> {
     workspaceRoot: PROJECT_ROOT,
   });
 
+  // Create pool service for agent concurrency limiting
+  const poolService = createAgentPoolService(api, sessionManager, agentRegistry);
+
   const inboxService = createInboxService(storageBackend);
   const sessionMessageService = createSessionMessageService(storageBackend);
 
@@ -185,7 +191,8 @@ export async function initializeServices(): Promise<Services> {
       taskAssignmentService,
       stewardScheduler,
       inboxService,
-      { pollIntervalMs: 5000, onSessionStarted }
+      { pollIntervalMs: 5000, onSessionStarted },
+      poolService
     );
   } else {
     console.warn('[orchestrator] DispatchDaemon disabled - no git repository');
@@ -206,6 +213,7 @@ export async function initializeServices(): Promise<Services> {
     workerTaskService,
     stewardScheduler,
     pluginExecutor,
+    poolService,
     inboxService,
     dispatchDaemon,
     sessionInitialPrompts,

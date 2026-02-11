@@ -22,6 +22,7 @@ import {
   createUploadRoutes,
   createDaemonRoutes,
   createWorkflowRoutes,
+  createPoolRoutes,
   markDaemonAsServerManaged,
 } from './routes/index.js';
 // Shared collaborate routes
@@ -88,6 +89,7 @@ async function main() {
   app.route('/', createUploadRoutes());
   app.route('/', createDaemonRoutes(services));
   app.route('/', createWorkflowRoutes(services));
+  app.route('/', createPoolRoutes(services));
 
   // Register shared collaborate routes
   const collaborateServices = {

@@ -39,7 +39,9 @@ import type { WorktreeManager, CreateWorktreeResult } from '../git/worktree-mana
 import type { SyncResult } from '../cli/commands/task.js';
 import type { TaskAssignmentService } from './task-assignment-service.js';
 import type { StewardScheduler } from './steward-scheduler.js';
+import type { AgentPoolService } from './agent-pool-service.js';
 import type { WorkerMetadata, StewardMetadata } from '../types/agent.js';
+import type { PoolSpawnRequest } from '../types/agent-pool.js';
 import { getOrchestratorTaskMeta, updateOrchestratorTaskMeta } from '../types/task-meta.js';
 
 // ============================================================================
@@ -340,6 +342,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   private readonly taskAssignment: TaskAssignmentService;
   private readonly stewardScheduler: StewardScheduler;
   private readonly inboxService: InboxService;
+  private readonly poolService: AgentPoolService | undefined;
   private readonly emitter: EventEmitter;
 
   private config: NormalizedConfig;
@@ -369,7 +372,8 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     taskAssignment: TaskAssignmentService,
     stewardScheduler: StewardScheduler,
     inboxService: InboxService,
-    config?: DispatchDaemonConfig
+    config?: DispatchDaemonConfig,
+    poolService?: AgentPoolService
   ) {
     this.api = api;
     this.agentRegistry = agentRegistry;
@@ -379,6 +383,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     this.taskAssignment = taskAssignment;
     this.stewardScheduler = stewardScheduler;
     this.inboxService = inboxService;
+    this.poolService = poolService;
     this.emitter = new EventEmitter();
     this.config = this.normalizeConfig(config);
   }
@@ -1424,6 +1429,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   /**
    * Assigns the highest priority unassigned task to a worker.
    * Handles handoff branches by reusing existing worktrees.
+   * Respects agent pool capacity limits.
    */
   private async assignTaskToWorker(worker: AgentEntity): Promise<boolean> {
     // Get ready tasks (already filtered for blocked, draft plans, future-scheduled, etc.)
@@ -1438,6 +1444,27 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     // ready() already sorts by effective priority, take the first
     const task = unassignedTasks[0];
     const workerId = asEntityId(worker.id);
+
+    // Check pool capacity before spawning
+    if (this.poolService) {
+      const meta = getAgentMetadata(worker);
+      if (meta && meta.agentRole === 'worker') {
+        const workerMeta = meta as WorkerMetadata;
+        const spawnRequest: PoolSpawnRequest = {
+          role: 'worker',
+          workerMode: workerMeta.workerMode,
+          agentId: workerId,
+        };
+
+        const poolCheck = await this.poolService.canSpawn(spawnRequest);
+        if (!poolCheck.canSpawn) {
+          console.log(
+            `[dispatch-daemon] Pool capacity reached for worker ${worker.name}: ${poolCheck.reason}`
+          );
+          return false;
+        }
+      }
+    }
 
     // Check for existing worktree/branch in task metadata
     // Priority: handoff > existing assignment > create new
@@ -1512,6 +1539,11 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     // Call the onSessionStarted callback if provided (for event saver and initial prompt saving)
     if (this.config.onSessionStarted) {
       this.config.onSessionStarted(session, events, workerId, initialPrompt);
+    }
+
+    // Notify pool service that agent was spawned
+    if (this.poolService) {
+      await this.poolService.onAgentSpawned(workerId);
     }
 
     this.emitter.emit('agent:spawned', workerId, worktreePath);
@@ -1715,11 +1747,29 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   /**
    * Spawns a merge steward session for a task in REVIEW status.
    * Syncs the branch with master before spawning to ensure clean diffs.
+   * Respects agent pool capacity limits.
    */
   private async spawnMergeStewardForTask(steward: AgentEntity, task: Task): Promise<void> {
     const stewardId = asEntityId(steward.id);
     const meta = getAgentMetadata(steward) as StewardMetadata | undefined;
     const stewardFocus = meta?.stewardFocus ?? 'merge';
+
+    // Check pool capacity before spawning
+    if (this.poolService && meta) {
+      const spawnRequest: PoolSpawnRequest = {
+        role: 'steward',
+        stewardFocus: meta.stewardFocus,
+        agentId: stewardId,
+      };
+
+      const poolCheck = await this.poolService.canSpawn(spawnRequest);
+      if (!poolCheck.canSpawn) {
+        console.log(
+          `[dispatch-daemon] Pool capacity reached for steward ${steward.name}: ${poolCheck.reason}`
+        );
+        return;
+      }
+    }
 
     // Get task metadata for worktree path
     const taskMeta = task.metadata as Record<string, unknown> | undefined;
@@ -1814,6 +1864,11 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     // Call the onSessionStarted callback if provided
     if (this.config.onSessionStarted) {
       this.config.onSessionStarted(session, events, stewardId, initialPrompt);
+    }
+
+    // Notify pool service that agent was spawned
+    if (this.poolService) {
+      await this.poolService.onAgentSpawned(stewardId);
     }
 
     this.emitter.emit('agent:spawned', stewardId, worktreePath);
@@ -2324,7 +2379,8 @@ export function createDispatchDaemon(
   taskAssignment: TaskAssignmentService,
   stewardScheduler: StewardScheduler,
   inboxService: InboxService,
-  config?: DispatchDaemonConfig
+  config?: DispatchDaemonConfig,
+  poolService?: AgentPoolService
 ): DispatchDaemon {
   return new DispatchDaemonImpl(
     api,
@@ -2335,6 +2391,7 @@ export function createDispatchDaemon(
     taskAssignment,
     stewardScheduler,
     inboxService,
-    config
+    config,
+    poolService
   );
 }

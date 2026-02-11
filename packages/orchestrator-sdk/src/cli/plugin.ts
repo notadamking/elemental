@@ -10,6 +10,7 @@ import { agentCommand } from './commands/agent.js';
 import { daemonCommand } from './commands/daemon.js';
 import { dispatchCommand } from './commands/dispatch.js';
 import { mergeCommand } from './commands/merge.js';
+import { poolCommand } from './commands/pool.js';
 import { taskCommand } from './commands/task.js';
 
 /**
@@ -20,13 +21,15 @@ import { taskCommand } from './commands/task.js';
  * - `daemon`: Manage the dispatch daemon (start, stop, status)
  * - `dispatch`: Dispatch tasks to agents
  * - `merge`: Squash-merge a branch into the default branch
+ * - `pool`: Manage agent pools for concurrency limiting
  * - `task`: Task management (handoff, complete)
  */
 export const cliPlugin: CLIPlugin = {
   name: 'orchestrator',
   version: '0.1.0',
-  commands: [agentCommand, daemonCommand, dispatchCommand, mergeCommand, taskCommand],
+  commands: [agentCommand, daemonCommand, dispatchCommand, mergeCommand, poolCommand, taskCommand],
   aliases: {
     agents: 'agent list',
+    pools: 'pool list',
   },
 };
