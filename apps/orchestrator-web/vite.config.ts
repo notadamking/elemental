@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
+import importMetaUrlPlugin from '@codingame/esbuild-import-meta-url-plugin';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -32,6 +33,9 @@ export default defineConfig({
       },
     },
   },
+  worker: {
+    format: 'es',
+  },
   build: {
     minify: 'esbuild',
     target: 'es2020',
@@ -49,10 +53,19 @@ export default defineConfig({
             '@radix-ui/react-collapsible',
           ],
           'utils-vendor': ['lucide-react', 'cmdk', 'sonner'],
+          // Monaco and LSP packages in separate chunks for better caching
+          'monaco-core': ['@codingame/monaco-vscode-api', '@codingame/monaco-vscode-editor-api'],
+          'monaco-services': [
+            '@codingame/monaco-vscode-languages-service-override',
+            '@codingame/monaco-vscode-textmate-service-override',
+            '@codingame/monaco-vscode-theme-service-override',
+            '@codingame/monaco-vscode-model-service-override',
+            '@codingame/monaco-vscode-configuration-service-override',
+          ],
         },
       },
     },
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 1500, // Increased for monaco chunks
   },
   optimizeDeps: {
     include: [
@@ -63,5 +76,8 @@ export default defineConfig({
       'lucide-react',
       'react-resizable-panels',
     ],
+    esbuildOptions: {
+      plugins: [importMetaUrlPlugin],
+    },
   },
 });

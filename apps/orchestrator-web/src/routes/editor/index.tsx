@@ -18,8 +18,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import Editor, { type Monaco, type OnMount } from '@monaco-editor/react';
-import type * as monacoEditor from 'monaco-editor';
+import type * as monaco from '@codingame/monaco-vscode-editor-api';
 import {
   FileCode,
   Loader2,
@@ -38,6 +37,7 @@ import {
 import { EditorFileTree, type FileTreeNodeData, type FileSource } from '../../components/editor/EditorFileTree';
 import { EditorSearchPanel, type EditorSearchPanelRef } from '../../components/editor/EditorSearchPanel';
 import { EditorTabBar, type EditorTab } from '../../components/editor/EditorTabBar';
+import { LspMonacoEditor } from '../../components/editor/LspMonacoEditor';
 import { useAllDocuments } from '../../api/hooks/useAllElements';
 import { useWorkspace } from '../../contexts';
 import type { Document } from '../../api/hooks/useAllElements';
@@ -45,6 +45,7 @@ import {
   getMonacoLanguageFromContentType,
   detectLanguageFromFilename,
 } from '../../lib/language-detection';
+import { isLspSupportedLanguage } from '../../lib/monaco-lsp';
 
 // ============================================================================
 // Types
@@ -79,112 +80,6 @@ function useDocumentContent(documentId: string | null) {
 function getLanguageFromDocument(doc: Document | null): string {
   if (!doc) return 'plaintext';
   return getMonacoLanguageFromContentType(doc.contentType, doc.title);
-}
-
-// ============================================================================
-// Monaco configuration for enhanced syntax/semantic highlighting
-// ============================================================================
-
-/**
- * Configure Monaco editor instance for enhanced highlighting
- */
-function configureMonaco(monaco: Monaco): void {
-  // Define custom theme with enhanced semantic token colors
-  monaco.editor.defineTheme('elemental-dark', {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [
-      // Enhanced syntax highlighting rules
-      { token: 'comment', foreground: '6A9955', fontStyle: 'italic' },
-      { token: 'keyword', foreground: 'C586C0' },
-      { token: 'keyword.control', foreground: 'C586C0' },
-      { token: 'keyword.operator', foreground: 'C586C0' },
-      { token: 'string', foreground: 'CE9178' },
-      { token: 'string.escape', foreground: 'D7BA7D' },
-      { token: 'number', foreground: 'B5CEA8' },
-      { token: 'regexp', foreground: 'D16969' },
-      { token: 'type', foreground: '4EC9B0' },
-      { token: 'type.identifier', foreground: '4EC9B0' },
-      { token: 'class', foreground: '4EC9B0' },
-      { token: 'interface', foreground: '4EC9B0', fontStyle: 'italic' },
-      { token: 'enum', foreground: '4EC9B0' },
-      { token: 'typeParameter', foreground: '4EC9B0', fontStyle: 'italic' },
-      { token: 'function', foreground: 'DCDCAA' },
-      { token: 'function.declaration', foreground: 'DCDCAA' },
-      { token: 'method', foreground: 'DCDCAA' },
-      { token: 'variable', foreground: '9CDCFE' },
-      { token: 'variable.readonly', foreground: '4FC1FF' },
-      { token: 'variable.constant', foreground: '4FC1FF' },
-      { token: 'parameter', foreground: '9CDCFE', fontStyle: 'italic' },
-      { token: 'property', foreground: '9CDCFE' },
-      { token: 'namespace', foreground: '4EC9B0' },
-      { token: 'decorator', foreground: 'DCDCAA' },
-      { token: 'tag', foreground: '569CD6' },
-      { token: 'attribute.name', foreground: '9CDCFE' },
-      { token: 'attribute.value', foreground: 'CE9178' },
-      // JSX/TSX specific
-      { token: 'tag.tsx', foreground: '4EC9B0' },
-      { token: 'tag.jsx', foreground: '4EC9B0' },
-      // JSON
-      { token: 'string.key.json', foreground: '9CDCFE' },
-      { token: 'string.value.json', foreground: 'CE9178' },
-      // Markdown
-      { token: 'markup.heading', foreground: '569CD6', fontStyle: 'bold' },
-      { token: 'markup.bold', fontStyle: 'bold' },
-      { token: 'markup.italic', fontStyle: 'italic' },
-      { token: 'markup.inline.raw', foreground: 'CE9178' },
-      // Shell
-      { token: 'variable.shell', foreground: '9CDCFE' },
-    ],
-    colors: {
-      'editor.background': '#1a1a2e',
-      'editor.foreground': '#d4d4d4',
-      'editor.lineHighlightBackground': '#2a2a4e',
-      'editor.selectionBackground': '#264f78',
-      'editorCursor.foreground': '#aeafad',
-      'editorWhitespace.foreground': '#3b3b5b',
-      'editorLineNumber.foreground': '#5a5a8a',
-      'editorLineNumber.activeForeground': '#c6c6c6',
-      'editor.inactiveSelectionBackground': '#3a3d41',
-      'editorIndentGuide.background1': '#404060',
-      'editorIndentGuide.activeBackground1': '#707090',
-    },
-  });
-
-  // Configure TypeScript/JavaScript for better semantic tokens
-  monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
-    noSemanticValidation: false,
-    noSyntaxValidation: false,
-  });
-
-  monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-    target: monaco.languages.typescript.ScriptTarget.Latest,
-    allowNonTsExtensions: true,
-    moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-    module: monaco.languages.typescript.ModuleKind.ESNext,
-    noEmit: true,
-    esModuleInterop: true,
-    jsx: monaco.languages.typescript.JsxEmit.React,
-    reactNamespace: 'React',
-    allowJs: true,
-    typeRoots: ['node_modules/@types'],
-  });
-
-  monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
-    noSemanticValidation: false,
-    noSyntaxValidation: false,
-  });
-
-  monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
-    target: monaco.languages.typescript.ScriptTarget.Latest,
-    allowNonTsExtensions: true,
-    moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-    module: monaco.languages.typescript.ModuleKind.ESNext,
-    noEmit: true,
-    esModuleInterop: true,
-    jsx: monaco.languages.typescript.JsxEmit.React,
-    allowJs: true,
-  });
 }
 
 // ============================================================================
@@ -316,10 +211,8 @@ export function FileEditorPage() {
   const [fileSource, setFileSource] = useState<FileSource>('workspace');
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [isMonacoReady, setIsMonacoReady] = useState(false);
   const [activePanel, setActivePanel] = useState<SidebarPanel>('files');
-  const monacoRef = useRef<Monaco | null>(null);
-  const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const searchPanelRef = useRef<EditorSearchPanelRef>(null);
 
   // Workspace state from context
@@ -740,15 +633,10 @@ export function FileEditorPage() {
     return 'Open a workspace or select a document';
   }, [activeTab, fileSource, isWorkspaceOpen, workspaceName]);
 
-  // Handle Monaco editor mount - configure once
-  const handleEditorDidMount: OnMount = useCallback((editor, monaco) => {
-    monacoRef.current = monaco;
+  // Handle Monaco editor mount - store reference for navigation
+  const handleEditorDidMount = useCallback((editor: monaco.editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
-    if (!isMonacoReady) {
-      configureMonaco(monaco);
-      setIsMonacoReady(true);
-    }
-  }, [isMonacoReady]);
+  }, []);
 
   // Get language info for display
   const languageInfo = activeTab ? detectLanguageFromFilename(activeTab.name) : null;
@@ -935,11 +823,20 @@ export function FileEditorPage() {
             <>
               {/* Editor toolbar */}
               <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--color-border)] bg-[var(--color-surface-hover)]">
-                <div className="flex items-center gap-2">
-                  <Braces className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
-                  <span className="text-xs font-medium text-[var(--color-text-secondary)]">
-                    {languageInfo?.displayName || 'Plain Text'}
-                  </span>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Braces className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+                    <span className="text-xs font-medium text-[var(--color-text-secondary)]">
+                      {languageInfo?.displayName || 'Plain Text'}
+                    </span>
+                  </div>
+                  {/* LSP status indicator */}
+                  {isLspSupportedLanguage(activeTab.language) && (
+                    <div className="flex items-center gap-1.5 text-xs text-green-500" title="LSP enabled - Autocompletion, hover info, and diagnostics active">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                      <span>LSP</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {/* Save message */}
@@ -992,60 +889,13 @@ export function FileEditorPage() {
                   )}
                 </div>
               </div>
-              <Editor
-                height="100%"
-                language={activeTab.language}
+              <LspMonacoEditor
                 value={activeTab.content}
-                theme={isMonacoReady ? 'elemental-dark' : 'vs-dark'}
-                onMount={handleEditorDidMount}
+                language={activeTab.language}
+                readOnly={activeTab.source === 'documents'}
                 onChange={handleEditorChange}
-                options={{
-                  readOnly: activeTab.source === 'documents', // Only read-only for documents, not workspace files
-                  minimap: {
-                    enabled: true,
-                    scale: 1,
-                    showSlider: 'mouseover',
-                    renderCharacters: false,
-                  },
-                  fontSize: 14,
-                  fontFamily: "'Fira Code', 'JetBrains Mono', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
-                  fontLigatures: true,
-                  lineNumbers: 'on',
-                  scrollBeyondLastLine: false,
-                  wordWrap: 'on',
-                  automaticLayout: true,
-                  padding: { top: 16, bottom: 16 },
-                  // Enhanced syntax highlighting options
-                  renderWhitespace: 'selection',
-                  bracketPairColorization: { enabled: true },
-                  guides: {
-                    bracketPairs: true,
-                    indentation: true,
-                    highlightActiveIndentation: true,
-                  },
-                  // Semantic highlighting
-                  'semanticHighlighting.enabled': true,
-                  // Smooth scrolling and cursor
-                  smoothScrolling: true,
-                  cursorBlinking: 'smooth',
-                  cursorSmoothCaretAnimation: 'on',
-                  // Code folding
-                  folding: true,
-                  foldingStrategy: 'indentation',
-                  showFoldingControls: 'mouseover',
-                  // Hover and suggestions
-                  hover: { enabled: true, delay: 500 },
-                  quickSuggestions: activeTab.source === 'workspace',
-                  suggestOnTriggerCharacters: activeTab.source === 'workspace',
-                  // Selection highlighting
-                  occurrencesHighlight: 'singleFile',
-                  selectionHighlight: true,
-                }}
-                loading={
-                  <div className="flex items-center justify-center h-full" data-testid="editor-monaco-loading">
-                    <Loader2 className="w-8 h-8 animate-spin text-[var(--color-text-muted)]" />
-                  </div>
-                }
+                onMount={handleEditorDidMount}
+                className="flex-1"
               />
             </>
           ) : null}
