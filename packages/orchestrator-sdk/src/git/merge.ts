@@ -274,39 +274,54 @@ export async function mergeBranch(options: MergeBranchOptions): Promise<MergeBra
 
   // 8. Sync local target branch with remote (best-effort)
   if (mergeResult.success && autoPush && syncLocal) {
-    try {
-      const { stdout: currentBranch } = await execAsync(
-        'git symbolic-ref --short HEAD',
-        { cwd: workspaceRoot, encoding: 'utf8' }
-      );
-      const savedBranch = currentBranch.trim();
-
-      await execAsync(`git checkout ${targetBranch}`, {
-        cwd: workspaceRoot, encoding: 'utf8',
-      });
-
-      try {
-        await execAsync(`git merge origin/${targetBranch} --no-edit`, {
-          cwd: workspaceRoot, encoding: 'utf8',
-        });
-      } catch {
-        try {
-          await execAsync('git merge --abort', {
-            cwd: workspaceRoot, encoding: 'utf8',
-          });
-        } catch {
-          // Ignore abort errors
-        }
-      }
-
-      await execAsync(`git checkout "${savedBranch}"`, {
-        cwd: workspaceRoot, encoding: 'utf8',
-      });
-    } catch {
-      // Non-fatal: local branch sync is best-effort
-      console.warn('[git/merge] Failed to sync local target branch with remote');
-    }
+    await syncLocalBranch(workspaceRoot, targetBranch);
   }
 
   return mergeResult;
+}
+
+/**
+ * Fast-forward the local target branch ref to match origin, without
+ * the dangerous checkout dance.
+ *
+ * - When NOT on the target branch: `git fetch origin target:target`
+ *   updates the local ref without touching the working tree at all.
+ * - When ON the target branch: `git merge --ff-only origin/target`
+ *   fast-forwards in place (unavoidably touches working tree files).
+ * - If either fails (e.g. non-ff divergence): logs a warning and
+ *   returns silently. The merge is already pushed to remote.
+ */
+export async function syncLocalBranch(
+  workspaceRoot: string,
+  targetBranch: string
+): Promise<void> {
+  try {
+    // Determine current branch (may be detached HEAD in worktrees)
+    let currentBranch: string | undefined;
+    try {
+      const { stdout } = await execAsync(
+        'git symbolic-ref --short HEAD',
+        { cwd: workspaceRoot, encoding: 'utf8' }
+      );
+      currentBranch = stdout.trim();
+    } catch {
+      // Detached HEAD — not on any branch
+    }
+
+    if (currentBranch === targetBranch) {
+      // We're on the target branch — fast-forward in place
+      await execAsync(`git merge --ff-only origin/${targetBranch}`, {
+        cwd: workspaceRoot, encoding: 'utf8',
+      });
+    } else {
+      // Not on target branch — update the ref without touching the worktree
+      await execAsync(`git fetch origin ${targetBranch}:${targetBranch}`, {
+        cwd: workspaceRoot, encoding: 'utf8',
+      });
+    }
+  } catch {
+    // Non-fatal: local branch sync is best-effort.
+    // The merge is already pushed to remote — user can `git pull` manually.
+    console.warn('[git/merge] Failed to fast-forward local target branch (non-ff divergence or missing ref). Run `git pull` to sync manually.');
+  }
 }

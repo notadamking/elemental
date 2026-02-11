@@ -40,7 +40,7 @@ import {
 import type { TaskAssignmentService, TaskAssignment } from './task-assignment-service.js';
 import type { DispatchService } from './dispatch-service.js';
 import type { WorktreeManager } from '../git/worktree-manager.js';
-import { mergeBranch } from '../git/merge.js';
+import { mergeBranch, syncLocalBranch } from '../git/merge.js';
 import type { AgentRegistry } from './agent-registry.js';
 
 const execAsync = promisify(exec);
@@ -497,6 +497,10 @@ export class MergeStewardServiceImpl implements MergeStewardService {
         await this.cleanupAfterMerge(taskId, this.config.deleteBranchAfterMerge);
       }
 
+      // 6. Sync local target branch (best-effort, after all bookkeeping)
+      const targetBranch = await this.getTargetBranch();
+      await syncLocalBranch(this.config.workspaceRoot, targetBranch);
+
       return {
         taskId,
         status: 'merged',
@@ -686,7 +690,7 @@ export class MergeStewardServiceImpl implements MergeStewardService {
       autoPush: this.config.autoPushAfterMerge,
       commitMessage: commitMessage ?? defaultMessage,
       preflight: true,
-      syncLocal: true,
+      syncLocal: false,
     });
   }
 

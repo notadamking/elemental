@@ -426,14 +426,16 @@ async function taskMergeHandler(
     const { default: path } = await import('node:path');
     const workspaceRoot = path.dirname(elementalDir);
 
-    // 3. Call mergeBranch()
-    const { mergeBranch } = await import('../../git/merge.js');
+    // 3. Call mergeBranch() with syncLocal disabled (we'll do it after bookkeeping)
+    const { mergeBranch, syncLocalBranch } = await import('../../git/merge.js');
+    const { detectTargetBranch } = await import('../../git/merge.js');
     const commitMessage = `${task.title} (${taskId})`;
 
     const mergeResult = await mergeBranch({
       workspaceRoot,
       sourceBranch,
       commitMessage,
+      syncLocal: false,
     });
 
     if (!mergeResult.success) {
@@ -484,7 +486,11 @@ async function taskMergeHandler(
       } catch { /* worktree may already be gone */ }
     }
 
-    // 6. Output result
+    // 6. Sync local target branch (best-effort, after all bookkeeping is done)
+    const targetBranch = await detectTargetBranch(workspaceRoot);
+    await syncLocalBranch(workspaceRoot, targetBranch);
+
+    // 7. Output result
     const mode = getOutputMode(options);
 
     if (mode === 'json') {
