@@ -404,6 +404,7 @@ interface AgentRegisterOptions {
   roleDef?: string;
   trigger?: string;
   provider?: string;
+  model?: string;
 }
 
 const agentRegisterOptions: CommandOption[] = [
@@ -457,6 +458,11 @@ const agentRegisterOptions: CommandOption[] = [
     description: 'Agent provider (e.g., claude, opencode)',
     hasValue: true,
   },
+  {
+    name: 'model',
+    description: 'LLM model to use (e.g., claude-sonnet-4-5-20250929)',
+    hasValue: true,
+  },
 ];
 
 async function agentRegisterHandler(
@@ -505,6 +511,7 @@ async function agentRegisterHandler(
           tags,
           roleDefinitionRef,
           provider: options.provider,
+          model: options.model,
         });
         break;
 
@@ -526,6 +533,7 @@ async function agentRegisterHandler(
           reportsTo,
           roleDefinitionRef,
           provider: options.provider,
+          model: options.model,
         });
         break;
       }
@@ -554,6 +562,7 @@ async function agentRegisterHandler(
           reportsTo,
           roleDefinitionRef,
           provider: options.provider,
+          model: options.model,
         });
         break;
       }
@@ -598,6 +607,7 @@ Options:
   --roleDef <id>          Role definition document ID
   --trigger <cron>        Steward cron trigger (e.g., "0 2 * * *")
   --provider <name>       Agent provider (e.g., claude, opencode)
+  --model <model>         LLM model to use (e.g., claude-sonnet-4-5-20250929)
 
 Examples:
   el agent register MyWorker --role worker --mode ephemeral
@@ -606,7 +616,8 @@ Examples:
   el agent register MyWorker --role worker --tags "frontend,urgent"
   el agent register TeamWorker --role worker --reportsTo el-director123
   el agent register DailyChecker --role steward --focus health --trigger "0 9 * * *"
-  el agent register OcWorker --role worker --provider opencode`,
+  el agent register OcWorker --role worker --provider opencode
+  el agent register MyWorker --role worker --model claude-sonnet-4-5-20250929`,
   options: agentRegisterOptions,
   handler: agentRegisterHandler as Command['handler'],
 };
@@ -786,6 +797,7 @@ interface AgentStartOptions {
   taskId?: string;
   stream?: boolean;
   provider?: string;
+  model?: string;
 }
 
 const agentStartOptions: CommandOption[] = [
@@ -847,6 +859,11 @@ const agentStartOptions: CommandOption[] = [
   {
     name: 'provider',
     description: 'Override agent provider for this session',
+    hasValue: true,
+  },
+  {
+    name: 'model',
+    description: 'Override model for this session (e.g., claude-opus-4-6)',
     hasValue: true,
   },
 ];
@@ -1000,6 +1017,7 @@ Options:
   -t, --taskId <id>        Task ID to assign to this agent
   --stream                 Stream agent output after starting
   --provider <name>        Override agent provider for this session
+  --model <model>          Override model for this session
 
 Examples:
   el agent start el-abc123
@@ -1010,7 +1028,8 @@ Examples:
   el agent start el-abc123 --env MY_VAR=value
   el agent start el-abc123 --taskId el-task456
   el agent start el-abc123 --stream
-  el agent start el-abc123 --provider opencode`,
+  el agent start el-abc123 --provider opencode
+  el agent start el-abc123 --model claude-opus-4-6`,
   options: agentStartOptions,
   handler: agentStartHandler as Command['handler'],
 };

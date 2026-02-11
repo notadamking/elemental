@@ -90,6 +90,8 @@ export interface StartSessionOptions {
   readonly cols?: number;
   /** Terminal rows (for interactive mode) */
   readonly rows?: number;
+  /** LLM model to use for this session (overrides agent metadata) */
+  readonly model?: string;
 }
 
 /**
@@ -515,6 +517,9 @@ export class SessionManagerImpl implements SessionManager {
       providerOverride = await registry.getOrThrow(providerName);
     }
 
+    // Resolve model: use options override, or fall back to agent metadata
+    const modelOverride = options?.model ?? (meta as { model?: string }).model;
+
     // Build spawn options
     const spawnOptions: SpawnOptions = {
       workingDirectory: options?.workingDirectory,
@@ -524,9 +529,10 @@ export class SessionManagerImpl implements SessionManager {
       cols: options?.cols,
       rows: options?.rows,
       provider: providerOverride,
+      model: modelOverride,
     };
 
-    console.log('[session-manager] Starting session for agent', agentId, 'mode:', spawnOptions.mode, 'provider:', providerName ?? 'claude', 'prompt length:', options?.initialPrompt?.length ?? 0);
+    console.log('[session-manager] Starting session for agent', agentId, 'mode:', spawnOptions.mode, 'provider:', providerName ?? 'claude', 'model:', modelOverride ?? 'default', 'prompt length:', options?.initialPrompt?.length ?? 0);
 
     // Spawn the session
     const result = await this.spawner.spawn(agentId, meta.agentRole, spawnOptions);
@@ -631,12 +637,16 @@ export class SessionManagerImpl implements SessionManager {
       providerOverride = await registry.getOrThrow(providerName);
     }
 
+    // Resolve model from agent metadata (resume doesn't allow model override)
+    const modelFromMeta = (meta as { model?: string }).model;
+
     // Build spawn options with resume
     const spawnOptions: SpawnOptions = {
       workingDirectory,
       resumeSessionId: options.providerSessionId,
       initialPrompt: effectivePrompt,
       provider: providerOverride,
+      model: modelFromMeta,
     };
 
     // Spawn the session with resume

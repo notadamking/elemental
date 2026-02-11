@@ -41,6 +41,7 @@ export function createAgentRoutes(services: Services) {
         reportsTo?: string;
         createdBy?: string;
         provider?: string;
+        model?: string;
       };
 
       if (!body.role || !body.name) {
@@ -58,6 +59,7 @@ export function createAgentRoutes(services: Services) {
             tags: body.tags,
             maxConcurrentTasks: body.maxConcurrentTasks,
             provider: body.provider,
+            model: body.model,
           });
           break;
 
@@ -73,6 +75,7 @@ export function createAgentRoutes(services: Services) {
             maxConcurrentTasks: body.maxConcurrentTasks,
             reportsTo: body.reportsTo as EntityId | undefined,
             provider: body.provider,
+            model: body.model,
           });
           break;
 
@@ -89,6 +92,7 @@ export function createAgentRoutes(services: Services) {
             maxConcurrentTasks: body.maxConcurrentTasks,
             reportsTo: body.reportsTo as EntityId | undefined,
             provider: body.provider,
+            model: body.model,
           });
           break;
 
@@ -262,7 +266,7 @@ export function createAgentRoutes(services: Services) {
   app.patch('/api/agents/:id', async (c) => {
     try {
       const agentId = c.req.param('id') as EntityId;
-      const body = (await c.req.json()) as { name?: string; provider?: string };
+      const body = (await c.req.json()) as { name?: string; provider?: string; model?: string };
 
       const agent = await agentRegistry.getAgent(agentId);
       if (!agent) {
@@ -277,6 +281,10 @@ export function createAgentRoutes(services: Services) {
         return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Provider must be a non-empty string' } }, 400);
       }
 
+      if (body.model !== undefined && (typeof body.model !== 'string' || body.model.trim().length === 0)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Model must be a non-empty string' } }, 400);
+      }
+
       // Update name if provided
       let updatedAgent = agent;
       if (body.name !== undefined) {
@@ -286,6 +294,11 @@ export function createAgentRoutes(services: Services) {
       // Update provider in agent metadata if provided
       if (body.provider !== undefined) {
         updatedAgent = await agentRegistry.updateAgentMetadata(agentId, { provider: body.provider.trim() });
+      }
+
+      // Update model in agent metadata if provided
+      if (body.model !== undefined) {
+        updatedAgent = await agentRegistry.updateAgentMetadata(agentId, { model: body.model.trim() });
       }
 
       return c.json({ agent: updatedAgent });
@@ -383,6 +396,38 @@ export function createAgentRoutes(services: Services) {
       return c.json({ providers });
     } catch (error) {
       console.error('[orchestrator] Failed to list providers:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  // GET /api/providers/:name/models
+  app.get('/api/providers/:name/models', async (c) => {
+    try {
+      const providerName = c.req.param('name');
+      const registry = getProviderRegistry();
+      const provider = registry.get(providerName);
+
+      if (!provider) {
+        return c.json({ error: { code: 'NOT_FOUND', message: `Provider not found: ${providerName}` } }, 404);
+      }
+
+      const available = await provider.isAvailable();
+      if (!available) {
+        return c.json(
+          {
+            error: {
+              code: 'PROVIDER_UNAVAILABLE',
+              message: `Provider ${providerName} is not available. ${provider.getInstallInstructions()}`,
+            },
+          },
+          503
+        );
+      }
+
+      const models = await provider.listModels();
+      return c.json({ models });
+    } catch (error) {
+      console.error('[orchestrator] Failed to list provider models:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
     }
   });

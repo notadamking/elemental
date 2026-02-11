@@ -274,6 +274,7 @@ export class AgentRegistryImpl implements AgentRegistry {
       maxConcurrentTasks: input.maxConcurrentTasks,
       roleDefinitionRef: input.roleDefinitionRef,
       provider: input.provider,
+      model: input.model,
     };
 
     const entity = await createEntity({
@@ -304,6 +305,7 @@ export class AgentRegistryImpl implements AgentRegistry {
       maxConcurrentTasks: input.maxConcurrentTasks,
       roleDefinitionRef: input.roleDefinitionRef,
       provider: input.provider,
+      model: input.model,
     };
 
     const entity = await createEntity({
@@ -336,6 +338,7 @@ export class AgentRegistryImpl implements AgentRegistry {
       maxConcurrentTasks: input.maxConcurrentTasks,
       roleDefinitionRef: input.roleDefinitionRef,
       provider: input.provider,
+      model: input.model,
     };
 
     const entity = await createEntity({
