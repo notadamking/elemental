@@ -60,6 +60,13 @@ export function DocumentsPage() {
   const queryClient = useQueryClient();
   const { data: libraries = [], isLoading, error } = useLibraries();
 
+  const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(
+    search.library ?? null
+  );
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(
+    search.selected ?? null
+  );
+
   // Get selected library details for delete modal
   const { data: selectedLibrary } = useLibrary(selectedLibraryId || '');
   const selectedLibraryDocCount = selectedLibrary?._documents?.length || 0;
@@ -89,12 +96,6 @@ export function DocumentsPage() {
       toast.error(err.message || 'Failed to delete library');
     },
   });
-  const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(
-    search.library ?? null
-  );
-  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(
-    search.selected ?? null
-  );
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateLibraryModal, setShowCreateLibraryModal] = useState(false);
   const [showDeleteLibraryModal, setShowDeleteLibraryModal] = useState(false);

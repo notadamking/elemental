@@ -977,38 +977,42 @@ describe('MergeStewardService', () => {
 
         // Find indices of key operations
         const worktreeRemoveIdx = execCalls.findIndex(c => c.cmd.includes('worktree remove'));
-        const checkoutTargetIdx = execCalls.findIndex(
-          (c, i) => i > worktreeRemoveIdx && c.cmd.includes('git checkout main')
+        const fetchOriginIdx = execCalls.findIndex(
+          (c, i) => i > worktreeRemoveIdx && c.cmd === 'git fetch origin'
         );
-        const mergeRemoteIdx = execCalls.findIndex(
-          (c, i) => i > worktreeRemoveIdx && c.cmd.includes('git merge origin/main')
+        const symbolicRefIdx = execCalls.findIndex(
+          (c, i) => i > worktreeRemoveIdx && c.cmd.includes('symbolic-ref')
         );
 
-        // Worktree removal must come before sync operations
+        // Worktree removal must come before fetch and sync operations
         expect(worktreeRemoveIdx).toBeGreaterThan(-1);
-        expect(checkoutTargetIdx).toBeGreaterThan(worktreeRemoveIdx);
-        expect(mergeRemoteIdx).toBeGreaterThan(worktreeRemoveIdx);
+        expect(fetchOriginIdx).toBeGreaterThan(worktreeRemoveIdx);
+        expect(symbolicRefIdx).toBeGreaterThan(worktreeRemoveIdx);
       });
 
-      it('should perform checkout, merge, and return-to-original-branch during sync', async () => {
+      it('should use safe fetch-based sync instead of checkout dance', async () => {
         const result = await service.attemptMerge('task-001' as ElementId);
 
         expect(result.success).toBe(true);
 
-        // After worktree removal, expect: checkout target, merge, checkout saved branch
+        // After worktree removal, expect: fetch origin, symbolic-ref, fetch origin main:main
+        // (since mock branch is agent/worker/some-branch ≠ main, takes the non-target-branch path)
         const worktreeRemoveIdx = execCalls.findIndex(c => c.cmd.includes('worktree remove'));
         const postWorktreeCmds = execCalls.slice(worktreeRemoveIdx + 1);
 
-        // Should have: symbolic-ref, checkout target, merge, checkout saved
+        const fetchOrigin = postWorktreeCmds.find(c => c.cmd === 'git fetch origin');
         const symbolicRef = postWorktreeCmds.find(c => c.cmd.includes('symbolic-ref'));
+        const fetchRefUpdate = postWorktreeCmds.find(c => c.cmd.includes('fetch origin main:main'));
+
+        expect(fetchOrigin).toBeDefined();
+        expect(symbolicRef).toBeDefined();
+        expect(fetchRefUpdate).toBeDefined();
+
+        // Should NOT use the old checkout dance
         const checkoutTarget = postWorktreeCmds.find(c => c.cmd.includes('git checkout main'));
         const mergeRemote = postWorktreeCmds.find(c => c.cmd.includes('git merge origin/main'));
-        const checkoutSaved = postWorktreeCmds.find(c => c.cmd.includes('git checkout "agent/worker/some-branch"'));
-
-        expect(symbolicRef).toBeDefined();
-        expect(checkoutTarget).toBeDefined();
-        expect(mergeRemote).toBeDefined();
-        expect(checkoutSaved).toBeDefined();
+        expect(checkoutTarget).toBeUndefined();
+        expect(mergeRemote).toBeUndefined();
       });
 
       it('should not sync local branch when merge fails', async () => {

@@ -13,7 +13,7 @@ import type { Services } from '../services.js';
 import { generateActivitySummary } from '../formatters.js';
 
 export function createEventRoutes(services: Services) {
-  const { api, sessionManager, spawnerService } = services;
+  const { api, sessionManager, spawnerService, dispatchDaemon } = services;
   const app = new Hono();
 
   // GET /api/events
@@ -152,6 +152,24 @@ export function createEventRoutes(services: Services) {
         }
       }
 
+      // Forward daemon warnings/errors to SSE clients as toast notifications
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let onDaemonNotification: ((data: any) => void) | undefined;
+      if (dispatchDaemon) {
+        onDaemonNotification = async (data: { type: string; title: string; message?: string }) => {
+          try {
+            await stream.writeSSE({
+              id: String(++eventId),
+              event: 'notification',
+              data: JSON.stringify(data),
+            });
+          } catch {
+            // Stream closed
+          }
+        };
+        dispatchDaemon.on('daemon:notification', onDaemonNotification);
+      }
+
       const heartbeatInterval = setInterval(async () => {
         try {
           await stream.writeSSE({
@@ -171,6 +189,9 @@ export function createEventRoutes(services: Services) {
           if (events) {
             events.off('event', listener);
           }
+        }
+        if (dispatchDaemon && onDaemonNotification) {
+          dispatchDaemon.off('daemon:notification', onDaemonNotification);
         }
       });
 

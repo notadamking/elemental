@@ -316,6 +316,7 @@ export interface DispatchDaemon {
   on(event: 'task:dispatched', listener: (taskId: ElementId, agentId: EntityId) => void): void;
   on(event: 'message:forwarded', listener: (messageId: string, agentId: EntityId) => void): void;
   on(event: 'agent:spawned', listener: (agentId: EntityId, worktree?: string) => void): void;
+  on(event: 'daemon:notification', listener: (data: { type: 'info' | 'warning' | 'error'; title: string; message?: string }) => void): void;
 
   /**
    * Unsubscribe from daemon events.
@@ -1139,6 +1140,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   on(event: 'message:forwarded', listener: (messageId: string, agentId: EntityId) => void): void;
   on(event: 'agent:spawned', listener: (agentId: EntityId, worktree?: string) => void): void;
   on(event: 'agent:triage-spawned', listener: (agentId: EntityId, channelId: string, worktree: string) => void): void;
+  on(event: 'daemon:notification', listener: (data: { type: 'info' | 'warning' | 'error'; title: string; message?: string }) => void): void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on(event: string, listener: (...args: any[]) => void): void {
     this.emitter.on(event, listener);
@@ -1724,13 +1726,37 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     const orchestratorMeta = taskMeta?.orchestrator as Record<string, unknown> | undefined;
     let worktreePath = orchestratorMeta?.worktree as string | undefined;
 
-    // Verify the worktree still exists; fall back to project root if cleaned up
+    // Verify the worktree still exists; create a fresh one if cleaned up (NEVER fall back to project root)
     if (worktreePath) {
       const exists = await this.worktreeManager.worktreeExists(worktreePath);
       if (!exists) {
-        console.warn(`[dispatch-daemon] Worktree ${worktreePath} no longer exists for task ${task.id}, using project root`);
-        worktreePath = undefined;
+        console.warn(`[dispatch-daemon] Worktree ${worktreePath} no longer exists for task ${task.id}, creating fresh worktree`);
+        const sourceBranch = orchestratorMeta?.branch as string | undefined;
+        if (sourceBranch) {
+          try {
+            const result = await this.worktreeManager.createReadOnlyWorktree({
+              agentName: stewardId,
+              purpose: `steward-${task.id}`,
+            });
+            worktreePath = result.path;
+          } catch (e) {
+            console.error(`[dispatch-daemon] Failed to create steward worktree: ${e}`);
+            worktreePath = undefined;
+          }
+        } else {
+          worktreePath = undefined;
+        }
       }
+    }
+
+    // Guard: never spawn a steward in the project root — skip if no worktree
+    if (!worktreePath) {
+      this.emitter.emit('daemon:notification', {
+        type: 'warning' as const,
+        title: 'Merge steward skipped',
+        message: `Cannot spawn merge steward for task ${task.id}: worktree missing and no branch info available to create a new one.`,
+      });
+      return;
     }
 
     // Phase 1: Sync branch with master before spawning steward
@@ -1760,7 +1786,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     // Build the steward prompt with full context including sync result
     const initialPrompt = await this.buildStewardPrompt(task, stewardId, stewardFocus as 'merge' | 'health', syncResult);
 
-    const workingDirectory = worktreePath ?? this.config.projectRoot;
+    const workingDirectory = worktreePath;
 
     // Start the steward session
     const { session, events } = await this.sessionManager.startSession(stewardId, {

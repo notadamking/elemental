@@ -488,6 +488,9 @@ async function taskMergeHandler(
 
     // 6. Sync local target branch (best-effort, after all bookkeeping is done)
     const targetBranch = await detectTargetBranch(workspaceRoot);
+    try {
+      await execAsync('git fetch origin', { cwd: workspaceRoot, encoding: 'utf8' });
+    } catch { /* best-effort */ }
     await syncLocalBranch(workspaceRoot, targetBranch);
 
     // 7. Output result

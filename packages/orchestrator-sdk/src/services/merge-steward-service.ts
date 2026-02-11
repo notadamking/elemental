@@ -499,6 +499,9 @@ export class MergeStewardServiceImpl implements MergeStewardService {
 
       // 6. Sync local target branch (best-effort, after all bookkeeping)
       const targetBranch = await this.getTargetBranch();
+      try {
+        await execAsync('git fetch origin', { cwd: this.config.workspaceRoot, encoding: 'utf8' });
+      } catch { /* best-effort */ }
       await syncLocalBranch(this.config.workspaceRoot, targetBranch);
 
       return {

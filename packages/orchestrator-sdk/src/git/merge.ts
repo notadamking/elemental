@@ -308,6 +308,11 @@ export async function syncLocalBranch(
       // Detached HEAD — not on any branch
     }
 
+    if (!currentBranch) {
+      console.warn('[git/merge] WARNING: workspace is in detached HEAD state during syncLocalBranch. Skipping sync. Run `git checkout master` to fix.');
+      return;
+    }
+
     if (currentBranch === targetBranch) {
       // We're on the target branch — fast-forward in place
       await execAsync(`git merge --ff-only origin/${targetBranch}`, {
