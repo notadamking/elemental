@@ -89,11 +89,21 @@ function createMockWorktreeManager(): WorktreeManager {
       isMain: false,
       state: 'active',
     })),
+    createReadOnlyWorktree: mock(async (options: { agentName: string; purpose: string }): Promise<CreateWorktreeResult> => ({
+      path: `/worktrees/${options.agentName}/${options.purpose}`,
+      relativePath: `.elemental/.worktrees/${options.agentName}/${options.purpose}`,
+      branch: 'master',
+      head: 'abc123',
+      isMain: false,
+      state: 'active',
+    })),
     getWorktree: mock(async () => undefined),
     listWorktrees: mock(async () => []),
     removeWorktree: mock(async () => {}),
     cleanupOrphanedWorktrees: mock(async () => ({ removed: [], errors: [] })),
     worktreeExists: mock(async () => true), // Default to true for handoff tests
+    getWorkspaceRoot: mock(() => '/workspace'),
+    getDefaultBranch: mock(async () => 'master'),
   } as unknown as WorktreeManager;
 }
 
@@ -678,10 +688,12 @@ describe('pollWorkflowTasks - merge steward dispatch', () => {
     const saved = await api.create(task as unknown as Record<string, unknown> & { createdBy: EntityId }) as Task;
 
     // Set orchestrator metadata with mergeStatus: 'pending' (default for new review tasks)
+    // Worktree is required for spawnMergeStewardForTask to proceed (post cc52ef9 guard)
     await api.update(saved.id, {
       metadata: updateOrchestratorTaskMeta(undefined, {
         mergeStatus: 'pending',
         branch: 'agent/worker/task-branch',
+        worktree: '/worktrees/worker/task',
         ...meta,
       }),
     });
@@ -928,6 +940,7 @@ describe('recoverOrphanedAssignments - merge steward recovery', () => {
 
     await createOrphanedStewardTask('Review task with stale session', stewardId, {
       sessionId: 'stale-steward-session',
+      worktree: '/worktrees/worker/task', // Worktree required for spawnMergeStewardForTask fallback
     });
 
     // Mock resumeSession to throw
