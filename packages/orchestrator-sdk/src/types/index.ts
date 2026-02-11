@@ -53,11 +53,14 @@ export {
   type TestResult,
   isTestResult,
   type HandoffHistoryEntry,
+  type TaskSessionHistoryEntry,
   // Utilities
   getOrchestratorTaskMeta,
   setOrchestratorTaskMeta,
   updateOrchestratorTaskMeta,
   isOrchestratorTaskMeta,
+  appendTaskSessionHistory,
+  closeTaskSessionHistory,
   // Naming utilities
   generateBranchName,
   generateWorktreePath,

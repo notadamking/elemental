@@ -116,6 +116,9 @@ export interface OrchestratorTaskMeta {
   /** History of all handoffs for this task */
   readonly handoffHistory?: HandoffHistoryEntry[];
 
+  /** History of all sessions (worker and steward) that worked on this task */
+  readonly sessionHistory?: readonly TaskSessionHistoryEntry[];
+
   // ----------------------------------------
   // Branch Sync Information (for merge steward review)
   // ----------------------------------------
@@ -158,6 +161,31 @@ export interface HandoffHistoryEntry {
   readonly worktree?: string;
   /** When the handoff occurred */
   readonly handoffAt: Timestamp;
+}
+
+// ============================================================================
+// Task Session History Entry
+// ============================================================================
+
+/**
+ * An entry in the session history for a task, tracking all sessions (worker and steward)
+ * that have worked on this task.
+ */
+export interface TaskSessionHistoryEntry {
+  /** Internal session ID (used to fetch messages via GET /api/sessions/:id/messages) */
+  readonly sessionId: string;
+  /** Provider session ID (for resume) */
+  readonly providerSessionId?: string;
+  /** Entity ID of the agent */
+  readonly agentId: EntityId;
+  /** Display name of the agent */
+  readonly agentName: string;
+  /** Role of the agent */
+  readonly agentRole: 'worker' | 'steward';
+  /** Timestamp when the session started */
+  readonly startedAt: Timestamp;
+  /** Timestamp when the session ended (undefined if still running) */
+  readonly endedAt?: Timestamp;
 }
 
 // ============================================================================
@@ -306,6 +334,63 @@ export function isOrchestratorTaskMeta(value: unknown): value is OrchestratorTas
   if (obj.lastTestResult !== undefined && !isTestResult(obj.lastTestResult)) return false;
 
   return true;
+}
+
+// ============================================================================
+// Session History Utilities
+// ============================================================================
+
+/** Maximum number of session history entries to keep per task */
+const MAX_SESSION_HISTORY_ENTRIES = 50;
+
+/**
+ * Appends a session history entry to the task's orchestrator metadata.
+ * Caps the history at MAX_SESSION_HISTORY_ENTRIES entries.
+ *
+ * @param existingMetadata - The task's existing metadata
+ * @param entry - The session history entry to append
+ * @returns Updated task metadata with the new session history entry
+ */
+export function appendTaskSessionHistory(
+  existingMetadata: Record<string, unknown> | undefined,
+  entry: TaskSessionHistoryEntry
+): Record<string, unknown> {
+  const existing = getOrchestratorTaskMeta(existingMetadata);
+  const existingHistory = existing?.sessionHistory ?? [];
+  const newHistory = [...existingHistory, entry].slice(-MAX_SESSION_HISTORY_ENTRIES);
+
+  return updateOrchestratorTaskMeta(existingMetadata, {
+    sessionHistory: newHistory,
+  });
+}
+
+/**
+ * Closes a session history entry by setting the endedAt timestamp.
+ * Finds the session history entry matching the sessionId that has no endedAt.
+ *
+ * @param existingMetadata - The task's existing metadata
+ * @param sessionId - The session ID to close
+ * @param endedAt - The timestamp when the session ended
+ * @returns Updated task metadata with the closed session history entry
+ */
+export function closeTaskSessionHistory(
+  existingMetadata: Record<string, unknown> | undefined,
+  sessionId: string,
+  endedAt: Timestamp
+): Record<string, unknown> {
+  const existing = getOrchestratorTaskMeta(existingMetadata);
+  const existingHistory = existing?.sessionHistory ?? [];
+
+  const updatedHistory = existingHistory.map((entry) => {
+    if (entry.sessionId === sessionId && entry.endedAt === undefined) {
+      return { ...entry, endedAt };
+    }
+    return entry;
+  });
+
+  return updateOrchestratorTaskMeta(existingMetadata, {
+    sessionHistory: updatedHistory,
+  });
 }
 
 // ============================================================================
