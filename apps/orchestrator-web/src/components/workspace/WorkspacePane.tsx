@@ -470,8 +470,8 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
                       )}
                     </button>
                   )}
-                  {/* View history - for ephemeral workers */}
-                  {pane.workerMode === 'ephemeral' && pane.agentRole !== 'director' && (
+                  {/* View history - for ephemeral workers and stewards */}
+                  {(pane.workerMode === 'ephemeral' || pane.agentRole === 'steward') && pane.agentRole !== 'director' && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -717,8 +717,8 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
         )}
       </div>
 
-      {/* Session History Modal - for ephemeral workers */}
-      {pane.workerMode === 'ephemeral' && (
+      {/* Session History Modal - for ephemeral workers and stewards */}
+      {(pane.workerMode === 'ephemeral' || pane.agentRole === 'steward') && (
         <SessionHistoryModal
           isOpen={showHistory}
           onClose={() => setShowHistory(false)}
