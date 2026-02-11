@@ -19,16 +19,28 @@ import type { NotificationHandler } from './jsonrpc-client.js';
 // Client Interface
 // ============================================================================
 
+/** Model information returned by the Codex app-server */
+export interface CodexModelInfo {
+  id: string;
+  name?: string;
+  description?: string;
+}
+
 /** Typed facade over the JSON-RPC client for Codex app-server operations */
 export interface CodexClient {
+  model: {
+    list(params?: { limit?: number }): Promise<{ models: CodexModelInfo[] }>;
+  };
   thread: {
     start(params: {
+      model?: string;
       cwd?: string;
       approvalPolicy?: string;
       sandbox?: string;
     }): Promise<{ thread: { id: string } }>;
     resume(params: {
       threadId: string;
+      model?: string;
       cwd?: string;
       approvalPolicy?: string;
       sandbox?: string;
@@ -189,6 +201,9 @@ class CodexServerManager {
     });
 
     const client: CodexClient = {
+      model: {
+        list: (params) => rpcClient.request('model/list', params ?? {}) as Promise<{ models: CodexModelInfo[] }>,
+      },
       thread: {
         start: (params) => rpcClient.request('thread/start', params) as Promise<{ thread: { id: string } }>,
         resume: (params) => rpcClient.request('thread/resume', params) as Promise<{ thread: { id: string } }>,

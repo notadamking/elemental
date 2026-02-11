@@ -10,6 +10,7 @@
 import type { AgentProvider, HeadlessProvider, InteractiveProvider, ModelInfo } from '../types.js';
 import { CodexHeadlessProvider } from './headless.js';
 import { CodexInteractiveProvider } from './interactive.js';
+import { serverManager } from './server-manager.js';
 
 export { CodexHeadlessProvider } from './headless.js';
 export { CodexInteractiveProvider } from './interactive.js';
@@ -45,7 +46,18 @@ export class CodexAgentProvider implements AgentProvider {
   }
 
   async listModels(): Promise<ModelInfo[]> {
-    // TODO: Implement actual model listing via Codex SDK
-    return [];
+    // Acquire a temporary server client
+    const client = await serverManager.acquire();
+    try {
+      const response = await client.model.list({ limit: 50 });
+      // Map Codex model info to our ModelInfo type
+      return (response.models ?? []).map((model) => ({
+        id: model.id,
+        displayName: model.name ?? model.id,
+        description: model.description,
+      }));
+    } finally {
+      serverManager.release();
+    }
   }
 }

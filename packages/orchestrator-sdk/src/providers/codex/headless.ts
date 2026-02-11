@@ -142,6 +142,7 @@ export class CodexHeadlessProvider implements HeadlessProvider {
         // 2a. Resume: load the thread into the server and re-configure it
         const result = await client.thread.resume({
           threadId: options.resumeSessionId,
+          model: options.model,
           cwd: options.workingDirectory,
           approvalPolicy: 'never',
           sandbox: 'danger-full-access',
@@ -163,6 +164,7 @@ export class CodexHeadlessProvider implements HeadlessProvider {
         // turn). We must call turn/start separately via sendMessage() to get
         // LLM output notifications.
         const result = await client.thread.start({
+          model: options.model,
           cwd: options.workingDirectory,
           approvalPolicy: 'never',
           sandbox: 'danger-full-access',

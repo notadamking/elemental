@@ -168,6 +168,11 @@ export class CodexInteractiveProvider implements InteractiveProvider {
       args.push('--full-auto', '--cd', shellQuote(options.workingDirectory));
     }
 
+    // Add model flag if provided
+    if (options.model) {
+      args.push('--model', shellQuote(options.model));
+    }
+
     return args;
   }
 }
