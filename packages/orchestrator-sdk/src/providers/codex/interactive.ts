@@ -112,14 +112,19 @@ export class CodexInteractiveProvider implements InteractiveProvider {
     const rows = options.rows ?? 30;
 
     const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/bash';
-    const shellArgs = process.platform === 'win32' ? [] : ['-l'];
 
-    // Build the command with initial prompt as positional argument: codex "prompt"
-    const commandParts = [shellQuote(this.executablePath), ...args];
-    if (options.initialPrompt) {
-      commandParts.push(shellQuote(options.initialPrompt));
-    }
-    const codexCommand = commandParts.join(' ');
+    // Build the CLI command string (simple args only — not the prompt).
+    // Use `exec` so the CLI replaces the shell process.
+    const codexCommand = 'exec ' + [shellQuote(this.executablePath), ...args].join(' ');
+
+    // Spawn PTY using bash -l -c to run the command in a login shell.
+    // When an initial prompt is provided, it's passed as a bash positional
+    // parameter ($1) via the process argv — bypasses shell parsing entirely.
+    const shellArgs: string[] = process.platform === 'win32'
+      ? []
+      : options.initialPrompt
+        ? ['-l', '-c', codexCommand + ' "$1"', '_', options.initialPrompt]
+        : ['-l', '-c', codexCommand];
 
     const ptyProcess = pty.spawn(shell, shellArgs, {
       name: 'xterm-256color',
@@ -131,18 +136,15 @@ export class CodexInteractiveProvider implements InteractiveProvider {
 
     const session = new CodexInteractiveSession(ptyProcess);
 
-    // Wait for shell to be ready, then start codex.
-    // Use `exec` so the CLI replaces the shell process.
-    await new Promise<void>((resolve) => {
-      let started = false;
-      setTimeout(() => {
-        if (!started) {
-          started = true;
-          ptyProcess.write('exec ' + codexCommand + '\r');
+    // On Windows, write the command to cmd.exe stdin (bash -c handles this on Unix)
+    if (process.platform === 'win32') {
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          ptyProcess.write(codexCommand + '\r');
           resolve();
-        }
-      }, 100);
-    });
+        }, 100);
+      });
+    }
 
     return session;
   }

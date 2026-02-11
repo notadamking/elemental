@@ -110,19 +110,22 @@ export class ClaudeInteractiveProvider implements InteractiveProvider {
     const cols = options.cols ?? 120;
     const rows = options.rows ?? 30;
 
-    // Get shell based on platform
+    // Build the CLI command string (simple args only — not the prompt)
+    const claudeCommand = [shellQuote(this.executablePath), ...args].join(' ');
+
+    // Spawn PTY using bash -l -c to run the command in a login shell.
+    // When an initial prompt is provided, it's passed as a bash positional
+    // parameter ($1) via the process argv — this bypasses shell parsing entirely,
+    // so the prompt never needs escaping regardless of newlines, quotes, backticks,
+    // or other special characters. The prompt goes through execvp() as a raw OS
+    // process argument and bash expands "$1" to the exact value.
     const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/bash';
-    const shellArgs = process.platform === 'win32' ? [] : ['-l'];
+    const shellArgs: string[] = process.platform === 'win32'
+      ? []
+      : options.initialPrompt
+        ? ['-l', '-c', claudeCommand + ' "$1"', '_', options.initialPrompt]
+        : ['-l', '-c', claudeCommand];
 
-    // Build the command to run claude inside the shell
-    // If there's an initial prompt, pass it as a positional argument: claude "query"
-    const commandParts = [shellQuote(this.executablePath), ...args];
-    if (options.initialPrompt) {
-      commandParts.push(shellQuote(options.initialPrompt));
-    }
-    const claudeCommand = commandParts.join(' ');
-
-    // Spawn PTY with the shell
     const ptyProcess = pty.spawn(shell, shellArgs, {
       name: 'xterm-256color',
       cols,
@@ -133,17 +136,15 @@ export class ClaudeInteractiveProvider implements InteractiveProvider {
 
     const session = new ClaudeInteractiveSession(ptyProcess);
 
-    // Wait for shell to be ready, then start claude
-    await new Promise<void>((resolve) => {
-      let started = false;
-      setTimeout(() => {
-        if (!started) {
-          started = true;
+    // On Windows, write the command to cmd.exe stdin (bash -c handles this on Unix)
+    if (process.platform === 'win32') {
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
           ptyProcess.write(claudeCommand + '\r');
           resolve();
-        }
-      }, 100);
-    });
+        }, 100);
+      });
+    }
 
     return session;
   }

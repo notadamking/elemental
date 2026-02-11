@@ -107,14 +107,20 @@ export class OpenCodeInteractiveProvider implements InteractiveProvider {
     const rows = options.rows ?? 30;
 
     const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/bash';
-    const shellArgs = process.platform === 'win32' ? [] : ['-l'];
 
-    // Build the command with --prompt flag if there's an initial prompt
-    const commandParts = [shellQuote(this.executablePath), ...args];
-    if (options.initialPrompt) {
-      commandParts.push('--prompt', shellQuote(options.initialPrompt));
-    }
-    const opencodeCommand = commandParts.join(' ');
+    // Build the CLI command string (simple args only — not the prompt).
+    // Use `exec` so the CLI replaces the shell process — when the CLI exits,
+    // the PTY exits immediately (no lingering shell to clean up).
+    const opencodeCommand = 'exec ' + [shellQuote(this.executablePath), ...args].join(' ');
+
+    // Spawn PTY using bash -l -c to run the command in a login shell.
+    // When an initial prompt is provided, it's passed as a bash positional
+    // parameter ($1) via the process argv — bypasses shell parsing entirely.
+    const shellArgs: string[] = process.platform === 'win32'
+      ? []
+      : options.initialPrompt
+        ? ['-l', '-c', opencodeCommand + ' "$1"', '_', options.initialPrompt]
+        : ['-l', '-c', opencodeCommand];
 
     const ptyProcess = pty.spawn(shell, shellArgs, {
       name: 'xterm-256color',
@@ -126,19 +132,15 @@ export class OpenCodeInteractiveProvider implements InteractiveProvider {
 
     const session = new OpenCodeInteractiveSession(ptyProcess);
 
-    // Wait for shell to be ready, then start opencode.
-    // Use `exec` so the CLI replaces the shell process — when the CLI exits,
-    // the PTY exits immediately (no lingering shell to clean up).
-    await new Promise<void>((resolve) => {
-      let started = false;
-      setTimeout(() => {
-        if (!started) {
-          started = true;
-          ptyProcess.write('exec ' + opencodeCommand + '\r');
+    // On Windows, write the command to cmd.exe stdin (bash -c handles this on Unix)
+    if (process.platform === 'win32') {
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          ptyProcess.write(opencodeCommand + '\r');
           resolve();
-        }
-      }, 100);
-    });
+        }, 100);
+      });
+    }
 
     return session;
   }
