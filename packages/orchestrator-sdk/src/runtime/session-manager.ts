@@ -803,21 +803,7 @@ export class SessionManagerImpl implements SessionManager {
     // Validate that the process is actually alive (PID available for interactive sessions)
     if (session.pid && !this.isProcessAlive(session.pid)) {
       // Process crashed without exit handler firing — clean up
-      const updatedSession: InternalSessionState = {
-        ...session,
-        status: 'terminated',
-        endedAt: createTimestamp(),
-        terminationReason: 'Process no longer alive (PID check)',
-        persisted: false,
-      };
-      this.sessions.set(sessionId, updatedSession);
-      this.agentSessions.delete(agentId);
-      this.addToHistory(agentId, updatedSession);
-      // Fire-and-forget async cleanup
-      this.registry.updateAgentSession(agentId, undefined, 'idle').catch(() => {});
-      this.persistSession(sessionId).then(() => {
-        this.scheduleTerminatedSessionCleanup(sessionId);
-      }).catch(() => {});
+      this.cleanupDeadSession(session);
       return undefined;
     }
 
@@ -826,6 +812,17 @@ export class SessionManagerImpl implements SessionManager {
 
   listSessions(filter?: SessionFilter): SessionRecord[] {
     let sessions = Array.from(this.sessions.values());
+
+    // Validate PID liveness for sessions in active states.
+    // This catches sessions whose processes crashed without the exit handler firing.
+    const activeStatuses: SessionStatus[] = ['starting', 'running', 'terminating'];
+    for (const session of sessions) {
+      if (activeStatuses.includes(session.status) && session.pid && !this.isProcessAlive(session.pid)) {
+        this.cleanupDeadSession(session);
+      }
+    }
+    // Re-read after potential cleanups
+    sessions = Array.from(this.sessions.values());
 
     if (filter) {
       if (filter.agentId !== undefined) {
@@ -1172,7 +1169,7 @@ export class SessionManagerImpl implements SessionManager {
   private scheduleTerminatedSessionCleanup(sessionId: string): void {
     setTimeout(() => {
       const session = this.sessions.get(sessionId);
-      if (session && session.status === 'terminated' && session.persisted) {
+      if (session && session.status === 'terminated') {
         this.sessions.delete(sessionId);
       }
     }, 5000);
@@ -1189,6 +1186,29 @@ export class SessionManagerImpl implements SessionManager {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Cleans up a session whose process is no longer alive.
+   * Transitions it to 'terminated' and schedules memory cleanup.
+   */
+  private cleanupDeadSession(session: InternalSessionState): void {
+    const updated: InternalSessionState = {
+      ...session,
+      status: 'terminated',
+      endedAt: createTimestamp(),
+      terminationReason: 'Process no longer alive (PID check)',
+      persisted: false,
+    };
+    this.sessions.set(session.id, updated);
+    if (this.agentSessions.get(session.agentId) === session.id) {
+      this.agentSessions.delete(session.agentId);
+    }
+    this.addToHistory(session.agentId, updated);
+    this.registry.updateAgentSession(session.agentId, undefined, 'idle').catch(() => {});
+    this.persistSession(session.id).then(() => {
+      this.scheduleTerminatedSessionCleanup(session.id);
+    }).catch(() => {});
   }
 
   private setupSpawnerEventHandlers(): void {
@@ -1256,8 +1276,8 @@ export class SessionManagerImpl implements SessionManager {
 
       // Update session status if not already updated
       const currentSession = this.sessions.get(session.id);
-      if (currentSession && currentSession.status === 'running') {
-        console.log(`[session-manager] Cleaning up running session ${session.id} for agent ${session.agentId}`);
+      if (currentSession && currentSession.status !== 'terminated' && currentSession.status !== 'suspended') {
+        console.log(`[session-manager] Cleaning up ${currentSession.status} session ${session.id} for agent ${session.agentId}`);
 
         const updatedSession: InternalSessionState = {
           ...currentSession,

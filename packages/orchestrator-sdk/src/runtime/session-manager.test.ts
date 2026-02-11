@@ -106,8 +106,9 @@ function createMockSpawnerService(): SpawnerService & { _mockEmitters: Map<strin
         mode,
         // Only set PID for interactive sessions, matching real spawner behavior.
         // Headless sessions don't expose a PID immediately, and setting a fake PID
-        // causes getActiveSession() to fail its isProcessAlive() check.
-        pid: mode === 'interactive' ? 12345 + sessionIdCounter : undefined,
+        // causes getActiveSession()/listSessions() to fail their isProcessAlive() checks.
+        // Use the current process PID so the liveness check passes.
+        pid: mode === 'interactive' ? process.pid : undefined,
         status: 'running',
         workingDirectory: options?.workingDirectory ?? '/tmp',
         createdAt: now,
@@ -1173,5 +1174,139 @@ describe('SessionManager', () => {
       expect(Array.isArray(sessionHistory)).toBe(true);
       expect((sessionHistory as Array<Record<string, unknown>>).length).toBeGreaterThan(0);
     });
+  });
+
+  // ============================================================================
+  // Bug fix: Session leak prevention
+  // ============================================================================
+
+  describe('session leak prevention', () => {
+    test('onExit cleans up sessions in starting status', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      // Manually set the session to 'starting' status to simulate a session
+      // that exits before transitioning to 'running'
+      const impl = sessionManager as unknown as { sessions: Map<string, any> };
+      const internalSession = impl.sessions.get(session.id);
+      impl.sessions.set(session.id, { ...internalSession, status: 'starting' });
+
+      // Emit exit on spawner's emitter
+      const spawnerEmitter = spawner._mockEmitters.get(session.id);
+      spawnerEmitter?.emit('exit', 1, null);
+
+      // Wait for async handler
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const updatedSession = sessionManager.getSession(session.id);
+      expect(updatedSession?.status).toBe('terminated');
+
+      // Active session should be cleared
+      const activeSession = sessionManager.getActiveSession(testAgentId);
+      expect(activeSession).toBeUndefined();
+    });
+
+    test('onExit cleans up sessions in terminating status', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      // Manually set the session to 'terminating' status
+      const impl = sessionManager as unknown as { sessions: Map<string, any> };
+      const internalSession = impl.sessions.get(session.id);
+      impl.sessions.set(session.id, { ...internalSession, status: 'terminating' });
+
+      // Emit exit on spawner's emitter
+      const spawnerEmitter = spawner._mockEmitters.get(session.id);
+      spawnerEmitter?.emit('exit', 0, null);
+
+      // Wait for async handler
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const updatedSession = sessionManager.getSession(session.id);
+      expect(updatedSession?.status).toBe('terminated');
+    });
+
+    test('onExit does not modify already-terminated sessions', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+      await sessionManager.stopSession(session.id, { reason: 'Explicit stop' });
+
+      // The session is already terminated — emitting exit again should not alter it
+      const spawnerEmitter = spawner._mockEmitters.get(session.id);
+      spawnerEmitter?.emit('exit', 0, null);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const updatedSession = sessionManager.getSession(session.id);
+      expect(updatedSession?.status).toBe('terminated');
+      expect(updatedSession?.terminationReason).toBe('Explicit stop');
+    });
+
+    test('onExit does not modify already-suspended sessions', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+      await sessionManager.suspendSession(session.id, 'Suspended for later');
+
+      // The session is already suspended — emitting exit should not alter it
+      const spawnerEmitter = spawner._mockEmitters.get(session.id);
+      spawnerEmitter?.emit('exit', 0, null);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const updatedSession = sessionManager.getSession(session.id);
+      expect(updatedSession?.status).toBe('suspended');
+      expect(updatedSession?.terminationReason).toBe('Suspended for later');
+    });
+
+    test('listSessions excludes sessions with dead PIDs', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      // Manually set a dead PID on the session to simulate a crashed process
+      const impl = sessionManager as unknown as { sessions: Map<string, any> };
+      const internalSession = impl.sessions.get(session.id);
+      // PID 999999 should not exist
+      impl.sessions.set(session.id, { ...internalSession, pid: 999999, status: 'running' });
+
+      // listSessions should detect the dead PID and clean it up
+      const runningSessions = sessionManager.listSessions({ status: 'running' });
+      expect(runningSessions).toHaveLength(0);
+
+      // The session should now be terminated
+      const allSessions = sessionManager.listSessions({ status: 'terminated' });
+      expect(allSessions).toHaveLength(1);
+      expect(allSessions[0].terminationReason).toContain('Process no longer alive');
+    });
+
+    test('listSessions cleans up starting sessions with dead PIDs', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      // Set a dead PID and 'starting' status
+      const impl = sessionManager as unknown as { sessions: Map<string, any> };
+      const internalSession = impl.sessions.get(session.id);
+      impl.sessions.set(session.id, { ...internalSession, pid: 999999, status: 'starting' });
+
+      const startingSessions = sessionManager.listSessions({ status: ['starting', 'running'] });
+      expect(startingSessions).toHaveLength(0);
+    });
+
+    test('scheduleTerminatedSessionCleanup removes session without persisted flag', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      // Manually terminate the session without persisting (persisted stays false)
+      const impl = sessionManager as unknown as { sessions: Map<string, any> };
+      const internalSession = impl.sessions.get(session.id);
+      impl.sessions.set(session.id, {
+        ...internalSession,
+        status: 'terminated',
+        persisted: false,
+      });
+
+      // Trigger the cleanup
+      const smImpl = sessionManager as unknown as { scheduleTerminatedSessionCleanup: (id: string) => void };
+      smImpl.scheduleTerminatedSessionCleanup(session.id);
+
+      // Wait for the 5-second timeout plus a buffer
+      await new Promise((resolve) => setTimeout(resolve, 5500));
+
+      // Session should have been removed from the map
+      const found = sessionManager.getSession(session.id);
+      expect(found).toBeUndefined();
+    }, 10000);
   });
 });
