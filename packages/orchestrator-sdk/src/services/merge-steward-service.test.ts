@@ -27,43 +27,32 @@ import {
   type MergeStrategy,
 } from './merge-steward-service.js';
 
-// Mock node:child_process for attemptMerge git command tests
-// Using vi.importActual() to get the actual module and only override exec
-// Note: vi.importActual is the recommended vitest pattern to partially mock a module
-vi.mock('node:child_process', async () => {
-  // Use vi.importActual to get the real module, then override just exec
-  // This pattern works with vitest. For bun test compatibility, we provide
-  // a fallback using require() if vi.importActual is not available.
-  let actual: typeof import('node:child_process');
-  if (typeof vi.importActual === 'function') {
-    actual = await vi.importActual<typeof import('node:child_process')>('node:child_process');
-  } else {
-    // Fallback for bun test which doesn't support vi.importActual
-    actual = require('node:child_process');
-  }
-  return {
-    ...actual,
-    exec: vi.fn(),
-  };
-});
-
-// Mock node:fs for existsSync used in attemptMerge
-vi.mock('node:fs', async () => {
-  let actual: typeof import('node:fs');
-  if (typeof vi.importActual === 'function') {
-    actual = await vi.importActual<typeof import('node:fs')>('node:fs');
-  } else {
-    // Fallback for bun test which doesn't support vi.importActual
-    actual = require('node:fs');
-  }
-  return {
-    ...actual,
-    default: {
+// Mock node:child_process for attemptMerge git command tests (vitest only)
+// IMPORTANT: These mocks are ONLY applied in vitest. In bun test, vi.mock
+// doesn't properly isolate modules and the mocks "bleed" into other test files,
+// causing git/merge.test.ts to hang (exec never calls callbacks).
+// The git command tests that need these mocks are skipped in bun anyway (see isBun check below).
+const isBunRuntime = typeof globalThis.Bun !== 'undefined';
+if (!isBunRuntime) {
+  vi.mock('node:child_process', async () => {
+    const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    return {
       ...actual,
-      existsSync: vi.fn().mockReturnValue(false),
-    },
-  };
-});
+      exec: vi.fn(),
+    };
+  });
+
+  vi.mock('node:fs', async () => {
+    const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
+    return {
+      ...actual,
+      default: {
+        ...actual,
+        existsSync: vi.fn().mockReturnValue(false),
+      },
+    };
+  });
+}
 
 // ============================================================================
 // Test Fixtures
