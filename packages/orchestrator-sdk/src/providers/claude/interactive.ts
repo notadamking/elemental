@@ -7,6 +7,7 @@
  * @module
  */
 
+import { randomUUID } from 'node:crypto';
 import * as pty from 'node-pty';
 import type { IPty } from 'node-pty';
 import type {
@@ -40,19 +41,10 @@ class ClaudeInteractiveSession implements InteractiveSession {
 
   readonly pid?: number;
 
-  constructor(ptyProcess: IPty) {
+  constructor(ptyProcess: IPty, sessionId?: ProviderSessionId) {
     this.ptyProcess = ptyProcess;
     this.pid = ptyProcess.pid;
-
-    // Listen for session ID in output
-    this.ptyProcess.onData((data: string) => {
-      if (!this.sessionId) {
-        const sessionMatch = data.match(/Session:\s*([a-zA-Z0-9-]+)/);
-        if (sessionMatch) {
-          this.sessionId = sessionMatch[1];
-        }
-      }
-    });
+    this.sessionId = sessionId;
   }
 
   write(data: string): void {
@@ -96,7 +88,11 @@ export class ClaudeInteractiveProvider implements InteractiveProvider {
   }
 
   async spawn(options: InteractiveSpawnOptions): Promise<InteractiveSession> {
-    const args = this.buildArgs(options);
+    // For new sessions, generate a UUID so we know the session ID upfront.
+    // The Claude CLI accepts --session-id <uuid> to use a specific ID.
+    // For resumed sessions, the ID comes from resumeSessionId.
+    const sessionId = options.resumeSessionId ?? randomUUID();
+    const args = this.buildArgs(options, sessionId);
 
     // Build environment
     const env: Record<string, string> = {
@@ -134,7 +130,7 @@ export class ClaudeInteractiveProvider implements InteractiveProvider {
       env,
     });
 
-    const session = new ClaudeInteractiveSession(ptyProcess);
+    const session = new ClaudeInteractiveSession(ptyProcess, sessionId);
 
     // On Windows, write the command to cmd.exe stdin (bash -c handles this on Unix)
     if (process.platform === 'win32') {
@@ -159,13 +155,15 @@ export class ClaudeInteractiveProvider implements InteractiveProvider {
     }
   }
 
-  private buildArgs(options: InteractiveSpawnOptions): string[] {
+  private buildArgs(options: InteractiveSpawnOptions, sessionId: string): string[] {
     const args: string[] = [
       '--dangerously-skip-permissions',
     ];
 
     if (options.resumeSessionId) {
       args.push('--resume', shellQuote(options.resumeSessionId));
+    } else {
+      args.push('--session-id', shellQuote(sessionId));
     }
 
     return args;

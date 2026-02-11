@@ -1016,6 +1016,13 @@ export class SpawnerServiceImpl implements SpawnerService {
       session.rows = options?.rows ?? 24;
       (session as { pid?: number }).pid = interactiveSession.pid;
 
+      // Set providerSessionId immediately if the provider knows it upfront
+      // (e.g., Claude provider generates a UUID before spawning)
+      const knownSessionId = interactiveSession.getSessionId();
+      if (knownSessionId) {
+        (session as { providerSessionId?: string }).providerSessionId = knownSessionId;
+      }
+
       // Handle data output
       interactiveSession.onData((data: string) => {
         session.lastActivityAt = createTimestamp();
