@@ -32,6 +32,8 @@ import {
   Braces,
   Files,
   Search,
+  Save,
+  CheckCircle,
 } from 'lucide-react';
 import { EditorFileTree, type FileTreeNodeData, type FileSource } from '../../components/editor/EditorFileTree';
 import { EditorSearchPanel, type EditorSearchPanelRef } from '../../components/editor/EditorSearchPanel';
@@ -332,7 +334,12 @@ export function FileEditorPage() {
     closeWorkspace,
     refreshTree,
     readFile,
+    writeFile,
   } = useWorkspace();
+
+  // Save state
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Fetch all documents for documents mode
   const { data: documents = [], isLoading: documentsLoading, isError: documentsError } = useAllDocuments();
@@ -583,6 +590,85 @@ export function FileEditorPage() {
     setTabs(newTabs);
   }, []);
 
+  // Handle editor content change - mark tab as dirty
+  const handleEditorChange = useCallback((value: string | undefined) => {
+    if (!activeTabId || value === undefined) return;
+
+    setTabs(prevTabs =>
+      prevTabs.map(tab => {
+        if (tab.id !== activeTabId) return tab;
+        // Check if content actually changed
+        if (tab.content === value) return tab;
+        return {
+          ...tab,
+          content: value,
+          isDirty: true,
+          isPreview: false, // Pin the tab when edited
+        };
+      })
+    );
+  }, [activeTabId]);
+
+  // Save the current file
+  const handleSaveFile = useCallback(async (tabId?: string) => {
+    const targetTabId = tabId || activeTabId;
+    if (!targetTabId) return;
+
+    const tab = tabs.find(t => t.id === targetTabId);
+    if (!tab || !tab.isDirty) return;
+
+    // Only workspace files can be saved (not documents - they use the API)
+    if (tab.source !== 'workspace') {
+      setSaveMessage({ type: 'error', text: 'Document saving is not yet supported' });
+      setTimeout(() => setSaveMessage(null), 3000);
+      return;
+    }
+
+    // Find the file entry from workspace entries
+    const findEntry = (entries: typeof workspaceEntries, targetPath: string): (typeof workspaceEntries)[0] | null => {
+      for (const entry of entries) {
+        if (entry.path === tab.path) {
+          return entry;
+        }
+        if (entry.children) {
+          const found = findEntry(entry.children, targetPath);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    const entry = findEntry(workspaceEntries, tab.path);
+    if (!entry) {
+      setSaveMessage({ type: 'error', text: 'File entry not found. The file may have been moved.' });
+      setTimeout(() => setSaveMessage(null), 3000);
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      await writeFile(entry, tab.content);
+
+      // Mark tab as clean
+      setTabs(prevTabs =>
+        prevTabs.map(t =>
+          t.id === targetTabId ? { ...t, isDirty: false } : t
+        )
+      );
+
+      setSaveMessage({ type: 'success', text: 'File saved successfully' });
+      setTimeout(() => setSaveMessage(null), 2000);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save file';
+      setSaveMessage({ type: 'error', text: errorMessage });
+      setTimeout(() => setSaveMessage(null), 5000);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [activeTabId, tabs, workspaceEntries, writeFile]);
+
   // Handle source change
   const handleSourceChange = useCallback((source: FileSource) => {
     setFileSource(source);
@@ -604,6 +690,13 @@ export function FileEditorPage() {
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+S or Ctrl+S to save current file
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's' && !e.shiftKey) {
+        e.preventDefault();
+        handleSaveFile();
+        return;
+      }
+
       // Cmd+Shift+F or Ctrl+Shift+F to focus search panel
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
         e.preventDefault();
@@ -626,7 +719,7 @@ export function FileEditorPage() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [activeTabId, handleTabClose]);
+  }, [activeTabId, handleTabClose, handleSaveFile]);
 
   // Determine loading state
   const isTreeLoading = fileSource === 'workspace' ? workspaceLoading : documentsLoading;
@@ -821,6 +914,7 @@ export function FileEditorPage() {
             onTabSelect={handleTabSelect}
             onTabClose={handleTabClose}
             onTabsReorder={handleTabsReorder}
+            onSaveRequest={handleSaveFile}
           />
 
           {tabs.length === 0 ? (
@@ -839,7 +933,7 @@ export function FileEditorPage() {
             </div>
           ) : activeTab ? (
             <>
-              {/* Language indicator bar */}
+              {/* Editor toolbar */}
               <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--color-border)] bg-[var(--color-surface-hover)]">
                 <div className="flex items-center gap-2">
                   <Braces className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
@@ -847,9 +941,56 @@ export function FileEditorPage() {
                     {languageInfo?.displayName || 'Plain Text'}
                   </span>
                 </div>
-                <span className="text-xs text-[var(--color-text-muted)]">
-                  Read Only
-                </span>
+                <div className="flex items-center gap-2">
+                  {/* Save message */}
+                  {saveMessage && (
+                    <div
+                      className={`flex items-center gap-1.5 text-xs ${
+                        saveMessage.type === 'success'
+                          ? 'text-green-500'
+                          : 'text-[var(--color-danger)]'
+                      }`}
+                      data-testid="save-message"
+                    >
+                      {saveMessage.type === 'success' ? (
+                        <CheckCircle className="w-3.5 h-3.5" />
+                      ) : (
+                        <AlertCircle className="w-3.5 h-3.5" />
+                      )}
+                      <span>{saveMessage.text}</span>
+                    </div>
+                  )}
+                  {/* Save button */}
+                  {activeTab.source === 'workspace' && (
+                    <button
+                      onClick={() => handleSaveFile()}
+                      disabled={!activeTab.isDirty || isSaving}
+                      className={`
+                        flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded transition-colors
+                        ${activeTab.isDirty
+                          ? 'text-[var(--color-primary)] hover:bg-[var(--color-surface)] cursor-pointer'
+                          : 'text-[var(--color-text-muted)] cursor-not-allowed'
+                        }
+                        disabled:opacity-50
+                      `}
+                      title={activeTab.isDirty ? 'Save (Cmd+S)' : 'No unsaved changes'}
+                      data-testid="save-button"
+                    >
+                      {isSaving ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Save className="w-3.5 h-3.5" />
+                      )}
+                      <span>Save</span>
+                    </button>
+                  )}
+                  {/* Read-only indicator for documents */}
+                  {activeTab.source === 'documents' && (
+                    <span className="text-xs text-[var(--color-text-muted)]">
+                      Read Only
+                    </span>
+                  )}
+                </div>
               </div>
               <Editor
                 height="100%"
@@ -857,8 +998,9 @@ export function FileEditorPage() {
                 value={activeTab.content}
                 theme={isMonacoReady ? 'elemental-dark' : 'vs-dark'}
                 onMount={handleEditorDidMount}
+                onChange={handleEditorChange}
                 options={{
-                  readOnly: true,
+                  readOnly: activeTab.source === 'documents', // Only read-only for documents, not workspace files
                   minimap: {
                     enabled: true,
                     scale: 1,
@@ -891,10 +1033,10 @@ export function FileEditorPage() {
                   folding: true,
                   foldingStrategy: 'indentation',
                   showFoldingControls: 'mouseover',
-                  // Hover and suggestions (disabled for read-only)
+                  // Hover and suggestions
                   hover: { enabled: true, delay: 500 },
-                  quickSuggestions: false,
-                  suggestOnTriggerCharacters: false,
+                  quickSuggestions: activeTab.source === 'workspace',
+                  suggestOnTriggerCharacters: activeTab.source === 'workspace',
                   // Selection highlighting
                   occurrencesHighlight: 'singleFile',
                   selectionHighlight: true,

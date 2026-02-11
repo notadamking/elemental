@@ -11,6 +11,7 @@ import {
   type UseFileSystemAccessReturn,
   type FileSystemEntry,
   type FileReadResult,
+  type FileWriteResult,
 } from '../hooks/useFileSystemAccess';
 
 // ============================================================================
@@ -63,4 +64,4 @@ export function useWorkspace(): UseFileSystemAccessReturn {
 // Re-exports for convenience
 // ============================================================================
 
-export type { FileSystemEntry, FileReadResult, UseFileSystemAccessReturn };
+export type { FileSystemEntry, FileReadResult, FileWriteResult, UseFileSystemAccessReturn };

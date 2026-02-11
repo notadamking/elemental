@@ -80,6 +80,18 @@ export interface FileSystemAccessState {
 }
 
 /**
+ * Result of writing a file
+ */
+export interface FileWriteResult {
+  /** Whether the write was successful */
+  success: boolean;
+  /** The file path that was written */
+  path: string;
+  /** The number of bytes written */
+  bytesWritten: number;
+}
+
+/**
  * Hook return value
  */
 export interface UseFileSystemAccessReturn extends FileSystemAccessState {
@@ -95,6 +107,8 @@ export interface UseFileSystemAccessReturn extends FileSystemAccessState {
   readFile: (entry: FileSystemEntry) => Promise<FileReadResult>;
   /** Read a file by path */
   readFileByPath: (path: string) => Promise<FileReadResult | null>;
+  /** Write content to a file */
+  writeFile: (entry: FileSystemEntry, content: string) => Promise<FileWriteResult>;
 }
 
 // ============================================================================
@@ -275,9 +289,9 @@ export function useFileSystemAccess(): UseFileSystemAccessReturn {
     }));
 
     try {
-      // Open directory picker
+      // Open directory picker with read-write access
       const dirHandle = await window.showDirectoryPicker({
-        mode: 'read',
+        mode: 'readwrite',
       });
 
       // Clear previous file handles
@@ -431,6 +445,54 @@ export function useFileSystemAccess(): UseFileSystemAccessReturn {
     []
   );
 
+  /**
+   * Write content to a file
+   */
+  const writeFile = useCallback(
+    async (entry: FileSystemEntry, content: string): Promise<FileWriteResult> => {
+      if (entry.type !== 'file') {
+        throw new Error('Cannot write to a directory');
+      }
+
+      const handle = entry.handle || fileHandlesRef.current.get(entry.path);
+      if (!handle) {
+        throw new Error('File handle not found. The file may have been moved or deleted.');
+      }
+
+      try {
+        // Create a writable stream
+        const writable = await handle.createWritable();
+
+        // Write the content
+        await writable.write(content);
+
+        // Close the stream
+        await writable.close();
+
+        const bytesWritten = new Blob([content]).size;
+
+        return {
+          success: true,
+          path: entry.path,
+          bytesWritten,
+        };
+      } catch (error) {
+        // Handle specific error types
+        if (error instanceof Error) {
+          if (error.name === 'NotAllowedError') {
+            throw new Error('Permission denied. Please grant write access to the file.');
+          }
+          if (error.name === 'NotFoundError') {
+            throw new Error('File not found. It may have been moved or deleted.');
+          }
+          throw new Error(`Failed to save file: ${error.message}`);
+        }
+        throw new Error('Failed to save file: Unknown error');
+      }
+    },
+    []
+  );
+
   return {
     ...state,
     isSupported,
@@ -439,6 +501,7 @@ export function useFileSystemAccess(): UseFileSystemAccessReturn {
     refreshTree,
     readFile,
     readFileByPath,
+    writeFile,
   };
 }
 
