@@ -516,16 +516,21 @@ describe('Query API Performance', () => {
 
     beforeEach(async () => {
       // Pre-populate with documents for search testing
-      // Use UUID in content to guarantee unique IDs
+      // Use explicit unique IDs to avoid hash collisions that can occur
+      // when many documents are created in quick succession
       for (let i = 0; i < DATASET_SIZES.medium; i++) {
         // Use unique keyword instead of generic 'Important' to avoid collisions
         const keyword = i % 2 === 0 ? uniqueSearchKeyword : 'RegularDoc';
         const uniqueId = crypto.randomUUID();
+        // Generate explicit unique ID to avoid hash collision issues
+        const docId = `el-${crypto.randomUUID().replace(/-/g, '').substring(0, 8)}` as ElementId;
         const doc = await createDocument({
           contentType: ContentType.MARKDOWN,
           content: `# ${keyword} Document ${uniqueId}\n\nThis is a ${keyword.toLowerCase()} test document for performance testing.`,
           createdBy: mockEntityId,
         });
+        // Override the hash-generated ID with our explicit unique ID
+        (doc as unknown as { id: ElementId }).id = docId;
         await api.create(toCreateInput(doc));
       }
     });
