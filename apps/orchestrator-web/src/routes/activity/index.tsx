@@ -38,7 +38,7 @@ export function ActivityPage() {
 
   const handleOpenTerminal = useCallback(
     (agentId: string) => {
-      navigate({ to: '/workspaces', search: { layout: 'single', agent: agentId } });
+      navigate({ to: '/workspaces', search: { layout: 'single', agent: agentId, resumeSessionId: undefined, resumePrompt: undefined } });
     },
     [navigate]
   );

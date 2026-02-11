@@ -8,7 +8,8 @@
  * - Session info if task has active session
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import {
   X,
   Calendar,
@@ -33,6 +34,9 @@ import {
   Search,
   RotateCcw,
   RefreshCcw,
+  History,
+  Eye,
+  Shield,
 } from 'lucide-react';
 import {
   useTask,
@@ -50,12 +54,14 @@ import {
   type AttachedDocument,
   type UpdateTaskInput,
 } from '../../api/hooks/useTasks';
-import { useAgents, useOperators, type Operator } from '../../api/hooks/useAgents';
+import { useAgents, useOperators, fetchSessionMessages, type Operator } from '../../api/hooks/useAgents';
 import { useAllEntities } from '../../api/hooks/useAllElements';
 import { TaskStatusBadge, TaskPriorityBadge, TaskTypeBadge, MergeStatusBadge } from './index';
 import { TaskDependencySection } from './TaskDependencySection';
 import { MarkdownContent } from '../shared/MarkdownContent';
-import type { Task, Agent, Priority, TaskStatus, Complexity, MergeStatus } from '../../api/types';
+import type { Task, Agent, Priority, TaskStatus, Complexity, MergeStatus, TaskSessionHistoryEntry } from '../../api/types';
+import { TranscriptViewer, messageToStreamEvent } from '../shared/TranscriptViewer';
+import type { StreamEvent } from '../workspace/types';
 
 interface TaskDetailPanelProps {
   taskId: string;
@@ -420,6 +426,14 @@ export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetai
           onNavigateToTask={onNavigateToTask}
         />
 
+        {/* Sessions */}
+        {orchestratorMeta?.sessionHistory && orchestratorMeta.sessionHistory.length > 0 && (
+          <TaskSessionsSection
+            sessionHistory={orchestratorMeta.sessionHistory}
+            entityNameMap={entityNameMap}
+          />
+        )}
+
         {/* Orchestrator Metadata Section */}
         {orchestratorMeta && (
           <OrchestratorMetadataSection
@@ -506,16 +520,6 @@ function OrchestratorMetadataSection({ meta, onUpdateMergeStatus, isUpdatingMerg
                 {meta.mergeFailureReason}
               </span>
             )}
-          </div>
-        )}
-
-        {/* Session */}
-        {meta.sessionId && (
-          <div className="flex items-center gap-2 text-sm">
-            <Bot className="w-4 h-4 text-[var(--color-text-tertiary)]" />
-            <span className="text-[var(--color-text)]">
-              Session: <span className="font-mono text-xs">{meta.sessionId}</span>
-            </span>
           </div>
         )}
 
@@ -2080,6 +2084,408 @@ function DocumentPickerModal({
               ))}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Task Sessions Section
+// ============================================================================
+
+interface TaskSessionsSectionProps {
+  sessionHistory: TaskSessionHistoryEntry[];
+  entityNameMap: Map<string, string>;
+}
+
+function TaskSessionsSection({ sessionHistory, entityNameMap }: TaskSessionsSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [viewingSession, setViewingSession] = useState<TaskSessionHistoryEntry | null>(null);
+  const [resumingSession, setResumingSession] = useState<TaskSessionHistoryEntry | null>(null);
+
+  // Sort sessions by startedAt descending (most recent first)
+  const sortedSessions = [...sessionHistory].sort((a, b) => {
+    return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime();
+  });
+
+  return (
+    <div className="mb-6" data-testid="sessions-section">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide mb-2 hover:text-[var(--color-text)]"
+        data-testid="sessions-toggle"
+      >
+        {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        <History className="w-3 h-3" />
+        Sessions ({sessionHistory.length})
+      </button>
+
+      {isExpanded && (
+        <div className="space-y-2">
+          {sortedSessions.length > 0 ? (
+            sortedSessions.map((entry) => (
+              <SessionEntryCard
+                key={entry.sessionId}
+                entry={entry}
+                entityNameMap={entityNameMap}
+                onView={() => setViewingSession(entry)}
+                onResume={() => setResumingSession(entry)}
+              />
+            ))
+          ) : (
+            <div className="text-sm text-[var(--color-text-tertiary)]" data-testid="sessions-empty">
+              No sessions recorded
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Session Transcript Modal */}
+      {viewingSession && (
+        <SessionTranscriptModal
+          entry={viewingSession}
+          onClose={() => setViewingSession(null)}
+          onResume={() => {
+            setViewingSession(null);
+            setResumingSession(viewingSession);
+          }}
+        />
+      )}
+
+      {/* Resume Dialog */}
+      {resumingSession && (
+        <SessionResumeDialog
+          entry={resumingSession}
+          onClose={() => setResumingSession(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Session Entry Card
+interface SessionEntryCardProps {
+  entry: TaskSessionHistoryEntry;
+  entityNameMap: Map<string, string>;
+  onView: () => void;
+  onResume: () => void;
+}
+
+function SessionEntryCard({ entry, onView, onResume }: SessionEntryCardProps) {
+  const isWorker = entry.agentRole === 'worker';
+  const truncatedSessionId = entry.providerSessionId?.substring(0, 8);
+
+  return (
+    <div
+      className="flex items-center gap-3 p-3 bg-[var(--color-surface-elevated)] rounded-lg border border-[var(--color-border)] group"
+      data-testid={`session-entry-${entry.sessionId}`}
+    >
+      {/* Agent icon */}
+      {isWorker ? (
+        <Bot className="w-4 h-4 text-purple-500 flex-shrink-0" />
+      ) : (
+        <Shield className="w-4 h-4 text-blue-500 flex-shrink-0" />
+      )}
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-[var(--color-text)] truncate">
+            {entry.agentName}
+          </span>
+          <span
+            className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${
+              isWorker
+                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+            }`}
+          >
+            {entry.agentRole}
+          </span>
+          {truncatedSessionId && (
+            <span className="font-mono text-[10px] text-[var(--color-text-tertiary)]">
+              {truncatedSessionId}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 text-xs text-[var(--color-text-tertiary)] mt-0.5">
+          <span title={formatDateTime(entry.startedAt)}>
+            {formatRelativeTime(entry.startedAt)}
+          </span>
+          {entry.endedAt && (
+            <>
+              <span>→</span>
+              <span title={formatDateTime(entry.endedAt)}>
+                {formatRelativeTime(entry.endedAt)}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={onView}
+          className="p-1.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded transition-colors"
+          aria-label="View transcript"
+          title="View transcript"
+          data-testid={`session-view-${entry.sessionId}`}
+        >
+          <Eye className="w-4 h-4" />
+        </button>
+        {entry.providerSessionId && (
+          <button
+            onClick={onResume}
+            className="p-1.5 text-[var(--color-text-tertiary)] hover:text-green-600 dark:hover:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors"
+            aria-label="Resume session"
+            title="Resume session"
+            data-testid={`session-resume-${entry.sessionId}`}
+          >
+            <Play className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Session Transcript Modal
+// ============================================================================
+
+interface SessionTranscriptModalProps {
+  entry: TaskSessionHistoryEntry;
+  onClose: () => void;
+  onResume: () => void;
+}
+
+function SessionTranscriptModal({ entry, onClose, onResume }: SessionTranscriptModalProps) {
+  const [messages, setMessages] = useState<StreamEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadMessages = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchSessionMessages(entry.sessionId);
+      const events = response.messages.map(messageToStreamEvent);
+      setMessages(events);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load messages');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [entry.sessionId]);
+
+  useEffect(() => {
+    loadMessages();
+  }, [loadMessages]);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
+  const isWorker = entry.agentRole === 'worker';
+  const truncatedSessionId = entry.providerSessionId?.substring(0, 8);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" data-testid="session-transcript-modal">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-[var(--color-surface)] rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[70vh] flex flex-col border border-[var(--color-border)]">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
+          <div className="flex items-center gap-3">
+            {isWorker ? (
+              <Bot className="w-5 h-5 text-purple-500" />
+            ) : (
+              <Shield className="w-5 h-5 text-blue-500" />
+            )}
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-[var(--color-text)]">
+                  {entry.agentName}
+                </h3>
+                <span
+                  className={`px-1.5 py-0.5 text-xs font-medium rounded ${
+                    isWorker
+                      ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                      : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                  }`}
+                >
+                  {entry.agentRole}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-[var(--color-text-tertiary)] mt-0.5">
+                {truncatedSessionId && (
+                  <span className="font-mono">{truncatedSessionId}</span>
+                )}
+                <span title={formatDateTime(entry.startedAt)}>
+                  Started: {formatRelativeTime(entry.startedAt)}
+                </span>
+                {entry.endedAt && (
+                  <span title={formatDateTime(entry.endedAt)}>
+                    • Ended: {formatRelativeTime(entry.endedAt)}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {entry.providerSessionId && (
+              <button
+                onClick={onResume}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-green-700 bg-green-100 hover:bg-green-200 dark:text-green-300 dark:bg-green-900/30 dark:hover:bg-green-900/50 rounded-md transition-colors"
+                data-testid="transcript-resume-btn"
+              >
+                <Play className="w-4 h-4" />
+                Resume
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded"
+              aria-label="Close"
+              data-testid="transcript-close-btn"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-full py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-[var(--color-primary)] mb-2" />
+              <span className="text-sm text-[var(--color-text-secondary)]">Loading transcript...</span>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center h-full py-12">
+              <AlertCircle className="w-6 h-6 text-[var(--color-danger)] mb-2" />
+              <span className="text-sm text-[var(--color-text-secondary)]">{error}</span>
+              <button
+                onClick={loadMessages}
+                className="mt-3 px-3 py-1.5 text-sm text-[var(--color-primary)] hover:bg-[var(--color-surface-hover)] rounded-md"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <TranscriptViewer events={messages} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Session Resume Dialog
+// ============================================================================
+
+interface SessionResumeDialogProps {
+  entry: TaskSessionHistoryEntry;
+  onClose: () => void;
+}
+
+function SessionResumeDialog({ entry, onClose }: SessionResumeDialogProps) {
+  const [resumePrompt, setResumePrompt] = useState('');
+  const navigate = useNavigate();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
+  const handleResume = () => {
+    navigate({
+      to: '/workspaces',
+      search: {
+        layout: 'single',
+        agent: entry.agentId,
+        resumeSessionId: entry.providerSessionId,
+        resumePrompt: resumePrompt.trim() || undefined,
+      },
+    });
+  };
+
+  const isWorker = entry.agentRole === 'worker';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" data-testid="session-resume-dialog">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-[var(--color-surface)] rounded-lg shadow-xl max-w-md w-full mx-4 p-6 border border-[var(--color-border)]">
+        <div className="flex items-start gap-4">
+          <div
+            className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
+              isWorker
+                ? 'bg-purple-100 dark:bg-purple-900/30'
+                : 'bg-blue-100 dark:bg-blue-900/30'
+            }`}
+          >
+            {isWorker ? (
+              <Bot className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            ) : (
+              <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            )}
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-[var(--color-text)]">Resume Session</h3>
+            <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
+              You'll be taken to the workspace to resume the session with{' '}
+              <span className="font-medium text-[var(--color-text)]">{entry.agentName}</span>.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
+            Resume message (optional)
+          </label>
+          <textarea
+            ref={textareaRef}
+            value={resumePrompt}
+            onChange={(e) => setResumePrompt(e.target.value)}
+            placeholder="Enter a message to send when resuming..."
+            rows={3}
+            className="w-full p-3 text-sm border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-[var(--color-input-bg)] text-[var(--color-text)] resize-y"
+            data-testid="resume-prompt-input"
+          />
+        </div>
+
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md hover:bg-[var(--color-surface-hover)]"
+            data-testid="resume-cancel-btn"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleResume}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
+            data-testid="resume-confirm-btn"
+          >
+            <Play className="w-4 h-4" />
+            Resume
+          </button>
         </div>
       </div>
     </div>

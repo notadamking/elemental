@@ -115,6 +115,8 @@ const workspacesRoute = createRoute({
     return {
       layout: typeof search.layout === 'string' ? search.layout : 'single',
       agent: typeof search.agent === 'string' ? search.agent : undefined,
+      resumeSessionId: typeof search.resumeSessionId === 'string' ? search.resumeSessionId : undefined,
+      resumePrompt: typeof search.resumePrompt === 'string' ? search.resumePrompt : undefined,
     };
   },
 });

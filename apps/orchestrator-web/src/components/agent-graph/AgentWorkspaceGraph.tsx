@@ -92,7 +92,7 @@ export function AgentWorkspaceGraph({
       if (agent) {
         navigate({
           to: '/workspaces',
-          search: { layout: 'single', agent: agent.id },
+          search: { layout: 'single', agent: agent.id, resumeSessionId: undefined, resumePrompt: undefined },
         });
       }
     },

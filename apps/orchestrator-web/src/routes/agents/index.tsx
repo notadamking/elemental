@@ -185,7 +185,7 @@ export function AgentsPage() {
   const handleStartAgentWithTaskAndOpen = async (agentId: string, taskId: string, initialMessage?: string) => {
     await handleStartAgentWithTask(agentId, taskId, initialMessage);
     // Navigate to workspaces page with agent selected
-    navigate({ to: '/workspaces', search: { layout: 'single', agent: agentId } });
+    navigate({ to: '/workspaces', search: { layout: 'single', agent: agentId, resumeSessionId: undefined, resumePrompt: undefined } });
   };
 
   // Determine if an agent is ephemeral
@@ -220,7 +220,7 @@ export function AgentsPage() {
 
   const handleOpenTerminal = (agentId: string) => {
     // Navigate to workspaces page with agent selected
-    navigate({ to: '/workspaces', search: { layout: 'single', agent: agentId } });
+    navigate({ to: '/workspaces', search: { layout: 'single', agent: agentId, resumeSessionId: undefined, resumePrompt: undefined } });
   };
 
   const handleOpenDirectorPanel = () => {

@@ -49,7 +49,7 @@ export function WorkspacesPage() {
       // Clear the action param
       navigate({
         to: '/workspaces',
-        search: { layout: search.layout ?? 'single', agent: undefined },
+        search: { layout: search.layout ?? 'single', agent: undefined, resumeSessionId: undefined, resumePrompt: undefined },
         replace: true,
       });
     }
@@ -105,7 +105,7 @@ export function WorkspacesPage() {
       processedAgentRef.current = agentIdFromUrl;
       navigate({
         to: '/workspaces',
-        search: { layout: search.layout ?? 'single', agent: undefined },
+        search: { layout: search.layout ?? 'single', agent: undefined, resumeSessionId: undefined, resumePrompt: undefined },
         replace: true,
       });
     }
