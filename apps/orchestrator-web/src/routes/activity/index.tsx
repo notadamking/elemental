@@ -43,6 +43,10 @@ export function ActivityPage() {
     [navigate]
   );
 
+  const handleOpenDirectorPanel = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('open-director-panel'));
+  }, []);
+
   const handleStopAgent = useCallback(
     async (agentId: string) => {
       await stopSession.mutateAsync({ agentId, graceful: true });
@@ -128,6 +132,7 @@ export function ActivityPage() {
         </h2>
         <ActiveAgentsDashboard
           onOpenTerminal={handleOpenTerminal}
+          onOpenDirectorPanel={handleOpenDirectorPanel}
           onStopAgent={handleStopAgent}
         />
       </div>

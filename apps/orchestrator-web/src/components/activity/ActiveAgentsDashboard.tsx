@@ -13,13 +13,14 @@ import type { Agent, SessionRecord, Task } from '../../api/types.js';
 
 interface ActiveAgentsDashboardProps {
   onOpenTerminal: (agentId: string) => void;
+  onOpenDirectorPanel: () => void;
   onStopAgent: (agentId: string) => Promise<void>;
 }
 
 // Role priority for sorting: director first, then workers, then stewards
 const ROLE_ORDER: Record<string, number> = { director: 0, worker: 1, steward: 2 };
 
-export function ActiveAgentsDashboard({ onOpenTerminal, onStopAgent }: ActiveAgentsDashboardProps) {
+export function ActiveAgentsDashboard({ onOpenTerminal, onOpenDirectorPanel, onStopAgent }: ActiveAgentsDashboardProps) {
   const { allAgents } = useAgentsByRole();
   const { data: sessionsData } = useSessions({ status: 'running' });
   const { inProgress } = useTasksByStatus();
@@ -110,7 +111,11 @@ export function ActiveAgentsDashboard({ onOpenTerminal, onStopAgent }: ActiveAge
           session={session}
           currentTask={task}
           lastOutput={outputByAgent.get(agent.id)}
-          onOpenTerminal={onOpenTerminal}
+          onOpenTerminal={
+            session.agentRole === 'director'
+              ? () => onOpenDirectorPanel()
+              : () => onOpenTerminal(agent.id)
+          }
           onStop={handleStop}
           isStopping={stoppingAgents.has(agent.id)}
         />

@@ -123,7 +123,7 @@ export function ActiveAgentCard({
           className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150"
         >
           <Terminal className="w-3 h-3" />
-          Open Terminal
+          {role === 'director' ? 'Open Panel' : 'Open Terminal'}
         </button>
         <button
           onClick={() => onStop(agent.id)}
