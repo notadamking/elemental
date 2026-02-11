@@ -7,10 +7,15 @@
  * They require the orchestrator server to be running.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
+import { describe, it, expect, beforeAll, afterAll, setDefaultTimeout } from 'bun:test';
 import { spawn, type Subprocess } from 'bun';
 import { resolve, dirname } from 'node:path';
 import { unlinkSync, existsSync } from 'node:fs';
+
+// Integration tests spawn an orchestrator server which can take time to start.
+// The default 5000ms test timeout is too short for beforeAll server startup.
+// Use STARTUP_TIMEOUT_MS + buffer for individual test execution time.
+setDefaultTimeout(30_000);
 
 // Test configuration
 const TEST_PORT = 3458; // Use a different port than default
