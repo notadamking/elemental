@@ -1,5 +1,5 @@
 /**
- * FileEditorPage - File editor with Monaco
+ * FileEditorPage - File editor with Monaco and multi-tab support
  *
  * Displays files in a Monaco editor with a VSCode-style sidebar.
  * Features:
@@ -7,6 +7,8 @@
  * - File tree sidebar for browsing workspace files and documents
  * - Search sidebar panel for full-text search across files
  * - Monaco editor with syntax highlighting
+ * - Multi-tab support with preview tabs and dirty indicators
+ * - Drag-and-drop tab reordering
  *
  * Supports two modes:
  * 1. Local workspace mode: Browse and view files from a local directory
@@ -33,6 +35,7 @@ import {
 } from 'lucide-react';
 import { EditorFileTree, type FileTreeNodeData, type FileSource } from '../../components/editor/EditorFileTree';
 import { EditorSearchPanel, type EditorSearchPanelRef } from '../../components/editor/EditorSearchPanel';
+import { EditorTabBar, type EditorTab } from '../../components/editor/EditorTabBar';
 import { useAllDocuments } from '../../api/hooks/useAllElements';
 import { useWorkspace } from '../../contexts';
 import type { Document } from '../../api/hooks/useAllElements';
@@ -44,16 +47,6 @@ import {
 // ============================================================================
 // Types
 // ============================================================================
-
-/** Currently opened file state */
-interface OpenFile {
-  id: string;
-  name: string;
-  path: string;
-  content: string;
-  language: string;
-  source: FileSource;
-}
 
 /** Active sidebar panel */
 type SidebarPanel = 'files' | 'search';
@@ -313,8 +306,11 @@ function ActivityBar({ activePanel, onPanelChange }: ActivityBarProps) {
 // ============================================================================
 
 export function FileEditorPage() {
+  // Tab state - array of open tabs and active tab ID
+  const [tabs, setTabs] = useState<EditorTab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [openFile, setOpenFile] = useState<OpenFile | null>(null);
   const [fileSource, setFileSource] = useState<FileSource>('workspace');
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -346,51 +342,124 @@ export function FileEditorPage() {
     fileSource === 'documents' ? selectedId : null
   );
 
-  // Update open file when document content loads
+  // Get the active tab
+  const activeTab = useMemo(() => {
+    return tabs.find(t => t.id === activeTabId) || null;
+  }, [tabs, activeTabId]);
+
+  // Update tab when document content loads (for documents mode)
   useEffect(() => {
     if (fileSource === 'documents' && selectedDocument && selectedId) {
-      setOpenFile({
+      const newTab: EditorTab = {
         id: selectedId,
         name: selectedDocument.title || 'Untitled',
         path: selectedDocument.title || 'Untitled',
         content: selectedDocument.content || '',
         language: getLanguageFromDocument(selectedDocument),
         source: 'documents',
+        isPreview: true,
+        isDirty: false,
+      };
+
+      setTabs(prevTabs => {
+        // Check if this file is already open
+        const existingIndex = prevTabs.findIndex(t => t.id === selectedId);
+        if (existingIndex !== -1) {
+          // Update existing tab
+          const updated = [...prevTabs];
+          updated[existingIndex] = { ...updated[existingIndex], ...newTab, isPreview: updated[existingIndex].isPreview };
+          return updated;
+        }
+
+        // Find preview tab to replace
+        const previewIndex = prevTabs.findIndex(t => t.isPreview && !t.isDirty);
+        if (previewIndex !== -1) {
+          const updated = [...prevTabs];
+          updated[previewIndex] = newTab;
+          return updated;
+        }
+
+        // Add as new tab
+        return [...prevTabs, newTab];
       });
+
+      setActiveTabId(selectedId);
     }
   }, [fileSource, selectedDocument, selectedId]);
 
   // Handle file selection from tree
   const handleSelectFile = useCallback(
-    async (node: FileTreeNodeData) => {
+    async (node: FileTreeNodeData, pinTab = false) => {
       if (node.nodeType === 'folder') return;
 
       setSelectedId(node.id);
       setFileError(null);
+
+      // Check if file is already open
+      const existingTab = tabs.find(t => t.id === node.id);
+      if (existingTab) {
+        setActiveTabId(node.id);
+        if (pinTab) {
+          // Pin the tab (make it non-preview)
+          setTabs(prevTabs =>
+            prevTabs.map(t => t.id === node.id ? { ...t, isPreview: false } : t)
+          );
+        }
+        return;
+      }
 
       if (fileSource === 'workspace' && node.fsEntry) {
         // Read local file
         setIsLoadingFile(true);
         try {
           const result = await readFile(node.fsEntry);
-          setOpenFile({
+          const newTab: EditorTab = {
             id: node.id,
             name: result.name,
             path: result.path,
             content: result.content,
             language: result.language || 'plaintext',
             source: 'workspace',
+            isPreview: !pinTab,
+            isDirty: false,
+          };
+
+          setTabs(prevTabs => {
+            // If pinning, just add a new tab
+            if (pinTab) {
+              return [...prevTabs, newTab];
+            }
+
+            // Find preview tab to replace (only if it's not dirty)
+            const previewIndex = prevTabs.findIndex(t => t.isPreview && !t.isDirty);
+            if (previewIndex !== -1) {
+              const updated = [...prevTabs];
+              updated[previewIndex] = newTab;
+              return updated;
+            }
+
+            // Add as new tab
+            return [...prevTabs, newTab];
           });
+
+          setActiveTabId(node.id);
         } catch (error) {
           setFileError(error instanceof Error ? error.message : 'Failed to read file');
-          setOpenFile(null);
         } finally {
           setIsLoadingFile(false);
         }
       }
       // For documents mode, the useEffect above handles loading
     },
-    [fileSource, readFile]
+    [fileSource, readFile, tabs]
+  );
+
+  // Handle double-click to pin tab (make it non-preview)
+  const handleDoubleClickFile = useCallback(
+    async (node: FileTreeNodeData) => {
+      await handleSelectFile(node, true);
+    },
+    [handleSelectFile]
   );
 
   // Handle search result selection - open file and navigate to line
@@ -414,13 +483,17 @@ export function FileEditorPage() {
 
       if (entry && entry.type === 'file') {
         // Check if this file is already open
-        if (openFile?.path === path) {
-          // Just navigate to the line
-          if (editorRef.current) {
-            editorRef.current.revealLineInCenter(line);
-            editorRef.current.setPosition({ lineNumber: line, column });
-            editorRef.current.focus();
-          }
+        const existingTab = tabs.find(t => t.path === path);
+        if (existingTab) {
+          setActiveTabId(existingTab.id);
+          // Navigate to the line
+          setTimeout(() => {
+            if (editorRef.current) {
+              editorRef.current.revealLineInCenter(line);
+              editorRef.current.setPosition({ lineNumber: line, column });
+              editorRef.current.focus();
+            }
+          }, 50);
           return;
         }
 
@@ -431,14 +504,29 @@ export function FileEditorPage() {
 
         try {
           const result = await readFile(entry);
-          setOpenFile({
+          const newTab: EditorTab = {
             id: entry.id,
             name: result.name,
             path: result.path,
             content: result.content,
             language: result.language || 'plaintext',
             source: 'workspace',
+            isPreview: true,
+            isDirty: false,
+          };
+
+          setTabs(prevTabs => {
+            // Find preview tab to replace
+            const previewIndex = prevTabs.findIndex(t => t.isPreview && !t.isDirty);
+            if (previewIndex !== -1) {
+              const updated = [...prevTabs];
+              updated[previewIndex] = newTab;
+              return updated;
+            }
+            return [...prevTabs, newTab];
           });
+
+          setActiveTabId(entry.id);
 
           // Navigate to line after a short delay to ensure editor is ready
           setTimeout(() => {
@@ -450,20 +538,55 @@ export function FileEditorPage() {
           }, 100);
         } catch (error) {
           setFileError(error instanceof Error ? error.message : 'Failed to read file');
-          setOpenFile(null);
         } finally {
           setIsLoadingFile(false);
         }
       }
     },
-    [workspaceEntries, openFile, readFile]
+    [workspaceEntries, tabs, readFile]
   );
+
+  // Handle tab selection
+  const handleTabSelect = useCallback((tabId: string) => {
+    setActiveTabId(tabId);
+    const tab = tabs.find(t => t.id === tabId);
+    if (tab) {
+      setSelectedId(tabId);
+    }
+  }, [tabs]);
+
+  // Handle tab close
+  const handleTabClose = useCallback((tabId: string) => {
+    setTabs(prevTabs => {
+      const tabIndex = prevTabs.findIndex(t => t.id === tabId);
+      if (tabIndex === -1) return prevTabs;
+
+      const newTabs = prevTabs.filter(t => t.id !== tabId);
+
+      // If we're closing the active tab, switch to another tab
+      if (activeTabId === tabId && newTabs.length > 0) {
+        // Prefer the tab to the left, or the first tab if none
+        const newActiveIndex = Math.max(0, tabIndex - 1);
+        setActiveTabId(newTabs[newActiveIndex]?.id || null);
+        setSelectedId(newTabs[newActiveIndex]?.id || null);
+      } else if (newTabs.length === 0) {
+        setActiveTabId(null);
+        setSelectedId(null);
+      }
+
+      return newTabs;
+    });
+  }, [activeTabId]);
+
+  // Handle tabs reorder
+  const handleTabsReorder = useCallback((newTabs: EditorTab[]) => {
+    setTabs(newTabs);
+  }, []);
 
   // Handle source change
   const handleSourceChange = useCallback((source: FileSource) => {
     setFileSource(source);
     setSelectedId(null);
-    setOpenFile(null);
     setFileError(null);
   }, []);
 
@@ -478,23 +601,32 @@ export function FileEditorPage() {
     }
   }, []);
 
-  // Handle keyboard shortcut Cmd/Ctrl+Shift+F
+  // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd+Shift+F or Ctrl+Shift+F to focus search panel
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
         e.preventDefault();
-        // Switch to search panel and focus input
         setActivePanel('search');
         setTimeout(() => {
           searchPanelRef.current?.focus();
         }, 50);
+        return;
+      }
+
+      // Cmd+W or Ctrl+W to close current tab
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'w') {
+        e.preventDefault();
+        if (activeTabId) {
+          handleTabClose(activeTabId);
+        }
+        return;
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [activeTabId, handleTabClose]);
 
   // Determine loading state
   const isTreeLoading = fileSource === 'workspace' ? workspaceLoading : documentsLoading;
@@ -509,11 +641,11 @@ export function FileEditorPage() {
 
   // Get subtitle based on state
   const subtitle = useMemo(() => {
-    if (openFile) return openFile.path;
+    if (activeTab) return activeTab.path;
     if (fileSource === 'workspace' && isWorkspaceOpen) return `Workspace: ${workspaceName}`;
     if (fileSource === 'documents') return 'Document library';
     return 'Open a workspace or select a document';
-  }, [openFile, fileSource, isWorkspaceOpen, workspaceName]);
+  }, [activeTab, fileSource, isWorkspaceOpen, workspaceName]);
 
   // Handle Monaco editor mount - configure once
   const handleEditorDidMount: OnMount = useCallback((editor, monaco) => {
@@ -526,7 +658,7 @@ export function FileEditorPage() {
   }, [isMonacoReady]);
 
   // Get language info for display
-  const languageInfo = openFile ? detectLanguageFromFilename(openFile.name) : null;
+  const languageInfo = activeTab ? detectLanguageFromFilename(activeTab.name) : null;
 
   return (
     <div className="h-full flex flex-col space-y-6 animate-fade-in" data-testid="file-editor-page">
@@ -654,6 +786,7 @@ export function FileEditorPage() {
                     source={fileSource}
                     selectedId={selectedId}
                     onSelectFile={handleSelectFile}
+                    onDoubleClickFile={handleDoubleClickFile}
                   />
                 )}
               </div>
@@ -681,7 +814,16 @@ export function FileEditorPage() {
 
         {/* Editor panel */}
         <div className="flex-1 flex flex-col overflow-hidden" data-testid="editor-panel">
-          {!selectedId && !openFile ? (
+          {/* Tab bar */}
+          <EditorTabBar
+            tabs={tabs}
+            activeTabId={activeTabId}
+            onTabSelect={handleTabSelect}
+            onTabClose={handleTabClose}
+            onTabsReorder={handleTabsReorder}
+          />
+
+          {tabs.length === 0 ? (
             <NoFileSelected onOpenWorkspace={openWorkspace} isSupported={isSupported} />
           ) : isContentLoading ? (
             <div className="flex items-center justify-center h-full" data-testid="editor-loading-content">
@@ -695,7 +837,7 @@ export function FileEditorPage() {
                 {fileError || 'Could not load the file content.'}
               </p>
             </div>
-          ) : openFile ? (
+          ) : activeTab ? (
             <>
               {/* Language indicator bar */}
               <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--color-border)] bg-[var(--color-surface-hover)]">
@@ -711,8 +853,8 @@ export function FileEditorPage() {
               </div>
               <Editor
                 height="100%"
-                language={openFile.language}
-                value={openFile.content}
+                language={activeTab.language}
+                value={activeTab.content}
                 theme={isMonacoReady ? 'elemental-dark' : 'vs-dark'}
                 onMount={handleEditorDidMount}
                 options={{

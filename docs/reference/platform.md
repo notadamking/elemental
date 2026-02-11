@@ -504,7 +504,7 @@ app.route('/', createMyFeatureRoutes(services));
 | `/inbox` | `InboxPage` | Inbox messages |
 | `/messages` | `MessagesPage` | Channel messages |
 | `/documents` | `DocumentsPage` | Document library |
-| `/editor` | `FileEditorPage` | Read-only file editor with Monaco, VSCode-style activity bar with file tree and search panel |
+| `/editor` | `FileEditorPage` | Read-only file editor with Monaco, multi-tab support, VSCode-style activity bar with file tree and search panel |
 
 ### Document Library Drag-and-Drop
 

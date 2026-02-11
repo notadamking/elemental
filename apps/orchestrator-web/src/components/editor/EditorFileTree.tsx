@@ -317,8 +317,10 @@ interface EditorFileTreeProps {
   source: FileSource;
   /** Currently selected file ID */
   selectedId: string | null;
-  /** Callback when a file is selected */
+  /** Callback when a file is selected (single click) */
   onSelectFile: (node: FileTreeNodeData) => void;
+  /** Callback when a file is double-clicked (pins the tab) */
+  onDoubleClickFile?: (node: FileTreeNodeData) => void;
   /** Optional class name */
   className?: string;
 }
@@ -329,6 +331,7 @@ export function EditorFileTree({
   source,
   selectedId,
   onSelectFile,
+  onDoubleClickFile,
   className = '',
 }: EditorFileTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -358,7 +361,7 @@ export function EditorFileTree({
     return documents.map(documentToTreeNode);
   }, [source, workspaceEntries, documents]);
 
-  // Handle node selection
+  // Handle node selection (single click opens as preview tab)
   const handleSelect = useCallback(
     (nodes: NodeApi<FileTreeNodeData>[]) => {
       if (nodes.length > 0 && nodes[0].data.nodeType === 'file') {
@@ -368,14 +371,19 @@ export function EditorFileTree({
     [onSelectFile]
   );
 
-  // Handle node activation (click)
+  // Handle node activation (double-click pins the tab)
   const handleActivate = useCallback(
     (node: NodeApi<FileTreeNodeData>) => {
       if (node.data.nodeType === 'file') {
-        onSelectFile(node.data);
+        // Double-click pins the tab
+        if (onDoubleClickFile) {
+          onDoubleClickFile(node.data);
+        } else {
+          onSelectFile(node.data);
+        }
       }
     },
-    [onSelectFile]
+    [onSelectFile, onDoubleClickFile]
   );
 
   return (
