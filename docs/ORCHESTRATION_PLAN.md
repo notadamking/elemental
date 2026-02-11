@@ -207,13 +207,16 @@ The Dispatch Daemon is a continuously running process that coordinates task assi
      - **If agent has active session:** Leave unread (the active session will handle it; do NOT forward)
      - **If agent is idle (no active session):** Leave unread to accumulate for triage batch (see [Message Triage](#message-triage))
 
-**Process for Persistent Workers and Directors:**
+**Process for Persistent Workers:**
 1. Poll for unread messages in inbox
 2. For each unread message:
    - Check if agent has active session
    - **If active session:** Forward message to session as user input
    - **If no active session:** Message waits until session starts
 3. Mark forwarded messages as read
+
+**Process for Directors:**
+Directors are **skipped** by the dispatch daemon's inbox polling. Messages remain unread in the director's inbox until the director explicitly checks them at natural breakpoints (e.g., `el inbox <director-id>`). This prevents interrupting the director's workflow with unsolicited messages injected as user input.
 
 ### Steward Trigger Polling
 

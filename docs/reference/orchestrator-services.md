@@ -343,9 +343,13 @@ For ephemeral workers and stewards (two-path model):
 - Non-dispatch message + active session → leave unread (do NOT forward)
 - Non-dispatch message + no active session → accumulate for triage batch
 
-For persistent workers and directors:
+For persistent workers:
 - Active session = forward message as user input
 - No active session = message waits
+
+For directors:
+- Messages are **not forwarded** — directors are skipped by inbox polling
+- Messages remain unread until the director checks its inbox manually
 
 ### Triage Spawn
 
