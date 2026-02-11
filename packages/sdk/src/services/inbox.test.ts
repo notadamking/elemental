@@ -446,10 +446,13 @@ describe('InboxService', () => {
     });
 
     test('returns item unchanged if already read', () => {
+      // Use unique IDs to avoid UNIQUE constraint conflicts with other tests
+      const uniqueMessageId = `el-msg-${crypto.randomUUID().substring(0, 8)}` as unknown as MessageId;
+      const uniqueChannelId = `el-chan-${crypto.randomUUID().substring(0, 8)}` as unknown as ChannelId;
       const created = service.addToInbox({
         recipientId,
-        messageId: messageId1,
-        channelId: channelId1,
+        messageId: uniqueMessageId,
+        channelId: uniqueChannelId,
         sourceType: InboxSourceType.DIRECT,
         createdBy: senderId,
       });

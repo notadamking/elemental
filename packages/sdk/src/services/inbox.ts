@@ -291,8 +291,8 @@ export class InboxService {
     const result = this.db.run(
       `UPDATE inbox_items
        SET status = ?, read_at = ?
-       WHERE id = ? AND status != ?`,
-      [InboxStatus.READ, now, itemId, InboxStatus.ARCHIVED]
+       WHERE id = ? AND status = ?`,
+      [InboxStatus.READ, now, itemId, InboxStatus.UNREAD]
     );
 
     if (result.changes === 0) {
@@ -326,8 +326,8 @@ export class InboxService {
     const result = this.db.run(
       `UPDATE inbox_items
        SET status = ?, read_at = ?
-       WHERE id IN (${placeholders}) AND status != ?`,
-      [InboxStatus.READ, now, ...itemIds, InboxStatus.ARCHIVED]
+       WHERE id IN (${placeholders}) AND status = ?`,
+      [InboxStatus.READ, now, ...itemIds, InboxStatus.UNREAD]
     );
 
     return result.changes;
