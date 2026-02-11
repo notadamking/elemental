@@ -657,6 +657,7 @@ describe('signCommand', () => {
     delete process.env.ELEMENTAL_SIGN_KEY;
     delete process.env.ELEMENTAL_SIGN_KEY_FILE;
     delete process.env.ELEMENTAL_ACTOR;
+    delete process.env.ELEMENTAL_ROOT;
 
     // Generate a test keypair
     const result = await keygenCommand.handler([], {
@@ -928,6 +929,7 @@ describe('verifyCommand', () => {
     process.chdir(testDir);
     clearConfigCache();
     delete process.env.ELEMENTAL_ACTOR;
+    delete process.env.ELEMENTAL_ROOT;
 
     // Generate a test keypair
     const result = await keygenCommand.handler([], {
@@ -1383,6 +1385,7 @@ describe('sign and verify integration', () => {
     delete process.env.ELEMENTAL_SIGN_KEY;
     delete process.env.ELEMENTAL_SIGN_KEY_FILE;
     delete process.env.ELEMENTAL_ACTOR;
+    delete process.env.ELEMENTAL_ROOT;
 
     // Generate a test keypair
     const result = await keygenCommand.handler([], {
