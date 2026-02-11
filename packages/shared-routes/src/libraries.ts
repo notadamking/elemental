@@ -373,6 +373,98 @@ export function createLibraryRoutes(services: CollaborateServices) {
     }
   });
 
+  /**
+   * DELETE /api/libraries/:id
+   * Delete a library and optionally all its documents
+   * Query params:
+   *   - cascade: 'true' to also delete all documents in the library (default: false)
+   */
+  app.delete('/api/libraries/:id', async (c) => {
+    try {
+      const libraryId = c.req.param('id') as ElementId;
+      const url = new URL(c.req.url);
+      const cascade = url.searchParams.get('cascade') === 'true';
+
+      // Verify library exists
+      const library = await api.get(libraryId);
+      if (!library) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Library not found' } }, 404);
+      }
+      if (library.type !== 'library') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Library not found' } }, 404);
+      }
+
+      // Get all children (sub-libraries and documents)
+      const dependents = await api.getDependents(libraryId, ['parent-child']);
+      const childIds = dependents.map((d) => d.blockedId);
+
+      // Categorize children
+      const subLibraryIds: string[] = [];
+      const documentIds: string[] = [];
+
+      for (const childId of childIds) {
+        const child = await api.get(childId as ElementId);
+        if (child) {
+          if (child.type === 'library') {
+            subLibraryIds.push(childId);
+          } else if (child.type === 'document') {
+            documentIds.push(childId);
+          }
+        }
+      }
+
+      // Prevent deletion if library has sub-libraries
+      if (subLibraryIds.length > 0) {
+        return c.json({
+          error: {
+            code: 'HAS_CHILDREN',
+            message: `Cannot delete library: it has ${subLibraryIds.length} sub-libraries. Delete them first.`,
+          },
+        }, 400);
+      }
+
+      // Handle documents based on cascade flag
+      if (documentIds.length > 0) {
+        if (cascade) {
+          // Delete all documents in the library
+          for (const docId of documentIds) {
+            await api.delete(docId as ElementId);
+          }
+        } else {
+          // Remove documents from library but don't delete them
+          for (const docId of documentIds) {
+            await api.removeDependency(docId as ElementId, libraryId, 'parent-child');
+          }
+        }
+      }
+
+      // Remove library from parent if it has one
+      const deps = await api.getDependencies(libraryId, ['parent-child']);
+      for (const dep of deps) {
+        const parent = await api.get(dep.blockerId as ElementId);
+        if (parent && parent.type === 'library') {
+          await api.removeDependency(libraryId, dep.blockerId as ElementId, 'parent-child');
+        }
+      }
+
+      // Delete the library itself
+      await api.delete(libraryId);
+
+      return c.json({
+        success: true,
+        id: libraryId,
+        documentsDeleted: cascade ? documentIds.length : 0,
+        documentsRemoved: cascade ? 0 : documentIds.length,
+      });
+    } catch (error) {
+      if ((error as { code?: string }).code === 'NOT_FOUND') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Library not found' } }, 404);
+      }
+      console.error('[elemental] Failed to delete library:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete library' } }, 500);
+    }
+  });
+
   // POST /api/libraries - Create a new library
   app.post('/api/libraries', async (c) => {
     try {

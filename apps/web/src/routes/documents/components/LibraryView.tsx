@@ -3,7 +3,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { FolderOpen, Folder, FileText, Plus, Search, Filter } from 'lucide-react';
+import { FolderOpen, Folder, FileText, Plus, Search, Filter, Trash2 } from 'lucide-react';
 import { useShortcutVersion } from '../../../hooks';
 import { getCurrentBinding } from '../../../lib/keyboard';
 import { VirtualizedList } from '../../../components/shared/VirtualizedList';
@@ -33,6 +33,7 @@ interface LibraryViewProps {
   onSelectDocument: (id: string) => void;
   onSelectLibrary: (id: string) => void;
   onNewDocument: () => void;
+  onDeleteLibrary?: () => void;
   isMobile?: boolean;
 }
 
@@ -42,6 +43,7 @@ export function LibraryView({
   onSelectDocument,
   onSelectLibrary,
   onNewDocument,
+  onDeleteLibrary,
   isMobile = false,
 }: LibraryViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -160,17 +162,29 @@ export function LibraryView({
               <div className="animate-pulse h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
             )}
           </div>
-          {/* Hide button on mobile - use FAB instead */}
+          {/* Hide buttons on mobile - use FAB instead */}
           {!isMobile && (
-            <button
-              onClick={onNewDocument}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] rounded-md transition-colors"
-              data-testid="new-document-button-library"
-            >
-              <Plus className="w-4 h-4" />
-              Create Document
-              <kbd className="ml-1 text-xs bg-[var(--color-primary-700)]/50 text-white px-1 py-0.5 rounded">{getCurrentBinding('action.createDocument')}</kbd>
-            </button>
+            <div className="flex items-center gap-2">
+              {onDeleteLibrary && (
+                <button
+                  onClick={onDeleteLibrary}
+                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
+                  title="Delete Library"
+                  data-testid="delete-library-button"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                onClick={onNewDocument}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] rounded-md transition-colors"
+                data-testid="new-document-button-library"
+              >
+                <Plus className="w-4 h-4" />
+                Create Document
+                <kbd className="ml-1 text-xs bg-[var(--color-primary-700)]/50 text-white px-1 py-0.5 rounded">{getCurrentBinding('action.createDocument')}</kbd>
+              </button>
+            </div>
           )}
         </div>
 

@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
   DragOverlay,
@@ -30,9 +31,11 @@ import { CreateLibraryModal } from '../../components/document/CreateLibraryModal
 import { useDeepLink, useShortcutVersion } from '../../hooks';
 import { useIsMobile } from '../../hooks/useBreakpoint';
 import { useAllDocuments as useAllDocumentsPreloaded } from '../../api/hooks/useAllElements';
+import { DeleteLibraryModal } from '@elemental/ui/documents';
 
 import {
   useLibraries,
+  useLibrary,
   useMoveDocumentToLibrary,
   useRemoveDocumentFromLibrary,
   useMoveLibraryToParent,
@@ -54,7 +57,38 @@ export function DocumentsPage() {
   const isMobile = useIsMobile();
   useShortcutVersion();
 
+  const queryClient = useQueryClient();
   const { data: libraries = [], isLoading, error } = useLibraries();
+
+  // Get selected library details for delete modal
+  const { data: selectedLibrary } = useLibrary(selectedLibraryId || '');
+  const selectedLibraryDocCount = selectedLibrary?._documents?.length || 0;
+
+  // Delete library mutation
+  const deleteLibraryMutation = useMutation({
+    mutationFn: async ({ libraryId, cascade }: { libraryId: string; cascade: boolean }) => {
+      const response = await fetch(`/api/libraries/${libraryId}?cascade=${cascade}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to delete library');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['libraries'] });
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      setShowDeleteLibraryModal(false);
+      setSelectedLibraryId(null);
+      setDeleteError(null);
+      toast.success('Library deleted successfully');
+    },
+    onError: (err: Error) => {
+      setDeleteError(err.message);
+      toast.error(err.message || 'Failed to delete library');
+    },
+  });
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(
     search.library ?? null
   );
@@ -63,6 +97,8 @@ export function DocumentsPage() {
   );
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateLibraryModal, setShowCreateLibraryModal] = useState(false);
+  const [showDeleteLibraryModal, setShowDeleteLibraryModal] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   // Expand state - initialized from localStorage
   const [isDocumentExpanded, setIsDocumentExpandedState] = useState(false);
   const [expandedInitialized, setExpandedInitialized] = useState(false);
@@ -242,6 +278,24 @@ export function DocumentsPage() {
     navigate({ to: '/documents', search: { selected: undefined, library: selectedLibraryId ?? undefined } });
   };
 
+  const handleOpenDeleteLibraryModal = () => {
+    setDeleteError(null);
+    setShowDeleteLibraryModal(true);
+  };
+
+  const handleCloseDeleteLibraryModal = () => {
+    setShowDeleteLibraryModal(false);
+    setDeleteError(null);
+  };
+
+  const handleDeleteLibrary = async (deleteDocuments: boolean) => {
+    if (!selectedLibraryId) return;
+    await deleteLibraryMutation.mutateAsync({
+      libraryId: selectedLibraryId,
+      cascade: deleteDocuments,
+    });
+  };
+
   // Handle library move (from react-arborist internal drag)
   const handleMoveLibrary = useCallback(
     async (libraryId: string, newParentId: string | null, index?: number) => {
@@ -384,6 +438,7 @@ export function DocumentsPage() {
           onSelectDocument={handleSelectDocument}
           onSelectLibrary={handleSelectLibrary}
           onNewDocument={handleOpenCreateModal}
+          onDeleteLibrary={handleOpenDeleteLibraryModal}
           isMobile={mobile}
         />
       );
@@ -495,6 +550,18 @@ export function DocumentsPage() {
             isLoading={removeDocumentFromLibrary.isPending}
             onConfirm={handleConfirmTopLevelMove}
             onCancel={handleCancelTopLevelMove}
+          />
+
+          {/* Delete Library Modal */}
+          <DeleteLibraryModal
+            isOpen={showDeleteLibraryModal}
+            onClose={handleCloseDeleteLibraryModal}
+            onConfirm={handleDeleteLibrary}
+            library={selectedLibraryId && selectedLibrary ? { id: selectedLibraryId, name: selectedLibrary.name } : null}
+            documentCount={selectedLibraryDocCount}
+            isDeleting={deleteLibraryMutation.isPending}
+            error={deleteError}
+            isMobile={true}
           />
         </div>
 
@@ -628,6 +695,18 @@ export function DocumentsPage() {
           isLoading={removeDocumentFromLibrary.isPending}
           onConfirm={handleConfirmTopLevelMove}
           onCancel={handleCancelTopLevelMove}
+        />
+
+        {/* Delete Library Modal */}
+        <DeleteLibraryModal
+          isOpen={showDeleteLibraryModal}
+          onClose={handleCloseDeleteLibraryModal}
+          onConfirm={handleDeleteLibrary}
+          library={selectedLibraryId && selectedLibrary ? { id: selectedLibraryId, name: selectedLibrary.name } : null}
+          documentCount={selectedLibraryDocCount}
+          isDeleting={deleteLibraryMutation.isPending}
+          error={deleteError}
+          isMobile={isMobile}
         />
       </div>
 
