@@ -141,8 +141,13 @@ test.describe('TB-O17: Director Terminal Panel', () => {
       await expect(page.getByTestId('director-terminal-container')).toBeVisible();
 
       // The xterminal element may be present (depends on if director exists)
-      // If no director, it will show the no-director state instead
-      const terminalOrNoDirector = page.locator('[data-testid="director-xterminal"], [class*="AlertCircle"]');
+      // If no director, it will show the no-director state with "No Director agent found" message
+      // or an idle overlay with start button
+      const terminalOrNoDirector = page.locator(
+        '[data-testid="director-xterminal"], ' +
+        ':text("No Director agent found"), ' +
+        '[data-testid="director-idle-overlay"]'
+      );
       await expect(terminalOrNoDirector.first()).toBeVisible();
     });
 

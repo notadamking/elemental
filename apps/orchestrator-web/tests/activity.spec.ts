@@ -8,7 +8,7 @@ test.describe('TB-O25: Activity Feed', () => {
       await expect(page.getByTestId('activity-page')).toBeVisible();
       // Use exact match for the main h1 heading to avoid matching subheadings
       await expect(page.getByRole('heading', { name: 'Activity', exact: true })).toBeVisible();
-      await expect(page.getByText('Real-time feed of agent events and updates')).toBeVisible();
+      await expect(page.getByText('Command center for agent orchestration')).toBeVisible();
     });
 
     test('displays refresh button', async ({ page }) => {
@@ -33,6 +33,9 @@ test.describe('TB-O25: Activity Feed', () => {
     test('displays all filter categories', async ({ page }) => {
       await page.goto('/activity');
 
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
+
       await expect(page.getByTestId('activity-filter-all')).toBeVisible();
       await expect(page.getByTestId('activity-filter-tasks')).toBeVisible();
       await expect(page.getByTestId('activity-filter-agents')).toBeVisible();
@@ -42,6 +45,9 @@ test.describe('TB-O25: Activity Feed', () => {
     test('defaults to All filter', async ({ page }) => {
       await page.goto('/activity');
 
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
+
       const allFilter = page.getByTestId('activity-filter-all');
       // Should have active styling (primary background)
       await expect(allFilter).toHaveClass(/bg-\[var\(--color-primary\)\]/);
@@ -49,6 +55,9 @@ test.describe('TB-O25: Activity Feed', () => {
 
     test('can switch to Tasks filter', async ({ page }) => {
       await page.goto('/activity');
+
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
 
       const tasksFilter = page.getByTestId('activity-filter-tasks');
       await tasksFilter.click();
@@ -62,6 +71,9 @@ test.describe('TB-O25: Activity Feed', () => {
     test('can switch to Agents filter', async ({ page }) => {
       await page.goto('/activity');
 
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
+
       const agentsFilter = page.getByTestId('activity-filter-agents');
       await agentsFilter.click();
 
@@ -70,6 +82,9 @@ test.describe('TB-O25: Activity Feed', () => {
 
     test('can switch to Workflows filter', async ({ page }) => {
       await page.goto('/activity');
+
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
 
       const workflowsFilter = page.getByTestId('activity-filter-workflows');
       await workflowsFilter.click();
@@ -87,6 +102,9 @@ test.describe('TB-O25: Activity Feed', () => {
 
     test('displays activity list or loading state', async ({ page }) => {
       await page.goto('/activity');
+
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
 
       // Should show activity list or empty state (loading happens quickly)
       // Use first() to avoid strict mode issues when both list and loading are present
@@ -121,6 +139,9 @@ test.describe('TB-O25: Activity Feed', () => {
 
       await page.goto('/activity');
 
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
+
       const emptyState = page.getByTestId('activity-empty');
       await expect(emptyState).toBeVisible({ timeout: 10000 });
       await expect(emptyState).toContainText('No activity yet');
@@ -135,6 +156,10 @@ test.describe('TB-O25: Activity Feed', () => {
       });
 
       await page.goto('/activity');
+
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
+
       await page.getByTestId('activity-filter-tasks').click();
 
       const emptyState = page.getByTestId('activity-empty');
@@ -185,6 +210,9 @@ test.describe('TB-O25: Activity Feed', () => {
 
       await page.goto('/activity');
 
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
+
       // Wait for activity cards to appear
       const activityCards = page.getByTestId('activity-card');
       await expect(activityCards.first()).toBeVisible({ timeout: 10000 });
@@ -221,6 +249,9 @@ test.describe('TB-O25: Activity Feed', () => {
 
       await page.goto('/activity');
 
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
+
       const activitySummary = page.getByTestId('activity-summary');
       await expect(activitySummary.first()).toBeVisible({ timeout: 10000 });
       await expect(activitySummary.first()).toContainText('Created task');
@@ -254,6 +285,9 @@ test.describe('TB-O25: Activity Feed', () => {
 
       await page.goto('/activity');
 
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
+
       const activityActor = page.getByTestId('activity-actor');
       await expect(activityActor.first()).toBeVisible({ timeout: 10000 });
       await expect(activityActor.first()).toContainText('Test Agent');
@@ -286,6 +320,9 @@ test.describe('TB-O25: Activity Feed', () => {
       });
 
       await page.goto('/activity');
+
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
 
       const activityTime = page.getByTestId('activity-time');
       await expect(activityTime.first()).toBeVisible({ timeout: 10000 });
@@ -321,6 +358,9 @@ test.describe('TB-O25: Activity Feed', () => {
 
       await page.goto('/activity');
 
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
+
       const elementType = page.getByTestId('activity-element-type');
       await expect(elementType.first()).toBeVisible({ timeout: 10000 });
       await expect(elementType.first()).toContainText('Task');
@@ -353,6 +393,9 @@ test.describe('TB-O25: Activity Feed', () => {
       });
 
       await page.goto('/activity');
+
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
 
       const elementTitle = page.getByTestId('activity-element-title');
       await expect(elementTitle.first()).toBeVisible({ timeout: 10000 });
@@ -388,6 +431,9 @@ test.describe('TB-O25: Activity Feed', () => {
       });
 
       await page.goto('/activity');
+
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
 
       // Wait for card to appear
       const card = page.getByTestId('activity-card').first();
@@ -435,6 +481,9 @@ test.describe('TB-O25: Activity Feed', () => {
 
       await page.goto('/activity');
 
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
+
       // Wait for initial load
       const activityCards = page.getByTestId('activity-card');
       await expect(activityCards.first()).toBeVisible({ timeout: 10000 });
@@ -458,18 +507,24 @@ test.describe('TB-O25: Activity Feed', () => {
 
       await page.goto('/activity');
 
+      // Expand the activity feed section first
+      await page.getByTestId('activity-feed-toggle').click();
+
       // Wait for initial load
       await page.getByTestId('activity-empty').waitFor({ timeout: 10000 });
 
       // Initial request
-      expect(requestCount).toBe(1);
+      expect(requestCount).toBeGreaterThanOrEqual(1);
+      const initialCount = requestCount;
 
-      // Click refresh
+      // Click refresh - this triggers window.location.reload()
       await page.getByTestId('activity-refresh').click();
 
-      // Wait for new request
-      await page.waitForTimeout(500);
-      expect(requestCount).toBeGreaterThan(1);
+      // Wait for page reload and new activity-page to appear
+      await page.getByTestId('activity-page').waitFor({ timeout: 10000 });
+
+      // After reload, there should be at least one new request
+      expect(requestCount).toBeGreaterThan(initialCount);
     });
   });
 

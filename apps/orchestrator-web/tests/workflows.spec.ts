@@ -1260,29 +1260,31 @@ test.describe('TB-O32: Workflows Page', () => {
           }
         });
 
-        await page.route('**/api/playbooks/pb-1/create', async (route) => {
-          route.fulfill({
-            status: 201,
-            contentType: 'application/json',
-            body: JSON.stringify({
-              workflow: {
-                id: 'wf-new-1',
-                type: 'workflow',
-                title: 'Deploy Playbook - Run',
-                status: 'pending',
-                playbookId: 'pb-1',
-                ephemeral: false,
-                variables: {},
-                tags: ['created'],
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                createdBy: 'system',
-              },
-            }),
-          });
-        });
-
         await page.route('**/api/workflows*', async (route) => {
+          // Handle POST for creating workflow
+          if (route.request().method() === 'POST') {
+            route.fulfill({
+              status: 201,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                workflow: {
+                  id: 'wf-new-1',
+                  type: 'workflow',
+                  title: 'Deploy Playbook - Run',
+                  status: 'pending',
+                  playbookId: 'pb-1',
+                  ephemeral: false,
+                  variables: {},
+                  tags: ['created'],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              }),
+            });
+            return;
+          }
+          // Handle GET for listing workflows
           route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -1376,14 +1378,16 @@ test.describe('TB-O32: Workflows Page', () => {
           }
         });
 
-        await page.route('**/api/playbooks/pb-1/create', async (route) => {
-          route.fulfill({
-            status: 500,
-            contentType: 'application/json',
-            body: JSON.stringify({
-              error: { code: 'CREATE_ERROR', message: 'Database connection failed' },
-            }),
-          });
+        await page.route('**/api/workflows', async (route) => {
+          if (route.request().method() === 'POST') {
+            route.fulfill({
+              status: 500,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                error: { code: 'CREATE_ERROR', message: 'Database connection failed' },
+              }),
+            });
+          }
         });
 
         await page.goto('/workflows');
@@ -1823,8 +1827,8 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.goto('/workflows?tab=active&selected=wf-1');
         await page.waitForTimeout(500);
 
-        // Task list should be visible
-        await expect(page.getByTestId('workflow-task-list')).toBeVisible();
+        // Step list should be visible (renamed from task-list to step-list)
+        await expect(page.getByTestId('workflow-step-list')).toBeVisible();
 
         // Individual tasks should be visible
         await expect(page.getByTestId('workflow-task-t-1')).toBeVisible();
@@ -2290,8 +2294,9 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.getByTestId('workflows-create').click();
         await page.waitForTimeout(300);
 
-        // Click add step button
-        await page.getByTestId('add-step-button').click();
+        // Hover over add step button to reveal dropdown, then click Add Task Step
+        await page.getByTestId('add-step-button').hover();
+        await page.getByTestId('add-task-step').click();
 
         // Step list should now have one item
         const stepList = page.getByTestId('step-list');
@@ -2316,7 +2321,9 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.getByTestId('workflows-create').click();
         await page.waitForTimeout(300);
 
-        await page.getByTestId('add-step-button').click();
+        // Hover over add step button to reveal dropdown, then click Add Task Step
+        await page.getByTestId('add-step-button').hover();
+        await page.getByTestId('add-task-step').click();
 
         // Fill in step details
         await page.getByTestId('step-title-input').fill('Build Application');
@@ -2347,11 +2354,17 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.getByTestId('workflows-create').click();
         await page.waitForTimeout(300);
 
-        // Add two steps
-        await page.getByTestId('add-step-button').click();
+        // Add two steps using the dropdown menu
+        await page.getByTestId('add-step-button').hover();
+        await page.getByTestId('add-task-step').click();
         await page.getByTestId('step-title-input').fill('Step A');
-        await page.getByTestId('add-step-button').click();
+        await page.getByTestId('add-step-button').hover();
+        await page.getByTestId('add-task-step').click();
         await page.getByTestId('step-title-input').fill('Step B');
+
+        // Move mouse away from dropdown to close it
+        await page.mouse.move(0, 0);
+        await page.waitForTimeout(100);
 
         // First step should have disabled up button
         const stepItems = page.locator('[data-testid^="step-item-"]');
@@ -2384,8 +2397,9 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.getByTestId('workflows-create').click();
         await page.waitForTimeout(300);
 
-        // Add a step
-        await page.getByTestId('add-step-button').click();
+        // Add a step using the dropdown menu
+        await page.getByTestId('add-step-button').hover();
+        await page.getByTestId('add-task-step').click();
 
         // Delete the step
         const stepItem = page.locator('[data-testid^="step-item-"]').first();
@@ -2502,8 +2516,9 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.getByTestId('playbook-name-input').fill('my_playbook');
         await page.getByTestId('playbook-title-input').fill('My Playbook');
 
-        // Add a step
-        await page.getByTestId('add-step-button').click();
+        // Add a step using the dropdown menu
+        await page.getByTestId('add-step-button').hover();
+        await page.getByTestId('add-task-step').click();
         await page.getByTestId('step-title-input').fill('Step 1');
 
         // Switch to YAML tab

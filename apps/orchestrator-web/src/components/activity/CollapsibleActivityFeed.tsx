@@ -55,10 +55,11 @@ export function CollapsibleActivityFeed() {
   };
 
   return (
-    <div data-testid="collapsible-activity-feed">
+    <div data-testid="activity-feed-section">
       <button
         onClick={() => setIsOpen((v) => !v)}
         className="flex items-center gap-2 w-full text-left text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text)] py-2 transition-colors duration-150"
+        data-testid="activity-feed-toggle"
       >
         <ChevronRight
           className={`w-4 h-4 transition-transform duration-150 ${isOpen ? 'rotate-90' : ''}`}
@@ -80,6 +81,7 @@ export function CollapsibleActivityFeed() {
               <button
                 key={category.value}
                 onClick={() => setFilterCategory(category.value)}
+                data-testid={`activity-filter-${category.value}`}
                 className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors duration-150 ${
                   filterCategory === category.value
                     ? 'bg-[var(--color-primary)] text-white'
