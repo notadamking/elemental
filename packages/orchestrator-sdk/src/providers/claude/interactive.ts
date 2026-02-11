@@ -166,6 +166,11 @@ export class ClaudeInteractiveProvider implements InteractiveProvider {
       args.push('--session-id', shellQuote(sessionId));
     }
 
+    // Pass model if specified
+    if (options.model) {
+      args.push('--model', shellQuote(options.model));
+    }
+
     return args;
   }
 }

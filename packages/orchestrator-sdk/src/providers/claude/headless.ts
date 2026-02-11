@@ -331,6 +331,11 @@ export class ClaudeHeadlessProvider implements HeadlessProvider {
       allowDangerouslySkipPermissions: true,
     };
 
+    // Pass model if specified
+    if (options.model) {
+      sdkOptions.model = options.model;
+    }
+
     // Resume if we have a session ID
     if (options.resumeSessionId) {
       sdkOptions.resume = options.resumeSessionId;
