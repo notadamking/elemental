@@ -42,7 +42,12 @@ import type { StewardScheduler } from './steward-scheduler.js';
 import type { AgentPoolService } from './agent-pool-service.js';
 import type { WorkerMetadata, StewardMetadata } from '../types/agent.js';
 import type { PoolSpawnRequest } from '../types/agent-pool.js';
-import { getOrchestratorTaskMeta, updateOrchestratorTaskMeta } from '../types/task-meta.js';
+import {
+  getOrchestratorTaskMeta,
+  updateOrchestratorTaskMeta,
+  appendTaskSessionHistory,
+  type TaskSessionHistoryEntry,
+} from '../types/task-meta.js';
 
 // ============================================================================
 // Constants
@@ -1336,6 +1341,24 @@ export class DispatchDaemonImpl implements DispatchDaemon {
           ].join('\n'),
         });
 
+        // Record session history entry for recovered worker session
+        const resumeHistoryEntry: TaskSessionHistoryEntry = {
+          sessionId: session.id,
+          providerSessionId: session.providerSessionId,
+          agentId: workerId,
+          agentName: worker.name,
+          agentRole: 'worker',
+          startedAt: createTimestamp(),
+        };
+        const updatedTask = await this.api.get<Task>(task.id);
+        if (updatedTask) {
+          const metadataWithHistory = appendTaskSessionHistory(
+            updatedTask.metadata as Record<string, unknown> | undefined,
+            resumeHistoryEntry
+          );
+          await this.api.update<Task>(task.id, { metadata: metadataWithHistory });
+        }
+
         if (this.config.onSessionStarted) {
           this.config.onSessionStarted(session, events, workerId, `[resumed session for task ${task.id}]`);
         }
@@ -1359,6 +1382,24 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       worktree: worktreePath,
       initialPrompt,
     });
+
+    // Record session history entry for fresh spawned worker session
+    const freshSpawnHistoryEntry: TaskSessionHistoryEntry = {
+      sessionId: session.id,
+      providerSessionId: session.providerSessionId,
+      agentId: workerId,
+      agentName: worker.name,
+      agentRole: 'worker',
+      startedAt: createTimestamp(),
+    };
+    const taskAfterFreshSpawn = await this.api.get<Task>(task.id);
+    if (taskAfterFreshSpawn) {
+      const metadataWithHistory = appendTaskSessionHistory(
+        taskAfterFreshSpawn.metadata as Record<string, unknown> | undefined,
+        freshSpawnHistoryEntry
+      );
+      await this.api.update<Task>(task.id, { metadata: metadataWithHistory });
+    }
 
     if (this.config.onSessionStarted) {
       this.config.onSessionStarted(session, events, workerId, initialPrompt);
@@ -1407,6 +1448,24 @@ export class DispatchDaemonImpl implements DispatchDaemon {
           ].join('\n'),
         });
 
+        // Record session history entry for recovered steward session
+        const resumeHistoryEntry: TaskSessionHistoryEntry = {
+          sessionId: session.id,
+          providerSessionId: session.providerSessionId,
+          agentId: stewardId,
+          agentName: steward.name,
+          agentRole: 'steward',
+          startedAt: createTimestamp(),
+        };
+        const updatedTask = await this.api.get<Task>(task.id);
+        if (updatedTask) {
+          const metadataWithHistory = appendTaskSessionHistory(
+            updatedTask.metadata as Record<string, unknown> | undefined,
+            resumeHistoryEntry
+          );
+          await this.api.update<Task>(task.id, { metadata: metadataWithHistory });
+        }
+
         if (this.config.onSessionStarted) {
           this.config.onSessionStarted(session, events, stewardId, `[resumed steward session for task ${task.id}]`);
         }
@@ -1421,7 +1480,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       }
     }
 
-    // 3. Fall back to fresh spawn (spawnMergeStewardForTask handles metadata update)
+    // 3. Fall back to fresh spawn (spawnMergeStewardForTask handles metadata update AND session history)
     await this.spawnMergeStewardForTask(steward, task);
     console.log(`[dispatch-daemon] Spawned fresh steward session for orphaned task ${task.id} on ${steward.name}`);
   }
@@ -1535,6 +1594,25 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
     await this.dispatchService.dispatch(task.id, workerId, dispatchOptions);
     this.emitter.emit('task:dispatched', task.id, workerId);
+
+    // Record session history entry for this worker session
+    // Re-read task to get metadata after dispatch wrote to it
+    const updatedTask = await this.api.get<Task>(task.id);
+    if (updatedTask) {
+      const sessionHistoryEntry: TaskSessionHistoryEntry = {
+        sessionId: session.id,
+        providerSessionId: session.providerSessionId,
+        agentId: workerId,
+        agentName: worker.name,
+        agentRole: 'worker',
+        startedAt: createTimestamp(),
+      };
+      const metadataWithHistory = appendTaskSessionHistory(
+        updatedTask.metadata as Record<string, unknown> | undefined,
+        sessionHistoryEntry
+      );
+      await this.api.update<Task>(task.id, { metadata: metadataWithHistory });
+    }
 
     // Call the onSessionStarted callback if provided (for event saver and initial prompt saving)
     if (this.config.onSessionStarted) {
@@ -1846,19 +1924,35 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       interactive: false, // Stewards use headless mode
     });
 
-    // Record steward assignment on the task to prevent double-dispatch and enable recovery.
+    // Record steward assignment and session history on the task to prevent double-dispatch and enable recovery.
     // Setting task.assignee makes the steward visible in the UI and enables
     // getAgentTasks() lookups for orphan recovery.
+    // Re-read task to get latest metadata (after sync result was stored)
+    const taskAfterSync = await this.api.get<Task>(task.id);
+    const sessionHistoryEntry: TaskSessionHistoryEntry = {
+      sessionId: session.id,
+      providerSessionId: session.providerSessionId,
+      agentId: stewardId,
+      agentName: steward.name,
+      agentRole: 'steward',
+      startedAt: createTimestamp(),
+    };
+    // First append session history, then apply steward assignment metadata
+    const metadataWithHistory = appendTaskSessionHistory(
+      taskAfterSync?.metadata as Record<string, unknown> | undefined,
+      sessionHistoryEntry
+    );
+    const finalMetadata = updateOrchestratorTaskMeta(
+      metadataWithHistory,
+      {
+        assignedAgent: stewardId,
+        mergeStatus: 'testing' as const,
+        sessionId: session.providerSessionId ?? session.id,
+      }
+    );
     await this.api.update<Task>(task.id, {
       assignee: stewardId,
-      metadata: updateOrchestratorTaskMeta(
-        task.metadata as Record<string, unknown> | undefined,
-        {
-          assignedAgent: stewardId,
-          mergeStatus: 'testing' as const,
-          sessionId: session.providerSessionId ?? session.id,
-        }
-      ),
+      metadata: finalMetadata,
     });
 
     // Call the onSessionStarted callback if provided

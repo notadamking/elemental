@@ -26,6 +26,7 @@ import {
   getOrchestratorTaskMeta,
   setOrchestratorTaskMeta,
   updateOrchestratorTaskMeta,
+  closeTaskSessionHistory,
   generateBranchName,
   generateWorktreePath,
   createSlugFromTitle,
@@ -481,6 +482,17 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
 
     const currentMeta = getOrchestratorTaskMeta(task.metadata as Record<string, unknown> | undefined);
     const branch = currentMeta?.branch;
+    const currentSessionId = currentMeta?.sessionId;
+
+    // Close the current session's history entry
+    let metadataWithClosedSession = task.metadata as Record<string, unknown> | undefined;
+    if (currentSessionId) {
+      metadataWithClosedSession = closeTaskSessionHistory(
+        metadataWithClosedSession,
+        currentSessionId,
+        createTimestamp()
+      );
+    }
 
     // Build the base metadata updates
     const metaUpdates: Record<string, unknown> = {
@@ -523,8 +535,9 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
     // When no provider is configured, skip PR creation but still complete the task.
     // The merge steward can create PRs later if needed.
 
+    // Apply metadata updates on top of the closed session history
     const newMeta = updateOrchestratorTaskMeta(
-      task.metadata as Record<string, unknown> | undefined,
+      metadataWithClosedSession,
       metaUpdates as Partial<OrchestratorTaskMeta>
     );
 
@@ -551,6 +564,18 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
 
     const currentMeta = getOrchestratorTaskMeta(task.metadata as Record<string, unknown> | undefined);
     const { sessionId, message, branch, worktree } = options;
+
+    // Close the current session's history entry using the sessionId from orchestrator metadata
+    // (the options.sessionId is the provider session ID, but we match on internal sessionId)
+    const currentSessionId = currentMeta?.sessionId;
+    let metadataWithClosedSession = task.metadata as Record<string, unknown> | undefined;
+    if (currentSessionId) {
+      metadataWithClosedSession = closeTaskSessionHistory(
+        metadataWithClosedSession,
+        currentSessionId,
+        createTimestamp()
+      );
+    }
 
     // Determine the branch and worktree to preserve
     const handoffBranch = branch || currentMeta?.branch;
@@ -596,8 +621,9 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       handoffHistory,
     };
 
+    // Apply metadata updates on top of the closed session history
     const newMeta = updateOrchestratorTaskMeta(
-      task.metadata as Record<string, unknown> | undefined,
+      metadataWithClosedSession,
       metaUpdates as Partial<OrchestratorTaskMeta>
     );
 
