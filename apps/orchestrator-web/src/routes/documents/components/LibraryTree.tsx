@@ -2,7 +2,7 @@
  * LibraryTree - Tree sidebar using react-arborist for drag-and-drop
  */
 
-import { useRef, useMemo, useCallback, useState, useEffect } from 'react';
+import { useRef, useMemo, useCallback, useState, useEffect, createContext, useContext } from 'react';
 import { Tree, NodeApi, NodeRendererProps } from 'react-arborist';
 import { useDroppable } from '@dnd-kit/core';
 import {
@@ -14,11 +14,19 @@ import {
   Folder,
   FolderPlus,
   Plus,
+  Trash2,
 } from 'lucide-react';
 import { DocumentSearchBar } from './DocumentSearchBar';
 import { buildLibraryTree } from '../utils';
 import { LIBRARY_ITEM_HEIGHT } from '../constants';
 import type { LibraryType, LibraryTreeNode, DragData } from '../types';
+
+/**
+ * Context for passing delete handler to tree nodes
+ */
+const LibraryTreeContext = createContext<{
+  onDeleteLibrary?: (id: string) => void;
+}>({});
 
 /**
  * Data structure for react-arborist tree nodes
@@ -54,6 +62,7 @@ function LibraryNode({
   style,
   dragHandle,
 }: NodeRendererProps<TreeNodeData>) {
+  const { onDeleteLibrary } = useContext(LibraryTreeContext);
   const isSelected = node.isSelected;
   const isExpanded = node.isOpen;
   const hasChildren = !node.isLeaf;
@@ -77,7 +86,7 @@ function LibraryNode({
     >
       <div
         ref={dragHandle}
-        className={`flex items-center gap-1 px-2 py-1.5 rounded-md cursor-pointer transition-colors ${
+        className={`group flex items-center gap-1 px-2 py-1.5 rounded-md cursor-pointer transition-colors ${
           isSelected
             ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
             : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
@@ -120,10 +129,26 @@ function LibraryNode({
         {/* Library Name */}
         <span
           data-testid={`library-name-${node.id}`}
-          className="text-sm font-medium truncate"
+          className="text-sm font-medium truncate flex-1"
         >
           {node.data.name}
         </span>
+
+        {/* Delete Button - visible on hover */}
+        {onDeleteLibrary && (
+          <button
+            data-testid={`delete-library-button-${node.id}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteLibrary(node.id);
+            }}
+            className="p-1 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-all"
+            title="Delete Library"
+            aria-label={`Delete ${node.data.name}`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -141,6 +166,7 @@ interface LibraryTreeProps {
   onMoveLibrary?: (libraryId: string, newParentId: string | null, index?: number) => void;
   onReorderLibrary?: (libraryId: string, newIndex: number) => void;
   onDropDocument?: (documentId: string, libraryId: string) => void;
+  onDeleteLibrary?: (id: string) => void;
   activeDragData?: DragData | null;
   isMobile?: boolean;
 }
@@ -156,6 +182,7 @@ export function LibraryTree({
   onSelectDocument,
   onMoveLibrary,
   onReorderLibrary,
+  onDeleteLibrary,
   activeDragData,
   isMobile = false,
 }: LibraryTreeProps) {
@@ -299,7 +326,11 @@ export function LibraryTree({
   // Show drag indicator when document is being dragged over
   const showDragIndicator = activeDragData?.type === 'document';
 
+  // Context value for passing delete handler to tree nodes
+  const contextValue = useMemo(() => ({ onDeleteLibrary }), [onDeleteLibrary]);
+
   return (
+    <LibraryTreeContext.Provider value={contextValue}>
     <div
       data-testid="library-tree"
       className={`${isMobile ? 'w-full' : 'w-64 border-r border-gray-200 dark:border-[var(--color-border)]'} bg-white dark:bg-[var(--color-bg)] flex flex-col h-full`}
@@ -415,5 +446,6 @@ export function LibraryTree({
         </div>
       )}
     </div>
+    </LibraryTreeContext.Provider>
   );
 }

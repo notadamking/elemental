@@ -12,6 +12,7 @@ import {
   Folder,
   FolderPlus,
   Plus,
+  Trash2,
 } from 'lucide-react';
 import { VirtualizedList } from '../../../components/shared/VirtualizedList';
 import { DocumentSearchBar } from './DocumentSearchBar';
@@ -27,11 +28,13 @@ function FlatLibraryTreeItem({
   selectedLibraryId,
   onSelect,
   onToggleExpand,
+  onDeleteLibrary,
 }: {
   item: FlatLibraryItem;
   selectedLibraryId: string | null;
   onSelect: (id: string) => void;
   onToggleExpand: (id: string) => void;
+  onDeleteLibrary?: (id: string) => void;
 }) {
   const { node, level, hasChildren, isExpanded } = item;
   const isSelected = selectedLibraryId === node.id;
@@ -39,7 +42,7 @@ function FlatLibraryTreeItem({
   return (
     <div data-testid={`library-tree-item-${node.id}`}>
       <div
-        className={`flex items-center gap-1 px-2 py-1.5 rounded-md cursor-pointer transition-colors ${
+        className={`group flex items-center gap-1 px-2 py-1.5 rounded-md cursor-pointer transition-colors ${
           isSelected
             ? 'bg-blue-50 text-blue-700'
             : 'text-gray-700 hover:bg-gray-100'
@@ -79,10 +82,26 @@ function FlatLibraryTreeItem({
         {/* Library Name */}
         <span
           data-testid={`library-name-${node.id}`}
-          className="text-sm font-medium truncate"
+          className="text-sm font-medium truncate flex-1"
         >
           {node.name}
         </span>
+
+        {/* Delete Button - visible on hover */}
+        {onDeleteLibrary && (
+          <button
+            data-testid={`delete-library-button-${node.id}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteLibrary(node.id);
+            }}
+            className="p-1 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-all"
+            title="Delete Library"
+            aria-label={`Delete ${node.name}`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -97,6 +116,7 @@ interface LibraryTreeProps {
   onNewDocument: () => void;
   onNewLibrary: () => void;
   onSelectDocument: (documentId: string) => void;
+  onDeleteLibrary?: (id: string) => void;
   isMobile?: boolean;
 }
 
@@ -109,6 +129,7 @@ export function LibraryTree({
   onNewDocument,
   onNewLibrary,
   onSelectDocument,
+  onDeleteLibrary,
   isMobile = false,
 }: LibraryTreeProps) {
   // Build tree structure from flat list
@@ -128,9 +149,10 @@ export function LibraryTree({
         selectedLibraryId={selectedLibraryId}
         onSelect={onSelectLibrary}
         onToggleExpand={onToggleExpand}
+        onDeleteLibrary={onDeleteLibrary}
       />
     ),
-    [selectedLibraryId, onSelectLibrary, onToggleExpand]
+    [selectedLibraryId, onSelectLibrary, onToggleExpand, onDeleteLibrary]
   );
 
   return (

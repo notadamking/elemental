@@ -46,10 +46,15 @@ export function DocumentsPage() {
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(
     search.selected ?? null
   );
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateLibraryModal, setShowCreateLibraryModal] = useState(false);
+  const [showDeleteLibraryModal, setShowDeleteLibraryModal] = useState(false);
+  const [deleteTargetLibraryId, setDeleteTargetLibraryId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // Get selected library details for delete modal
-  const { data: selectedLibrary } = useLibrary(selectedLibraryId || '');
-  const selectedLibraryDocCount = selectedLibrary?._documents?.length || 0;
+  // Get delete target library details for delete modal
+  const { data: deleteTargetLibrary } = useLibrary(deleteTargetLibraryId || '');
+  const deleteTargetLibraryDocCount = deleteTargetLibrary?._documents?.length || 0;
 
   // Delete library mutation
   const deleteLibraryMutation = useMutation({
@@ -67,17 +72,17 @@ export function DocumentsPage() {
       queryClient.invalidateQueries({ queryKey: ['libraries'] });
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       setShowDeleteLibraryModal(false);
-      setSelectedLibraryId(null);
+      // Clear selection only if we deleted the currently selected library
+      if (deleteTargetLibraryId === selectedLibraryId) {
+        setSelectedLibraryId(null);
+      }
+      setDeleteTargetLibraryId(null);
       setDeleteError(null);
     },
     onError: (err: Error) => {
       setDeleteError(err.message);
     },
   });
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showCreateLibraryModal, setShowCreateLibraryModal] = useState(false);
-  const [showDeleteLibraryModal, setShowDeleteLibraryModal] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   // Expand state - initialized from localStorage
   const [isDocumentExpanded, setIsDocumentExpandedState] = useState(false);
   const [expandedInitialized, setExpandedInitialized] = useState(false);
@@ -234,20 +239,23 @@ export function DocumentsPage() {
     navigate({ to: '/documents', search: { selected: undefined, library: selectedLibraryId ?? undefined } });
   };
 
-  const handleOpenDeleteLibraryModal = () => {
+  const handleOpenDeleteLibraryModal = (libraryId?: string) => {
     setDeleteError(null);
+    // If a library ID is provided (from tree row button), use it; otherwise use selected library
+    setDeleteTargetLibraryId(libraryId || selectedLibraryId);
     setShowDeleteLibraryModal(true);
   };
 
   const handleCloseDeleteLibraryModal = () => {
     setShowDeleteLibraryModal(false);
+    setDeleteTargetLibraryId(null);
     setDeleteError(null);
   };
 
   const handleDeleteLibrary = async (deleteDocuments: boolean) => {
-    if (!selectedLibraryId) return;
+    if (!deleteTargetLibraryId) return;
     await deleteLibraryMutation.mutateAsync({
-      libraryId: selectedLibraryId,
+      libraryId: deleteTargetLibraryId,
       cascade: deleteDocuments,
     });
   };
@@ -379,8 +387,8 @@ export function DocumentsPage() {
           isOpen={showDeleteLibraryModal}
           onClose={handleCloseDeleteLibraryModal}
           onConfirm={handleDeleteLibrary}
-          library={selectedLibraryId && selectedLibrary ? { id: selectedLibraryId, name: selectedLibrary.name } : null}
-          documentCount={selectedLibraryDocCount}
+          library={deleteTargetLibraryId && deleteTargetLibrary ? { id: deleteTargetLibraryId, name: deleteTargetLibrary.name } : null}
+          documentCount={deleteTargetLibraryDocCount}
           isDeleting={deleteLibraryMutation.isPending}
           error={deleteError}
           isMobile={true}
@@ -433,6 +441,7 @@ export function DocumentsPage() {
                 onNewDocument={handleOpenCreateModal}
                 onNewLibrary={handleOpenCreateLibraryModal}
                 onSelectDocument={handleSelectDocument}
+                onDeleteLibrary={handleOpenDeleteLibraryModal}
               />
             </div>
           )}
@@ -499,8 +508,8 @@ export function DocumentsPage() {
         isOpen={showDeleteLibraryModal}
         onClose={handleCloseDeleteLibraryModal}
         onConfirm={handleDeleteLibrary}
-        library={selectedLibraryId && selectedLibrary ? { id: selectedLibraryId, name: selectedLibrary.name } : null}
-        documentCount={selectedLibraryDocCount}
+        library={deleteTargetLibraryId && deleteTargetLibrary ? { id: deleteTargetLibraryId, name: deleteTargetLibrary.name } : null}
+        documentCount={deleteTargetLibraryDocCount}
         isDeleting={deleteLibraryMutation.isPending}
         error={deleteError}
         isMobile={isMobile}
