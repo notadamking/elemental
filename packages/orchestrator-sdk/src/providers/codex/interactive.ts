@@ -114,7 +114,12 @@ export class CodexInteractiveProvider implements InteractiveProvider {
     const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/bash';
     const shellArgs = process.platform === 'win32' ? [] : ['-l'];
 
-    const codexCommand = [shellQuote(this.executablePath), ...args].join(' ');
+    // Build the command with initial prompt as positional argument: codex "prompt"
+    const commandParts = [shellQuote(this.executablePath), ...args];
+    if (options.initialPrompt) {
+      commandParts.push(shellQuote(options.initialPrompt));
+    }
+    const codexCommand = commandParts.join(' ');
 
     const ptyProcess = pty.spawn(shell, shellArgs, {
       name: 'xterm-256color',
@@ -138,17 +143,6 @@ export class CodexInteractiveProvider implements InteractiveProvider {
         }
       }, 100);
     });
-
-    // If there's an initial prompt, send it after Codex starts
-    if (options.initialPrompt) {
-      const prompt = options.initialPrompt;
-      setTimeout(() => {
-        ptyProcess.write(prompt);
-        setTimeout(() => {
-          ptyProcess.write('\r');
-        }, 500);
-      }, 3000);
-    }
 
     return session;
   }

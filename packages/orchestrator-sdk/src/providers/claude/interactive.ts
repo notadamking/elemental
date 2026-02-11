@@ -115,7 +115,12 @@ export class ClaudeInteractiveProvider implements InteractiveProvider {
     const shellArgs = process.platform === 'win32' ? [] : ['-l'];
 
     // Build the command to run claude inside the shell
-    const claudeCommand = [shellQuote(this.executablePath), ...args].join(' ');
+    // If there's an initial prompt, pass it as a positional argument: claude "query"
+    const commandParts = [shellQuote(this.executablePath), ...args];
+    if (options.initialPrompt) {
+      commandParts.push(shellQuote(options.initialPrompt));
+    }
+    const claudeCommand = commandParts.join(' ');
 
     // Spawn PTY with the shell
     const ptyProcess = pty.spawn(shell, shellArgs, {
@@ -139,17 +144,6 @@ export class ClaudeInteractiveProvider implements InteractiveProvider {
         }
       }, 100);
     });
-
-    // If there's an initial prompt, send it as user input after Claude starts
-    if (options.initialPrompt) {
-      const prompt = options.initialPrompt;
-      setTimeout(() => {
-        ptyProcess.write(prompt);
-        setTimeout(() => {
-          ptyProcess.write('\r');
-        }, 500);
-      }, 3000);
-    }
 
     return session;
   }

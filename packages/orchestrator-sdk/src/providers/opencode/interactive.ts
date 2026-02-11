@@ -109,7 +109,12 @@ export class OpenCodeInteractiveProvider implements InteractiveProvider {
     const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/bash';
     const shellArgs = process.platform === 'win32' ? [] : ['-l'];
 
-    const opencodeCommand = [shellQuote(this.executablePath), ...args].join(' ');
+    // Build the command with --prompt flag if there's an initial prompt
+    const commandParts = [shellQuote(this.executablePath), ...args];
+    if (options.initialPrompt) {
+      commandParts.push('--prompt', shellQuote(options.initialPrompt));
+    }
+    const opencodeCommand = commandParts.join(' ');
 
     const ptyProcess = pty.spawn(shell, shellArgs, {
       name: 'xterm-256color',
@@ -134,17 +139,6 @@ export class OpenCodeInteractiveProvider implements InteractiveProvider {
         }
       }, 100);
     });
-
-    // If there's an initial prompt, send it after OpenCode starts
-    if (options.initialPrompt) {
-      const prompt = options.initialPrompt;
-      setTimeout(() => {
-        ptyProcess.write(prompt);
-        setTimeout(() => {
-          ptyProcess.write('\r');
-        }, 500);
-      }, 3000);
-    }
 
     return session;
   }
