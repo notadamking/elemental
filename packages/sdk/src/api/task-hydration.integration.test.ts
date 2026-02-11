@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { ElementalAPIImpl } from './elemental-api.js';
 import { createStorage, initializeSchema } from '@elemental/storage';
 import type { StorageBackend } from '@elemental/storage';
-import type { EntityId, Task, HydratedTask, Document, DocumentId } from '@elemental/core';
+import type { EntityId, Task, HydratedTask, Document, DocumentId, ElementId } from '@elemental/core';
 import { createTask, createDocument, ContentType } from '@elemental/core';
 
 // ============================================================================
@@ -28,7 +28,10 @@ function toCreateInput<T>(element: T): Parameters<ElementalAPIImpl['create']>[0]
 async function createTestTask(
   overrides: Partial<Parameters<typeof createTask>[0]> = {}
 ): Promise<Task> {
+  // Generate a unique ID using full UUID to avoid any collision issues
+  const uniqueId = `el-${crypto.randomUUID()}` as ElementId;
   return createTask({
+    id: uniqueId,
     title: 'Test Task',
     createdBy: mockEntityId,
     ...overrides,
@@ -38,12 +41,18 @@ async function createTestTask(
 async function createTestDocument(
   overrides: Partial<Parameters<typeof createDocument>[0]> = {}
 ): Promise<Document> {
-  return createDocument({
+  // Generate explicit unique ID using full UUID to avoid any collision issues
+  // (createDocument doesn't accept id param, so we override it after creation)
+  const uniqueId = `el-${crypto.randomUUID()}` as ElementId;
+  const doc = await createDocument({
     content: 'Test document content',
     contentType: ContentType.MARKDOWN,
     createdBy: mockEntityId,
     ...overrides,
   });
+  // Override the hash-generated ID with our explicit unique ID
+  (doc as unknown as { id: ElementId }).id = uniqueId;
+  return doc;
 }
 
 // ============================================================================
