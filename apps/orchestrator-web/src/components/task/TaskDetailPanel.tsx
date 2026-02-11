@@ -40,6 +40,7 @@ import {
   useStartTask,
   useCompleteTask,
   useReopenTask,
+  useUpdateMergeStatus,
   useTaskAttachments,
   useAddAttachment,
   useRemoveAttachment,
@@ -52,7 +53,7 @@ import { useAllEntities } from '../../api/hooks/useAllElements';
 import { TaskStatusBadge, TaskPriorityBadge, TaskTypeBadge, MergeStatusBadge } from './index';
 import { TaskDependencySection } from './TaskDependencySection';
 import { MarkdownContent } from '../shared/MarkdownContent';
-import type { Task, Agent, Priority, TaskStatus, Complexity } from '../../api/types';
+import type { Task, Agent, Priority, TaskStatus, Complexity, MergeStatus } from '../../api/types';
 
 interface TaskDetailPanelProps {
   taskId: string;
@@ -96,6 +97,7 @@ export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetai
   const startTask = useStartTask();
   const completeTask = useCompleteTask();
   const reopenTask = useReopenTask();
+  const updateMergeStatus = useUpdateMergeStatus();
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReopenDialog, setShowReopenDialog] = useState(false);
@@ -120,6 +122,15 @@ export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetai
     try {
       await updateTask.mutateAsync({ taskId: task.id, ...updates });
       setEditingField(null);
+    } catch {
+      // Error handled by mutation state
+    }
+  };
+
+  const handleUpdateMergeStatus = async (mergeStatus: MergeStatus) => {
+    if (!task) return;
+    try {
+      await updateMergeStatus.mutateAsync({ taskId: task.id, mergeStatus });
     } catch {
       // Error handled by mutation state
     }
@@ -375,7 +386,11 @@ export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetai
 
         {/* Orchestrator Metadata Section */}
         {orchestratorMeta && (
-          <OrchestratorMetadataSection meta={orchestratorMeta} />
+          <OrchestratorMetadataSection
+            meta={orchestratorMeta}
+            onUpdateMergeStatus={handleUpdateMergeStatus}
+            isUpdatingMergeStatus={updateMergeStatus.isPending}
+          />
         )}
 
         {/* Timestamps */}
@@ -415,9 +430,11 @@ export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetai
 
 interface OrchestratorMetadataSectionProps {
   meta: NonNullable<Task['metadata']>['orchestrator'];
+  onUpdateMergeStatus?: (mergeStatus: MergeStatus) => void;
+  isUpdatingMergeStatus?: boolean;
 }
 
-function OrchestratorMetadataSection({ meta }: OrchestratorMetadataSectionProps) {
+function OrchestratorMetadataSection({ meta, onUpdateMergeStatus, isUpdatingMergeStatus }: OrchestratorMetadataSectionProps) {
   if (!meta) return null;
 
   return (
@@ -439,7 +456,15 @@ function OrchestratorMetadataSection({ meta }: OrchestratorMetadataSectionProps)
         {meta.mergeStatus && (
           <div className="flex items-center gap-2 text-sm">
             <GitMerge className="w-4 h-4 text-[var(--color-text-tertiary)]" />
-            <MergeStatusBadge status={meta.mergeStatus} />
+            {onUpdateMergeStatus ? (
+              <MergeStatusDropdown
+                value={meta.mergeStatus as MergeStatus}
+                onSave={onUpdateMergeStatus}
+                isUpdating={isUpdatingMergeStatus ?? false}
+              />
+            ) : (
+              <MergeStatusBadge status={meta.mergeStatus} />
+            )}
             {meta.mergeFailureReason && (
               <span className="text-xs text-[var(--color-danger)]">
                 {meta.mergeFailureReason}
@@ -925,6 +950,75 @@ function ComplexityDropdown({
               }`}
             >
               <span className="text-[var(--color-text)]">{opt.label}</span>
+              {opt.value === value && <Check className="w-3 h-3 text-[var(--color-primary)] ml-auto" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Merge Status Options
+const MERGE_STATUS_OPTIONS: { value: MergeStatus; label: string }[] = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'testing', label: 'Testing' },
+  { value: 'merging', label: 'Merging' },
+  { value: 'merged', label: 'Merged' },
+  { value: 'conflict', label: 'Conflict' },
+  { value: 'test_failed', label: 'Test Failed' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'not_applicable', label: 'N/A' },
+];
+
+// Merge Status Dropdown
+function MergeStatusDropdown({
+  value,
+  onSave,
+  isUpdating,
+}: {
+  value: MergeStatus;
+  onSave: (value: MergeStatus) => void;
+  isUpdating: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-1 hover:ring-2 hover:ring-[var(--color-primary)] rounded transition-all"
+        disabled={isUpdating}
+        data-testid="merge-status-dropdown"
+      >
+        <MergeStatusBadge status={value} />
+        {isUpdating && <Loader2 className="w-3 h-3 animate-spin" />}
+      </button>
+      {isOpen && (
+        <div className="absolute z-10 mt-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md shadow-lg py-1 min-w-[140px]">
+          {MERGE_STATUS_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => {
+                if (opt.value !== value) onSave(opt.value);
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-[var(--color-surface-hover)] flex items-center gap-2 ${
+                opt.value === value ? 'bg-[var(--color-surface-elevated)]' : ''
+              }`}
+            >
+              <MergeStatusBadge status={opt.value} />
               {opt.value === value && <Check className="w-3 h-3 text-[var(--color-primary)] ml-auto" />}
             </button>
           ))}

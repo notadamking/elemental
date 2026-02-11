@@ -208,6 +208,11 @@ export interface UpdateTaskInput {
   tags?: string[];
 }
 
+export interface UpdateMergeStatusInput {
+  taskId: string;
+  mergeStatus: 'pending' | 'testing' | 'merging' | 'merged' | 'conflict' | 'test_failed' | 'failed' | 'not_applicable';
+}
+
 /**
  * Hook to update a task
  */
@@ -298,6 +303,26 @@ export function useReopenTask() {
       return fetchApi<TaskResponse>(`/tasks/${taskId}/reopen`, {
         method: 'POST',
         body: JSON.stringify({ message }),
+      });
+    },
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+    },
+  });
+}
+
+/**
+ * Hook to update merge status
+ */
+export function useUpdateMergeStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation<TaskResponse, Error, UpdateMergeStatusInput>({
+    mutationFn: async ({ taskId, mergeStatus }) => {
+      return fetchApi<TaskResponse>(`/tasks/${taskId}/merge-status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ mergeStatus }),
       });
     },
     onSuccess: (_, { taskId }) => {

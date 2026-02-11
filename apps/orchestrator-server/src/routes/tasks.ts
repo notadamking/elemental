@@ -1006,5 +1006,66 @@ export function createTaskRoutes(services: Services) {
     }
   });
 
+  // ============================================================================
+  // Merge Status Endpoints
+  // ============================================================================
+
+  // Valid merge status values
+  const VALID_MERGE_STATUSES = [
+    'pending',
+    'testing',
+    'merging',
+    'merged',
+    'conflict',
+    'test_failed',
+    'failed',
+    'not_applicable',
+  ] as const;
+
+  // PATCH /api/tasks/:id/merge-status - Update merge status
+  app.patch('/api/tasks/:id/merge-status', async (c) => {
+    try {
+      const taskId = c.req.param('id') as ElementId;
+      const body = (await c.req.json()) as { mergeStatus: string };
+
+      if (!body.mergeStatus) {
+        return c.json({ error: { code: 'INVALID_INPUT', message: 'mergeStatus is required' } }, 400);
+      }
+
+      if (!VALID_MERGE_STATUSES.includes(body.mergeStatus as typeof VALID_MERGE_STATUSES[number])) {
+        return c.json({
+          error: {
+            code: 'INVALID_INPUT',
+            message: `Invalid mergeStatus. Must be one of: ${VALID_MERGE_STATUSES.join(', ')}`,
+          },
+        }, 400);
+      }
+
+      const task = await api.get<Task>(taskId);
+      if (!task || task.type !== ElementType.TASK) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+      }
+
+      // Update orchestrator metadata with new merge status
+      const existingMeta = (task.metadata ?? {}) as Record<string, unknown>;
+      const updatedMeta = updateOrchestratorTaskMeta(existingMeta, {
+        mergeStatus: body.mergeStatus as OrchestratorTaskMeta['mergeStatus'],
+        // If setting to merged, also set mergedAt timestamp
+        ...(body.mergeStatus === 'merged' ? { mergedAt: new Date().toISOString() } : {}),
+        // Clear failure reason if status is no longer a failure state
+        ...(body.mergeStatus !== 'conflict' && body.mergeStatus !== 'test_failed' && body.mergeStatus !== 'failed'
+          ? { mergeFailureReason: undefined }
+          : {}),
+      });
+
+      const updatedTask = await api.update(taskId, { metadata: updatedMeta }) as unknown as Task;
+
+      return c.json({ task: formatTaskResponse(updatedTask) });
+    } catch (error) {
+      console.error('[orchestrator] Failed to update merge status:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
   return app;
 }
