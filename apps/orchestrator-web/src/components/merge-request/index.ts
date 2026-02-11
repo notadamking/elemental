@@ -7,3 +7,4 @@ export { MergeRequestDetailPanel } from './MergeRequestDetailPanel';
 export { MergeRequestFilterBar } from './MergeRequestFilterBar';
 export { MergeRequestActions } from './MergeRequestActions';
 export { TestResultsDisplay } from './TestResultsDisplay';
+export { MergeRequestManageDropdown } from './MergeRequestManageDropdown';

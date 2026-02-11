@@ -210,6 +210,7 @@ export function createTaskRoutes(services: Services) {
         owner?: string | null;
         deadline?: string | null;
         tags?: string[];
+        mergeStatus?: string;
       };
 
       const task = await api.get<Task>(taskId);
@@ -247,6 +248,24 @@ export function createTaskRoutes(services: Services) {
       if (body.owner !== undefined) updates.owner = body.owner || null;
       if (body.deadline !== undefined) updates.deadline = body.deadline || null;
       if (body.tags !== undefined) updates.tags = body.tags;
+
+      // Handle mergeStatus update (nested in metadata.orchestrator)
+      if (body.mergeStatus !== undefined) {
+        const validMergeStatuses = ['pending', 'testing', 'merging', 'merged', 'conflict', 'test_failed', 'failed', 'not_applicable'];
+        if (!validMergeStatuses.includes(body.mergeStatus)) {
+          return c.json({ error: { code: 'INVALID_INPUT', message: `Invalid mergeStatus: ${body.mergeStatus}` } }, 400);
+        }
+
+        const existingMeta = (task.metadata ?? {}) as Record<string, unknown>;
+        const existingOrchestrator = (existingMeta.orchestrator ?? {}) as Record<string, unknown>;
+        updates.metadata = {
+          ...existingMeta,
+          orchestrator: {
+            ...existingOrchestrator,
+            mergeStatus: body.mergeStatus,
+          },
+        };
+      }
 
       if (Object.keys(updates).length === 0) {
         return c.json({ task: formatTaskResponse(task) });

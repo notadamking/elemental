@@ -383,3 +383,64 @@ export function canCreateFixTask(task: Task): boolean {
   const status = task.metadata?.orchestrator?.mergeStatus;
   return status === 'conflict' || status === 'test_failed' || status === 'failed';
 }
+
+// ============================================================================
+// Status Update & Delete Mutations
+// ============================================================================
+
+/**
+ * Hook to update merge request status
+ */
+export function useUpdateMergeStatusMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ task: Task }, Error, { taskId: string; mergeStatus: MergeStatus }>({
+    mutationFn: async ({ taskId, mergeStatus }) => {
+      // Update the task's orchestrator.mergeStatus metadata
+      return fetchApi<{ task: Task }>(`/tasks/${taskId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          mergeStatus,
+        }),
+      });
+    },
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['merge-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['merge-request', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+}
+
+/**
+ * Hook to delete a merge request (soft delete)
+ */
+export function useDeleteMergeRequestMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ success: boolean }, Error, { taskId: string; reason?: string }>({
+    mutationFn: async ({ taskId, reason }) => {
+      return fetchApi<{ success: boolean }>(`/tasks/${taskId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ reason }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['merge-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+}
+
+/**
+ * Get available merge status options for status update dropdown
+ */
+export function getAvailableMergeStatuses(): { value: MergeStatus; label: string }[] {
+  return [
+    { value: 'pending', label: 'Pending Review' },
+    { value: 'merged', label: 'Merged' },
+    { value: 'conflict', label: 'Has Conflicts' },
+    { value: 'failed', label: 'Failed' },
+    { value: 'not_applicable', label: 'Dismissed' },
+  ];
+}

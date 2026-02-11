@@ -6,18 +6,21 @@
  * - Status pill + task title + relative time
  * - Branch name + PR number
  * - Agent avatar + test summary
+ * - Manage dropdown (status update + delete)
  */
 
 import { GitBranch, Bot, ExternalLink, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import type { Task } from '../../api/types';
 import { MergeStatusBadge } from '../task';
 import { getMergeStatusColor } from '../../api/hooks/useMergeRequests';
+import { MergeRequestManageDropdown } from './MergeRequestManageDropdown';
 
 interface MergeRequestCardProps {
   task: Task;
   assigneeName?: string;
   onClick?: () => void;
   isSelected?: boolean;
+  onDeleted?: () => void;
 }
 
 export function MergeRequestCard({
@@ -25,6 +28,7 @@ export function MergeRequestCard({
   assigneeName,
   onClick,
   isSelected,
+  onDeleted,
 }: MergeRequestCardProps) {
   const orchestratorMeta = task.metadata?.orchestrator;
   const mergeStatus = orchestratorMeta?.mergeStatus;
@@ -53,7 +57,7 @@ export function MergeRequestCard({
         />
       )}
 
-      {/* Header Row: Status + Title + Time */}
+      {/* Header Row: Status + Title + Time + Manage */}
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {mergeStatus && <MergeStatusBadge status={mergeStatus} />}
@@ -61,9 +65,12 @@ export function MergeRequestCard({
             {task.title}
           </h3>
         </div>
-        <span className="text-xs text-[var(--color-text-tertiary)] whitespace-nowrap flex-shrink-0">
-          {formatRelativeTime(task.updatedAt)}
-        </span>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs text-[var(--color-text-tertiary)] whitespace-nowrap">
+            {formatRelativeTime(task.updatedAt)}
+          </span>
+          <MergeRequestManageDropdown task={task} onDeleted={onDeleted} />
+        </div>
       </div>
 
       {/* Second Row: Branch + PR */}

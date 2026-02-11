@@ -30,17 +30,20 @@ import { useAllEntities } from '../../api/hooks/useAllElements';
 import { MergeStatusBadge, TaskStatusBadge, TaskPriorityBadge } from '../task';
 import { TestResultsDisplay } from './TestResultsDisplay';
 import { getMergeStatusColor } from '../../api/hooks/useMergeRequests';
+import { MergeRequestManageDropdown } from './MergeRequestManageDropdown';
 
 interface MergeRequestDetailPanelProps {
   taskId: string;
   onClose: () => void;
   onBack?: () => void;
+  onDeleted?: () => void;
 }
 
 export function MergeRequestDetailPanel({
   taskId,
   onClose,
   onBack,
+  onDeleted,
 }: MergeRequestDetailPanelProps) {
   const { data: task, isLoading, error } = useMergeRequest(taskId);
   const { data: entities } = useAllEntities();
@@ -99,13 +102,24 @@ export function MergeRequestDetailPanel({
           )}
           <h2 className="text-lg font-semibold text-[var(--color-text)]">Merge Request</h2>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded transition-colors"
-          aria-label="Close panel"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          {task && (
+            <MergeRequestManageDropdown
+              task={task}
+              onDeleted={() => {
+                onDeleted?.();
+                onClose();
+              }}
+            />
+          )}
+          <button
+            onClick={onClose}
+            className="p-1.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded transition-colors"
+            aria-label="Close panel"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Content */}

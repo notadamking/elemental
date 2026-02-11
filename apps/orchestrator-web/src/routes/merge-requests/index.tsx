@@ -200,6 +200,7 @@ export function MergeRequestsPage() {
             <MergeRequestDetailPanel
               taskId={selectedTaskId}
               onClose={handleCloseDetail}
+              onDeleted={handleCloseDetail}
             />
           </div>
         </div>
@@ -291,6 +292,12 @@ export function MergeRequestsPage() {
                 assigneeName={task.assignee ? entityNameMap.get(task.assignee) : undefined}
                 onClick={() => handleSelectTask(task.id)}
                 isSelected={task.id === selectedTaskId}
+                onDeleted={() => {
+                  // Close detail panel if this was the selected task
+                  if (task.id === selectedTaskId) {
+                    handleCloseDetail();
+                  }
+                }}
               />
             </div>
           ))}
