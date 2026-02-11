@@ -9,7 +9,7 @@ import { streamSSE } from 'hono/streaming';
 import type { EntityId, ElementId, Task } from '@elemental/core';
 import { createTimestamp, ElementType } from '@elemental/core';
 import type { SessionFilter, SpawnedSessionEvent, AgentRole, WorkerMetadata } from '@elemental/orchestrator-sdk';
-import { loadRolePrompt, getAgentMetadata, generateSessionBranchName, generateSessionWorktreePath } from '@elemental/orchestrator-sdk';
+import { loadRolePrompt, getAgentMetadata, generateSessionBranchName, generateSessionWorktreePath, trackListeners } from '@elemental/orchestrator-sdk';
 import type { Services } from '../services.js';
 import { formatSessionRecord } from '../formatters.js';
 
@@ -198,8 +198,7 @@ export function attachSessionEventSaver(
     error.msgId = msgId;
   };
 
-  events.on('event', onEvent);
-  events.on('error', onError);
+  trackListeners(events, { 'event': onEvent, 'error': onError });
 }
 
 export function createSessionRoutes(
@@ -654,9 +653,11 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
           });
         };
 
-        events.on('event', onEvent);
-        events.on('error', onError);
-        events.on('exit', onExit);
+        const cleanupListeners = trackListeners(events, {
+          'event': onEvent,
+          'error': onError,
+          'exit': onExit,
+        });
 
         const heartbeatInterval = setInterval(async () => {
           try {
@@ -672,9 +673,7 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
 
         stream.onAbort(() => {
           clearInterval(heartbeatInterval);
-          events.off('event', onEvent);
-          events.off('error', onError);
-          events.off('exit', onExit);
+          cleanupListeners();
         });
 
         await new Promise(() => {});

@@ -9,6 +9,7 @@ import { streamSSE } from 'hono/streaming';
 import type { EntityId, ElementId } from '@elemental/core';
 import { createTimestamp } from '@elemental/core';
 import type { SpawnedSessionEvent } from '@elemental/orchestrator-sdk';
+import { trackListeners } from '@elemental/orchestrator-sdk';
 import type { Services } from '../services.js';
 import { generateActivitySummary } from '../formatters.js';
 
@@ -125,7 +126,7 @@ export function createEventRoutes(services: Services) {
         data: JSON.stringify({ timestamp: createTimestamp(), category: category || 'all' }),
       });
 
-      const sessionListeners = new Map<string, (event: SpawnedSessionEvent) => void>();
+      const sessionCleanups: (() => void)[] = [];
       const sessions = sessionManager.listSessions({ status: ['starting', 'running'] });
 
       for (const session of sessions) {
@@ -147,8 +148,7 @@ export function createEventRoutes(services: Services) {
               });
             }
           };
-          events.on('event', onEvent);
-          sessionListeners.set(session.id, onEvent);
+          sessionCleanups.push(trackListeners(events, { 'event': onEvent }));
         }
       }
 
@@ -184,11 +184,8 @@ export function createEventRoutes(services: Services) {
 
       stream.onAbort(() => {
         clearInterval(heartbeatInterval);
-        for (const [sessionId, listener] of sessionListeners) {
-          const events = spawnerService.getEventEmitter(sessionId);
-          if (events) {
-            events.off('event', listener);
-          }
+        for (const cleanup of sessionCleanups) {
+          cleanup();
         }
         if (dispatchDaemon && onDaemonNotification) {
           dispatchDaemon.off('daemon:notification', onDaemonNotification);

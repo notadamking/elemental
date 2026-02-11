@@ -30,6 +30,7 @@ import type {
 } from './spawner.js';
 import type { AgentRegistry } from '../services/agent-registry.js';
 import { getProviderRegistry } from '../providers/registry.js';
+import { trackListeners } from './event-utils.js';
 
 // ============================================================================
 // Types
@@ -1317,25 +1318,16 @@ export class SessionManagerImpl implements SessionManager {
       });
     };
 
-    // Attach all event listeners
-    spawnerEvents.on('event', onEvent);
-    spawnerEvents.on('pty-data', onPtyData);
-    spawnerEvents.on('error', onError);
-    spawnerEvents.on('stderr', onStderr);
-    spawnerEvents.on('raw', onRaw);
-    spawnerEvents.on('exit', onExit);
-    spawnerEvents.on('provider-session-id', onProviderSessionId);
-
-    // Store cleanup function to remove all listeners
-    const cleanup = () => {
-      spawnerEvents.off('event', onEvent);
-      spawnerEvents.off('pty-data', onPtyData);
-      spawnerEvents.off('error', onError);
-      spawnerEvents.off('stderr', onStderr);
-      spawnerEvents.off('raw', onRaw);
-      spawnerEvents.off('exit', onExit);
-      spawnerEvents.off('provider-session-id', onProviderSessionId);
-    };
+    // Attach all event listeners with tracked maxListeners
+    const cleanup = trackListeners(spawnerEvents, {
+      'event': onEvent,
+      'pty-data': onPtyData,
+      'error': onError,
+      'stderr': onStderr,
+      'raw': onRaw,
+      'exit': onExit,
+      'provider-session-id': onProviderSessionId,
+    });
     this.sessionCleanupFns.set(session.id, cleanup);
   }
 

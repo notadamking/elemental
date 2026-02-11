@@ -6,6 +6,7 @@
 
 import type { EntityId } from '@elemental/core';
 import type { SpawnedSessionEvent } from '@elemental/orchestrator-sdk';
+import { trackListeners } from '@elemental/orchestrator-sdk';
 import type { Services } from './services.js';
 import type { ServerWebSocket, WSClientData } from './types.js';
 
@@ -52,17 +53,12 @@ export function notifyClientsOfNewSession(
         client.ws.data.isInteractive = undefined;
       };
 
-      events.on('event', onEvent);
-      events.on('pty-data', onPtyData);
-      events.on('error', onError);
-      events.on('exit', onExit);
-
-      client.cleanup = () => {
-        events.off('event', onEvent);
-        events.off('pty-data', onPtyData);
-        events.off('error', onError);
-        events.off('exit', onExit);
-      };
+      client.cleanup = trackListeners(events, {
+        'event': onEvent,
+        'pty-data': onPtyData,
+        'error': onError,
+        'exit': onExit,
+      });
 
       client.ws.send(
         JSON.stringify({
@@ -135,17 +131,12 @@ export function handleWSMessage(
                 ws.send(JSON.stringify({ type: 'exit', code, signal }));
               };
 
-              events.on('event', onEvent);
-              events.on('pty-data', onPtyData);
-              events.on('error', onError);
-              events.on('exit', onExit);
-
-              wsClients.get(ws.data.id)!.cleanup = () => {
-                events.off('event', onEvent);
-                events.off('pty-data', onPtyData);
-                events.off('error', onError);
-                events.off('exit', onExit);
-              };
+              wsClients.get(ws.data.id)!.cleanup = trackListeners(events, {
+                'event': onEvent,
+                'pty-data': onPtyData,
+                'error': onError,
+                'exit': onExit,
+              });
             }
           }
           ws.send(

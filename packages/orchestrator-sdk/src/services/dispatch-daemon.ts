@@ -2139,7 +2139,9 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
     // On session exit: mark triage items as read and clean up worktree.
     // Items stay unread if the session crashes, so they retry next cycle.
-    events.on('exit', async () => {
+    // Use .once() since a session only exits once; bump maxListeners to avoid false warning.
+    events.setMaxListeners(events.getMaxListeners() + 1);
+    events.once('exit', async () => {
       // Mark triage items as read. Use batch for efficiency.
       // Errors are non-fatal — items stay unread and retry next cycle.
       try {

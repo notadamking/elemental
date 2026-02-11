@@ -82,6 +82,9 @@ export {
   NoPredecessorError,
 } from './predecessor-query.js';
 
+// Event utilities
+export { trackListeners } from './event-utils.js';
+
 // Handoff Service (TB-O10e, TB-O10f)
 export {
   // Constants

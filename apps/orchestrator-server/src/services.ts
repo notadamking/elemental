@@ -40,6 +40,7 @@ import {
   type DispatchDaemon,
   type AgentPoolService,
   type OnSessionStartedCallback,
+  trackListeners,
 } from '@elemental/orchestrator-sdk';
 import { attachSessionEventSaver } from './routes/sessions.js';
 import { DB_PATH, PROJECT_ROOT, getClaudePath } from './config.js';
@@ -186,13 +187,10 @@ export async function initializeServices(): Promise<Services> {
         cleanup();
       };
 
-      const cleanup = () => {
-        events.off('event', onResultEvent);
-        events.off('exit', onExit);
-      };
-
-      events.on('event', onResultEvent);
-      events.on('exit', onExit);
+      const cleanup = trackListeners(events, {
+        'event': onResultEvent,
+        'exit': onExit,
+      });
     };
 
     dispatchDaemon = createDispatchDaemon(
