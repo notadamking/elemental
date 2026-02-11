@@ -6,7 +6,7 @@ test.describe('TB-O16: Agent List Page', () => {
       await page.goto('/agents');
 
       await expect(page.getByTestId('agents-page')).toBeVisible();
-      await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
+      await expect(page.getByTestId('agents-page-title')).toBeVisible();
       await expect(page.getByText('Manage your AI agents and stewards')).toBeVisible();
     });
 

@@ -286,7 +286,7 @@ export function AgentsPage() {
             <Users className="w-5 h-5 text-[var(--color-primary)]" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-[var(--color-text)]">Agents</h1>
+            <h1 className="text-xl font-semibold text-[var(--color-text)]" data-testid="agents-page-title">Agents</h1>
             <p className="text-sm text-[var(--color-text-secondary)]">
               Manage your AI agents and stewards
             </p>
