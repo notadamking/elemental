@@ -15,6 +15,7 @@ import type {
   SessionMessagesResponse,
   CreateAgentInput,
   ProvidersResponse,
+  ProviderModelsResponse,
 } from '../types';
 
 // ============================================================================
@@ -62,6 +63,19 @@ export function useProviders() {
     queryKey: ['providers'],
     queryFn: () => fetchApi<ProvidersResponse>('/providers'),
     staleTime: 60_000, // Cache for 1 minute (providers change rarely)
+  });
+}
+
+/**
+ * Hook to fetch models available for a specific provider
+ * @param providerName - The provider name (e.g., 'claude', 'openai')
+ */
+export function useProviderModels(providerName: string | undefined) {
+  return useQuery<ProviderModelsResponse, Error>({
+    queryKey: ['provider-models', providerName],
+    queryFn: () => fetchApi<ProviderModelsResponse>(`/providers/${providerName}/models`),
+    enabled: !!providerName,
+    staleTime: 60_000, // Cache for 1 minute (models don't change often)
   });
 }
 
@@ -348,6 +362,26 @@ export function useChangeAgentProvider() {
       return fetchApi<AgentResponse>(`/agents/${agentId}`, {
         method: 'PATCH',
         body: JSON.stringify({ provider }),
+      });
+    },
+    onSuccess: (_, { agentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
+      queryClient.invalidateQueries({ queryKey: ['agent', agentId] });
+    },
+  });
+}
+
+/**
+ * Hook to change an agent's model
+ */
+export function useChangeAgentModel() {
+  const queryClient = useQueryClient();
+
+  return useMutation<AgentResponse, Error, { agentId: string; model: string | null }>({
+    mutationFn: async ({ agentId, model }) => {
+      return fetchApi<AgentResponse>(`/agents/${agentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ model }),
       });
     },
     onSuccess: (_, { agentId }) => {

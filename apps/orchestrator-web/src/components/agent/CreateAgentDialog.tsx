@@ -31,7 +31,7 @@ import type {
   CreateAgentInput,
   Agent,
 } from '../../api/types';
-import { useCreateAgent, useAgents, useProviders } from '../../api/hooks/useAgents';
+import { useCreateAgent, useAgents, useProviders, useProviderModels } from '../../api/hooks/useAgents';
 
 export interface CreateAgentDialogProps {
   isOpen: boolean;
@@ -158,6 +158,8 @@ interface FormState {
   tags: string;
   // Provider
   provider: string;
+  // Model override (empty string means use provider default)
+  model: string;
 }
 
 const defaultState: FormState = {
@@ -168,6 +170,7 @@ const defaultState: FormState = {
   triggers: [],
   tags: '',
   provider: 'claude',
+  model: '',
 };
 
 export function CreateAgentDialog({
@@ -192,6 +195,10 @@ export function CreateAgentDialog({
     role: initialRole ?? 'steward',
     stewardFocus: initialStewardFocus ?? 'merge',
   });
+
+  // Fetch models for the selected provider (must be after form state declaration)
+  const { data: modelsData, isLoading: modelsLoading } = useProviderModels(form.provider);
+  const models = useMemo(() => modelsData?.models ?? [], [modelsData?.models]);
   const [showCapabilities, setShowCapabilities] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -233,6 +240,11 @@ export function CreateAgentDialog({
     onClose();
   };
 
+  // Handler for provider change - reset model to default when provider changes
+  const handleProviderChange = (newProvider: string) => {
+    setForm(prev => ({ ...prev, provider: newProvider, model: '' }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -249,6 +261,7 @@ export function CreateAgentDialog({
       role: form.role,
       tags: form.tags.trim() ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
       provider: form.provider !== 'claude' ? form.provider : undefined,
+      model: form.model || undefined, // Only include if not empty (not using default)
     };
 
     // Add role-specific fields
@@ -673,7 +686,7 @@ export function CreateAgentDialog({
                         <select
                           id="agent-provider"
                           value={form.provider}
-                          onChange={e => setForm(prev => ({ ...prev, provider: e.target.value }))}
+                          onChange={e => handleProviderChange(e.target.value)}
                           className="
                             w-full px-3 py-1.5 pr-8
                             text-sm
@@ -695,6 +708,48 @@ export function CreateAgentDialog({
                       </div>
                     </div>
                   )}
+                  {/* Model selector */}
+                  <div className="space-y-1">
+                    <label htmlFor="agent-model" className="text-xs font-medium text-[var(--color-text-secondary)]">
+                      Model
+                    </label>
+                    <div className="relative">
+                      {modelsLoading ? (
+                        <div className="flex items-center gap-2 py-1.5 text-xs text-[var(--color-text-tertiary)]">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Loading models...
+                        </div>
+                      ) : (
+                        <select
+                          id="agent-model"
+                          value={form.model}
+                          onChange={e => setForm(prev => ({ ...prev, model: e.target.value }))}
+                          disabled={!form.provider}
+                          className="
+                            w-full px-3 py-1.5 pr-8
+                            text-sm
+                            bg-[var(--color-surface)]
+                            border border-[var(--color-border)]
+                            rounded-lg
+                            appearance-none
+                            focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30
+                            disabled:opacity-50 disabled:cursor-not-allowed
+                          "
+                          data-testid="agent-model"
+                        >
+                          <option value="">(Default)</option>
+                          {models.map(m => (
+                            <option key={m.id} value={m.id}>
+                              {m.displayName}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {!modelsLoading && (
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)] pointer-events-none" />
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

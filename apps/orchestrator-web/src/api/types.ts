@@ -46,6 +46,7 @@ export interface BaseAgentMetadata {
   lastActivityAt?: Timestamp;
   roleDefinitionRef?: ElementId;
   provider?: string;
+  model?: string;
 }
 
 export interface DirectorMetadata extends BaseAgentMetadata {
@@ -190,6 +191,8 @@ export interface CreateAgentInput {
   triggers?: StewardTrigger[];
   // Provider
   provider?: string;
+  // Model override (if not set, uses provider default)
+  model?: string;
 }
 
 // ============================================================================
@@ -204,6 +207,20 @@ export interface ProviderInfo {
 
 export interface ProvidersResponse {
   providers: ProviderInfo[];
+}
+
+// ============================================================================
+// Model Types
+// ============================================================================
+
+export interface ModelInfo {
+  id: string;
+  displayName: string;
+  description?: string;
+}
+
+export interface ProviderModelsResponse {
+  models: ModelInfo[];
 }
 
 // ============================================================================
