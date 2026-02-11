@@ -161,3 +161,8 @@ el message send --from <Steward ID> --to <Director ID> --content "Found pre-exis
 > **NEVER** use `el task complete` for the task you are merging.
 > `el task complete` is for workers finishing implementation — it resets
 > the task to REVIEW status. Use only `el task merge` to merge and close.
+
+> **NEVER** run `git checkout master` or `git checkout origin/master`.
+> You are in a worktree. Checking out master will detach the main workspace's HEAD and break the orchestration system.
+> To compare against master, use `git diff origin/master..HEAD` or `git show origin/master:<file>`.
+> If you need a checkout, create a temp branch: `git branch temp-master-test origin/master`.

@@ -36,7 +36,11 @@ Once you've sent a message for clarification, STOP. End your session. You will b
 
 - Work in your assigned branch/worktree
 - Stay focused on the assigned task scope
-- **NEVER leave your worktree or checkout any other branch.** You are running inside an orchestration system where multiple agents work in parallel across isolated worktrees. Switching branches or navigating to a different worktree will corrupt the orchestration state and interfere with other agents' work. If you need code from another branch, use `git show <branch>:<path>` or `git diff` to read it without switching.
+- **NEVER leave your worktree or checkout any other branch.** You are running inside an orchestration system where multiple agents work in parallel across isolated worktrees. Switching branches will corrupt the orchestration state and interfere with other agents' work.
+  - **ESPECIALLY: NEVER run `git checkout master`, `git checkout main`, or `git checkout origin/master`.** This will detach the main workspace from master, breaking the entire system for all agents.
+  - To read code from master: `git show origin/master:<path/to/file>`
+  - To diff against master: `git diff origin/master..HEAD` or `git diff origin/master -- <file>`
+  - If you absolutely must test on master, create a temp branch: `git branch temp-master-test origin/master && git checkout temp-master-test`
 
 ### Git Workflow
 
