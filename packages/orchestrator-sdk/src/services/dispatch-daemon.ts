@@ -1519,12 +1519,14 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
   /**
    * Creates a worktree for a task assignment.
+   * Includes dependency installation so workers have node_modules available.
    */
   private async createWorktreeForTask(worker: AgentEntity, task: Task): Promise<CreateWorktreeResult> {
     return this.worktreeManager.createWorktree({
       agentName: worker.name,
       taskId: task.id,
       taskTitle: task.title,
+      installDependencies: true,
     });
   }
 
