@@ -234,6 +234,7 @@ export interface OrchestratorTaskMeta {
   mergeRequestUrl?: string;
   mergeRequestId?: number;
   mergeRequestProvider?: string;
+  sessionHistory?: TaskSessionHistoryEntry[];
 }
 
 export interface TestResult {
@@ -245,6 +246,19 @@ export interface TestResult {
   completedAt: string;
   durationMs?: number;
   errorMessage?: string;
+}
+
+/**
+ * Session history entry for a task - tracks which agents worked on it
+ */
+export interface TaskSessionHistoryEntry {
+  sessionId: string;
+  providerSessionId?: string;
+  agentId: EntityId;
+  agentName: string;
+  agentRole: 'worker' | 'steward';
+  startedAt: string;
+  endedAt?: string;
 }
 
 /**
