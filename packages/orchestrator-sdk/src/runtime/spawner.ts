@@ -937,6 +937,7 @@ export class SpawnerServiceImpl implements SpawnerService {
           // Extract provider session ID from system init message
           if (message.type === 'system' && message.subtype === 'init' && message.sessionId) {
             (session as { providerSessionId: string }).providerSessionId = message.sessionId;
+            session.events.emit('provider-session-id', message.sessionId);
           }
         }
       }
@@ -1025,6 +1026,7 @@ export class SpawnerServiceImpl implements SpawnerService {
           const detectedId = interactiveSession.getSessionId();
           if (detectedId) {
             (session as { providerSessionId?: string }).providerSessionId = detectedId;
+            session.events.emit('provider-session-id', detectedId);
           }
         }
       });
@@ -1067,6 +1069,7 @@ export class SpawnerServiceImpl implements SpawnerService {
           // Extract provider session ID from init event
           if (event.raw.session_id) {
             (session as { providerSessionId?: string }).providerSessionId = event.raw.session_id;
+            session.events.emit('provider-session-id', event.raw.session_id);
           }
 
           this.transitionStatus(session, 'running');

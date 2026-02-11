@@ -1299,6 +1299,24 @@ export class SessionManagerImpl implements SessionManager {
       }
     };
 
+    // Update providerSessionId when discovered by the spawner
+    const onProviderSessionId = (providerSessionId: string) => {
+      const current = this.sessions.get(session.id);
+      if (!current || current.providerSessionId) return;
+      this.sessions.set(session.id, {
+        ...current,
+        providerSessionId,
+        persisted: false,
+      });
+      // Persist session so providerSessionId survives a server restart
+      this.registry.updateAgentSession(session.agentId, providerSessionId, 'running').catch((err) => {
+        console.error(`[session-manager] Failed to persist providerSessionId for ${session.id}:`, err);
+      });
+      this.persistSession(session.id).catch((err) => {
+        console.error(`[session-manager] Failed to persist session after providerSessionId for ${session.id}:`, err);
+      });
+    };
+
     // Attach all event listeners
     spawnerEvents.on('event', onEvent);
     spawnerEvents.on('pty-data', onPtyData);
@@ -1306,6 +1324,7 @@ export class SessionManagerImpl implements SessionManager {
     spawnerEvents.on('stderr', onStderr);
     spawnerEvents.on('raw', onRaw);
     spawnerEvents.on('exit', onExit);
+    spawnerEvents.on('provider-session-id', onProviderSessionId);
 
     // Store cleanup function to remove all listeners
     const cleanup = () => {
@@ -1315,6 +1334,7 @@ export class SessionManagerImpl implements SessionManager {
       spawnerEvents.off('stderr', onStderr);
       spawnerEvents.off('raw', onRaw);
       spawnerEvents.off('exit', onExit);
+      spawnerEvents.off('provider-session-id', onProviderSessionId);
     };
     this.sessionCleanupFns.set(session.id, cleanup);
   }
