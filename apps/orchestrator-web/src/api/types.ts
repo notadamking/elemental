@@ -413,6 +413,8 @@ export interface SessionEvent {
   agentName?: string;
   content?: string;
   timestamp: string;
+  /** Tool name (for tool_use/tool_result events) */
+  tool?: string;
   data?: Record<string, unknown>;
 }
 

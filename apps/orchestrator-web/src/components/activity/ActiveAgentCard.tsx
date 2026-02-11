@@ -109,7 +109,9 @@ export function ActiveAgentCard({
             ? `> ${lastOutput.content}`
             : isStarting
               ? '> starting...'
-              : '> idle...'}
+              : isRunning
+                ? '> working...'
+                : '> idle...'}
         </span>
         <span className="text-xs text-[var(--color-text-secondary)] font-mono flex-shrink-0">
           {elapsed}

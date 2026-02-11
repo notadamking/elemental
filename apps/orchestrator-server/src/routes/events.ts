@@ -144,6 +144,8 @@ export function createEventRoutes(services: Services) {
                   agentRole: session.agentRole,
                   content: event.message,
                   timestamp: createTimestamp(),
+                  // Include tool info for tool events so UI can display activity
+                  ...(event.tool && { tool: event.tool.name }),
                 }),
               });
             }
