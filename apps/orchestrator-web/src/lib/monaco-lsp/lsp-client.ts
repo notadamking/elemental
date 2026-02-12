@@ -109,6 +109,48 @@ let statusFetchPromise: Promise<LspStatusResponse> | null = null;
 const activeClients = new Map<string, ActiveClient>();
 
 /**
+ * Connection state change callback type
+ */
+export type ConnectionStateChangeCallback = (
+  language: string,
+  state: 'connected' | 'disconnected'
+) => void;
+
+/**
+ * Set of listeners for connection state changes
+ */
+const connectionStateListeners = new Set<ConnectionStateChangeCallback>();
+
+/**
+ * Subscribe to connection state changes
+ * Returns an unsubscribe function
+ */
+export function subscribeToConnectionState(
+  callback: ConnectionStateChangeCallback
+): () => void {
+  connectionStateListeners.add(callback);
+  return () => {
+    connectionStateListeners.delete(callback);
+  };
+}
+
+/**
+ * Notify all listeners of a connection state change
+ */
+function notifyConnectionStateChange(
+  language: string,
+  state: 'connected' | 'disconnected'
+): void {
+  connectionStateListeners.forEach((callback) => {
+    try {
+      callback(language, state);
+    } catch (err) {
+      console.error('[lsp-client] Error in connection state callback:', err);
+    }
+  });
+}
+
+/**
  * Fetch LSP status from the server
  */
 export async function fetchLspStatus(forceRefresh = false): Promise<LspStatusResponse> {
@@ -239,6 +281,9 @@ export async function connectLsp(
 
         activeClients.set(language, { client, socket, language });
 
+        // Notify listeners of successful connection
+        notifyConnectionStateChange(language, 'connected');
+
         console.log(`[lsp-client] Language client started for ${language}`);
         resolve(client);
       } catch (error) {
@@ -258,6 +303,8 @@ export async function connectLsp(
         `[lsp-client] WebSocket closed for ${language}: code=${event.code}, reason=${event.reason}`
       );
       activeClients.delete(language);
+      // Notify listeners of disconnection
+      notifyConnectionStateChange(language, 'disconnected');
     };
   });
 }

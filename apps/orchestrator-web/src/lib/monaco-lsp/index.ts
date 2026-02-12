@@ -29,8 +29,10 @@ export {
   getLspConnectionState,
   getConnectedLanguages,
   clearLspStatusCache,
+  subscribeToConnectionState,
   type LspServerStatus,
   type LspStatusResponse,
+  type ConnectionStateChangeCallback,
 } from './lsp-client';
 
 // React hook for LSP management

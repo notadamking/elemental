@@ -10,11 +10,51 @@
  * - Responsive input handling
  */
 
-import { useCallback, useState, memo, useRef, useEffect } from 'react';
+import { useCallback, useState, memo, useEffect } from 'react';
 import Editor, { loader, OnMount, BeforeMount } from '@monaco-editor/react';
 import type * as monacoTypes from 'monaco-editor';
 import { Loader2 } from 'lucide-react';
 import { useLsp, isPotentialLspLanguage, type LspState } from '../../lib/monaco-lsp';
+
+/**
+ * TypeScript/JavaScript language IDs that use Monaco's built-in TS worker
+ */
+const TS_JS_LANGUAGES = ['typescript', 'javascript', 'typescriptreact', 'javascriptreact'];
+
+/**
+ * Default mode configuration for Monaco's built-in TS/JS features
+ */
+const DEFAULT_TS_MODE_CONFIG = {
+  completionItems: true,
+  hovers: true,
+  diagnostics: true,
+  definitions: true,
+  references: true,
+  documentHighlights: true,
+  rename: true,
+  codeActions: true,
+  signatureHelp: true,
+  selectionRanges: true,
+  foldingRanges: true,
+};
+
+/**
+ * Disabled mode configuration when LSP is connected
+ * Keeps editor UX features (folding, selection ranges) but disables intellisense features
+ */
+const DISABLED_TS_MODE_CONFIG = {
+  completionItems: false,
+  hovers: false,
+  diagnostics: false,
+  definitions: false,
+  references: false,
+  documentHighlights: false,
+  rename: false,
+  codeActions: false,
+  signatureHelp: false,
+  selectionRanges: true,
+  foldingRanges: true,
+};
 
 interface LspMonacoEditorProps {
   /** Editor content */
@@ -130,15 +170,43 @@ function LspMonacoEditorComponent({
   onLspStateChange,
 }: LspMonacoEditorProps) {
   const [error] = useState<string | null>(null);
-  const monacoRef = useRef<typeof monacoTypes | null>(null);
+  // Store Monaco instance in state to trigger re-renders when it becomes available
+  const [monacoInstance, setMonacoInstance] = useState<typeof monacoTypes | null>(null);
 
   // Use LSP hook for language server connection
+  // Now uses state instead of ref, so the hook will re-run when Monaco mounts
   const { state: lspState } = useLsp({
-    monaco: monacoRef.current ?? undefined,
+    monaco: monacoInstance ?? undefined,
     language,
     documentUri: filePath ? `file://${filePath}` : undefined,
     autoConnect: isPotentialLspLanguage(language) && !readOnly,
   });
+
+  // Part B: Disable built-in TS features when LSP is connected
+  // Re-enable them as fallback when LSP is not connected
+  useEffect(() => {
+    if (!monacoInstance) return;
+
+    // Only apply to TypeScript/JavaScript languages
+    if (!TS_JS_LANGUAGES.includes(language)) return;
+
+    const isLspConnected = lspState === 'connected';
+    const modeConfig = isLspConnected ? DISABLED_TS_MODE_CONFIG : DEFAULT_TS_MODE_CONFIG;
+
+    // Apply to both TS and JS defaults (they share settings for some language IDs)
+    try {
+      if (language === 'typescript' || language === 'typescriptreact') {
+        monacoInstance.languages.typescript.typescriptDefaults.setModeConfiguration(modeConfig);
+      } else if (language === 'javascript' || language === 'javascriptreact') {
+        monacoInstance.languages.typescript.javascriptDefaults.setModeConfiguration(modeConfig);
+      }
+      console.log(
+        `[LspMonacoEditor] ${isLspConnected ? 'Disabled' : 'Enabled'} built-in TS features for ${language}`
+      );
+    } catch (err) {
+      console.warn('[LspMonacoEditor] Failed to set mode configuration:', err);
+    }
+  }, [monacoInstance, language, lspState]);
 
   // Notify parent of LSP state changes
   useEffect(() => {
@@ -149,7 +217,8 @@ function LspMonacoEditorComponent({
 
   // Handle editor mount
   const handleMount: OnMount = useCallback((editor, monaco) => {
-    monacoRef.current = monaco;
+    // Store Monaco instance in state to trigger re-render and allow useLsp to receive it
+    setMonacoInstance(monaco);
 
     // Ensure theme is defined
     defineCustomTheme(monaco);

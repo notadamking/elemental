@@ -11,6 +11,7 @@ import {
   connectLsp,
   disconnectLsp,
   getLspConnectionState,
+  subscribeToConnectionState,
   type LspStatusResponse,
 } from './lsp-client';
 import { isPotentialLspLanguage } from './languages';
@@ -181,7 +182,25 @@ export function useLsp({
     };
   }, []);
 
-  // Sync state with actual connection state
+  // Part C: Subscribe to connection state changes for disconnect detection
+  // This ensures the hook is notified when WebSocket closes unexpectedly
+  useEffect(() => {
+    const unsubscribe = subscribeToConnectionState((changedLanguage, connectionState) => {
+      if (changedLanguage !== language || !mountedRef.current) return;
+
+      if (connectionState === 'connected' && state !== 'connected' && state !== 'connecting') {
+        setState('connected');
+      } else if (connectionState === 'disconnected' && state === 'connected') {
+        // LSP disconnected - revert to idle so built-in features can be re-enabled
+        setState('idle');
+        console.log(`[useLsp] LSP disconnected for ${language}, reverting to idle state`);
+      }
+    });
+
+    return unsubscribe;
+  }, [language, state]);
+
+  // Initial sync of state with actual connection state
   useEffect(() => {
     const connectionState = getLspConnectionState(language);
     if (connectionState === 'connected' && state !== 'connected' && state !== 'connecting') {
