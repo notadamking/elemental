@@ -154,8 +154,14 @@ function LspMonacoEditorComponent({
           return;
         }
 
-        // Define custom theme
-        defineCustomTheme(monacoModule);
+        // Define custom theme (may not be available with VSCode theme service override)
+        let activeTheme = theme;
+        try {
+          defineCustomTheme(monacoModule);
+        } catch (themeErr) {
+          console.warn('[LspMonacoEditor] Custom theme unavailable, falling back to vs-dark:', themeErr);
+          activeTheme = 'vs-dark';
+        }
 
         // Create model with unique URI
         const uniqueId = Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -166,7 +172,7 @@ function LspMonacoEditorComponent({
         // Create editor with LSP-friendly options
         const editor = monacoModule.editor.create(containerRef.current, {
           model,
-          theme,
+          theme: activeTheme,
           readOnly,
           automaticLayout: true,
           minimap: {
@@ -328,7 +334,11 @@ function LspMonacoEditorComponent({
   // Update theme when prop changes
   useEffect(() => {
     if (editorRef.current && monacoRef.current && !isInitializing) {
-      monacoRef.current.editor.setTheme(theme);
+      try {
+        monacoRef.current.editor.setTheme(theme);
+      } catch (themeErr) {
+        console.warn('[LspMonacoEditor] Theme change failed, keeping current theme:', themeErr);
+      }
     }
   }, [theme, isInitializing]);
 
