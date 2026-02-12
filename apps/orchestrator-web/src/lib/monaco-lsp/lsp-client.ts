@@ -13,6 +13,63 @@ import {
 } from 'vscode-ws-jsonrpc';
 
 /**
+ * Simple URI implementation compatible with vscode.Uri for workspace folder configuration.
+ * This provides the minimum interface needed by vscode-languageclient to construct
+ * rootUri and workspaceFolders in the LSP initialize request.
+ */
+interface SimpleUri {
+  readonly scheme: string;
+  readonly authority: string;
+  readonly path: string;
+  readonly query: string;
+  readonly fragment: string;
+  readonly fsPath: string;
+  toString(): string;
+  toJSON(): unknown;
+  with(change: { scheme?: string; authority?: string; path?: string; query?: string; fragment?: string }): SimpleUri;
+}
+
+/**
+ * Create a file URI from an absolute file path.
+ * Compatible with vscode.Uri.file() for use with language client.
+ */
+function createFileUri(absolutePath: string): SimpleUri {
+  // Normalize path separators for Windows compatibility
+  const normalizedPath = absolutePath.replace(/\\/g, '/');
+  // Ensure path starts with / for proper file:// URI
+  const uriPath = normalizedPath.startsWith('/') ? normalizedPath : '/' + normalizedPath;
+
+  const uri: SimpleUri = {
+    scheme: 'file',
+    authority: '',
+    path: uriPath,
+    query: '',
+    fragment: '',
+    fsPath: absolutePath,
+    toString() {
+      return `file://${uriPath}`;
+    },
+    toJSON() {
+      return this.toString();
+    },
+    with(change) {
+      return createFileUri(change.path ?? absolutePath);
+    },
+  };
+
+  return uri;
+}
+
+/**
+ * Workspace folder structure compatible with vscode.WorkspaceFolder
+ */
+interface WorkspaceFolder {
+  readonly uri: SimpleUri;
+  readonly name: string;
+  readonly index: number;
+}
+
+/**
  * LSP server status from the API
  */
 export interface LspServerStatus {
@@ -133,11 +190,27 @@ export async function connectLsp(
     await disconnectLsp(language);
   }
 
-  // Check if server is available
-  const available = await isLspAvailableForLanguage(language);
-  if (!available) {
+  // Fetch status to check availability and get workspace root
+  const status = await fetchLspStatus();
+  const server = status.servers.find((s) => s.languages.includes(language));
+  if (!server?.available) {
     console.log(`[lsp-client] No LSP server available for ${language}`);
     return null;
+  }
+
+  // Get workspace root from status response
+  const workspaceRoot = status.workspaceRoot;
+  let workspaceFolder: WorkspaceFolder | undefined;
+
+  if (workspaceRoot) {
+    // Create workspace folder with proper URI for LSP initialize request
+    const workspaceName = workspaceRoot.split('/').pop() || 'workspace';
+    workspaceFolder = {
+      uri: createFileUri(workspaceRoot),
+      name: workspaceName,
+      index: 0,
+    };
+    console.log(`[lsp-client] Using workspace root: ${workspaceRoot}`);
   }
 
   console.log(`[lsp-client] Connecting to ${language} language server...`);
@@ -152,13 +225,12 @@ export async function connectLsp(
       try {
         const transports = createWebSocketTransports(socket);
 
-        // Note: workspaceFolder requires a vscode-uri Uri type which isn't easily available
-        // in a browser environment. The language server will use rootUri from initialization instead.
+        // Configure client with workspaceFolder to send rootUri in LSP initialize request
         const client = new MonacoLanguageClient({
           name: `${language} Language Client`,
           clientOptions: {
             documentSelector: [{ language }],
-            // rootUri is set via the LSP initialize request by the server
+            workspaceFolder,
           },
           messageTransports: transports,
         });
