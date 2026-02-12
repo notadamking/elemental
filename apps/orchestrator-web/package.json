@@ -47,13 +47,16 @@
     "lucide-react": "^0.563.0",
     "marked": "^17.0.1",
     "monaco-editor": "^0.52.0",
+    "monaco-languageclient": "^10.7.0",
     "react": "^19.1.0",
     "react-arborist": "^3.4.3",
     "react-dom": "^19.1.0",
     "react-resizable-panels": "^4.5.3",
     "sonner": "^2.0.7",
     "tippy.js": "^6.3.7",
-    "turndown": "^7.2.0"
+    "turndown": "^7.2.0",
+    "vscode-languageclient": "^9.0.1",
+    "vscode-ws-jsonrpc": "^3.5.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.0",

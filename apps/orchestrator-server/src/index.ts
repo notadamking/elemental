@@ -41,6 +41,9 @@ import { notifyClientsOfNewSession } from './websocket.js';
 import { attachSessionEventSaver } from './routes/sessions.js';
 import { startServer } from './server.js';
 import { shouldDaemonAutoStart, saveDaemonState } from './daemon-state.js';
+import { createLspManager } from './services/lsp-manager.js';
+import { createLspRoutes } from './routes/lsp.js';
+import { PROJECT_ROOT } from './config.js';
 
 // Main entry point - async to allow service initialization
 async function main() {
@@ -108,7 +111,12 @@ async function main() {
   app.route('/', createInboxRoutes(collaborateServices));
   app.route('/', createPlanRoutes(collaborateServices));
 
-  startServer(app, services);
+  // Initialize LSP manager and routes
+  const lspManager = createLspManager(PROJECT_ROOT);
+  await lspManager.checkAvailability();
+  app.route('/', createLspRoutes(lspManager));
+
+  startServer(app, services, lspManager);
 
   // Auto-resume director session if it was running before server restart
   // This must happen after startServer() so HTTP/WS infrastructure is ready for clients

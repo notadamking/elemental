@@ -1,9 +1,37 @@
 /**
  * Monaco Language Support
  *
- * Pure utility module for language detection and support.
- * Note: Full LSP support via @codingame/monaco-vscode-* packages was removed
- * due to incompatibility issues. This module now only provides language utilities.
+ * Provides language detection utilities and LSP client management for Monaco editor.
+ * LSP support is provided via WebSocket connections to language servers running
+ * on the orchestrator-server.
  */
 
-export { SUPPORTED_LSP_LANGUAGES, isLspSupportedLanguage, getLanguageIdForExtension, getExtensionFromFilename } from './languages';
+// Language detection utilities
+export {
+  SUPPORTED_LSP_LANGUAGES,
+  POTENTIAL_LSP_LANGUAGES,
+  ALWAYS_AVAILABLE_LANGUAGES,
+  isLspSupportedLanguage,
+  isPotentialLspLanguage,
+  getLanguageIdForExtension,
+  getExtensionFromFilename,
+  type SupportedLspLanguage,
+  type PotentialLspLanguage,
+} from './languages';
+
+// LSP client management
+export {
+  fetchLspStatus,
+  isLspAvailableForLanguage,
+  connectLsp,
+  disconnectLsp,
+  disconnectAllLsp,
+  getLspConnectionState,
+  getConnectedLanguages,
+  clearLspStatusCache,
+  type LspServerStatus,
+  type LspStatusResponse,
+} from './lsp-client';
+
+// React hook for LSP management
+export { useLsp, type LspState } from './use-lsp';

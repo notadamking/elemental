@@ -47,6 +47,7 @@ import {
   getMonacoLanguageFromContentType,
   detectLanguageFromFilename,
 } from '../../lib/language-detection';
+import { isPotentialLspLanguage, type LspState } from '../../lib/monaco-lsp';
 
 // ============================================================================
 // Types
@@ -233,6 +234,7 @@ export function FileEditorPage() {
   const [editorTheme, setEditorTheme] = useState(() => localStorage.getItem('editor.theme') || 'elemental-dark');
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const searchPanelRef = useRef<EditorSearchPanelRef>(null);
+  const [lspState, setLspState] = useState<LspState>('idle');
 
   // Workspace state from context
   const {
@@ -874,9 +876,28 @@ export function FileEditorPage() {
                     </span>
                   </div>
                   {/* LSP status indicator */}
-                  {['typescript', 'javascript', 'typescriptreact', 'javascriptreact'].includes(activeTab.language) && (
-                    <div className="flex items-center gap-1.5 text-xs text-green-500" title="LSP enabled - Autocompletion, hover info, and diagnostics active">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                  {isPotentialLspLanguage(activeTab.language) && (
+                    <div
+                      className={`flex items-center gap-1.5 text-xs ${
+                        lspState === 'connected' ? 'text-green-500' :
+                        lspState === 'connecting' ? 'text-yellow-500' :
+                        lspState === 'error' ? 'text-red-500' :
+                        'text-[var(--color-text-muted)]'
+                      }`}
+                      title={
+                        lspState === 'connected' ? 'LSP connected - Autocompletion, hover info, and diagnostics active' :
+                        lspState === 'connecting' ? 'Connecting to language server...' :
+                        lspState === 'error' ? 'LSP connection failed' :
+                        lspState === 'unavailable' ? 'Language server not available' :
+                        'LSP idle'
+                      }
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        lspState === 'connected' ? 'bg-green-500' :
+                        lspState === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+                        lspState === 'error' ? 'bg-red-500' :
+                        'bg-[var(--color-text-muted)]'
+                      }`} />
                       <span>LSP</span>
                     </div>
                   )}
@@ -939,6 +960,8 @@ export function FileEditorPage() {
                 readOnly={activeTab.source === 'documents'}
                 onChange={handleEditorChange}
                 onMount={handleEditorDidMount}
+                onLspStateChange={setLspState}
+                filePath={activeTab.source === 'workspace' ? activeTab.path : undefined}
                 className="flex-1"
               />
             </>

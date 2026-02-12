@@ -16,4 +16,5 @@ export { createUploadRoutes } from './upload.js';
 export { createDaemonRoutes, markDaemonAsServerManaged } from './daemon.js';
 export { createWorkflowRoutes } from './workflows.js';
 export { createPoolRoutes } from './pools.js';
+export { createLspRoutes } from './lsp.js';
 export { createWorkspaceFilesRoutes } from './workspace-files.js';

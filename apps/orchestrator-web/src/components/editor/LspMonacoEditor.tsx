@@ -1,18 +1,20 @@
 /**
- * LspMonacoEditor - Monaco Editor Component
+ * LspMonacoEditor - Monaco Editor Component with LSP Support
  *
  * A React component that wraps Monaco editor using @monaco-editor/react.
  * Provides:
  * - Syntax highlighting via Monaco's built-in language support
+ * - LSP features via WebSocket connection to server-side language servers
  * - Custom elemental-dark theme
  * - Read-only mode support
  * - Responsive input handling
  */
 
-import { useCallback, useState, memo, useRef } from 'react';
+import { useCallback, useState, memo, useRef, useEffect } from 'react';
 import Editor, { loader, OnMount, BeforeMount } from '@monaco-editor/react';
 import type * as monacoTypes from 'monaco-editor';
 import { Loader2 } from 'lucide-react';
+import { useLsp, isPotentialLspLanguage, type LspState } from '../../lib/monaco-lsp';
 
 interface LspMonacoEditorProps {
   /** Editor content */
@@ -29,6 +31,10 @@ interface LspMonacoEditorProps {
   theme?: string;
   /** Additional CSS class for container */
   className?: string;
+  /** File path or URI for LSP workspace resolution */
+  filePath?: string;
+  /** Callback when LSP state changes */
+  onLspStateChange?: (state: LspState) => void;
 }
 
 // Track if we've defined the custom theme
@@ -110,7 +116,7 @@ loader.init().then((monaco) => {
 }).catch(console.error);
 
 /**
- * Monaco editor component
+ * Monaco editor component with LSP support
  */
 function LspMonacoEditorComponent({
   value,
@@ -120,9 +126,26 @@ function LspMonacoEditorComponent({
   onMount,
   theme = 'elemental-dark',
   className = '',
+  filePath,
+  onLspStateChange,
 }: LspMonacoEditorProps) {
   const [error] = useState<string | null>(null);
   const monacoRef = useRef<typeof monacoTypes | null>(null);
+
+  // Use LSP hook for language server connection
+  const { state: lspState } = useLsp({
+    monaco: monacoRef.current ?? undefined,
+    language,
+    documentUri: filePath ? `file://${filePath}` : undefined,
+    autoConnect: isPotentialLspLanguage(language) && !readOnly,
+  });
+
+  // Notify parent of LSP state changes
+  useEffect(() => {
+    if (onLspStateChange) {
+      onLspStateChange(lspState);
+    }
+  }, [lspState, onLspStateChange]);
 
   // Handle editor mount
   const handleMount: OnMount = useCallback((editor, monaco) => {
