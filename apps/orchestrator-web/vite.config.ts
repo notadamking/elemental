@@ -58,7 +58,7 @@ export default defineConfig({
           ],
           'utils-vendor': ['lucide-react', 'cmdk', 'sonner'],
           // Monaco editor in a separate chunk for better caching
-          'monaco-editor': ['monaco-editor', '@monaco-editor/react'],
+          'monaco-editor': ['monaco-editor'],
         },
       },
     },

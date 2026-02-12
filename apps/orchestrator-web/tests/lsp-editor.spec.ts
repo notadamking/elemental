@@ -42,7 +42,7 @@ test('editor LSP connection and no false module errors', async ({ page }) => {
 
   // Verify no "Cannot find module" errors by checking Monaco markers
   const markerCount = await page.evaluate(() => {
-    // @ts-ignore - Monaco is available globally via @monaco-editor/react
+    // @ts-ignore - Monaco is available globally via the direct Monaco API
     const monaco = (window as any).monaco;
     if (!monaco) return -1;
     const markers = monaco.editor.getModelMarkers({});

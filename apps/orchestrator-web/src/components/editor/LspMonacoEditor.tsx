@@ -13,10 +13,9 @@
 
 import { useState, memo, useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor';
-import { Loader2 } from 'lucide-react';
 import { getKeyboardManager } from '@elemental/ui';
 import { useLsp, isPotentialLspLanguage, getActiveClient, type LspState } from '../../lib/monaco-lsp';
-import { initializeMonaco } from '../../lib/monaco-init';
+import { isMonacoInitialized } from '../../lib/monaco-init';
 
 /**
  * TypeScript/JavaScript language IDs that use Monaco's built-in TS worker
@@ -183,9 +182,15 @@ function LspMonacoEditorComponent({
   filePath,
   onLspStateChange,
 }: LspMonacoEditorProps) {
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [monacoReady, setMonacoReady] = useState(false);
+  // Monaco should already be initialized by FileEditorPage before this component mounts.
+  // Verify initialization state for defensive coding.
+  const [error] = useState<string | null>(() => {
+    if (!isMonacoInitialized()) {
+      console.error('[LspMonacoEditor] Monaco not initialized! FileEditorPage should call initializeMonaco() first.');
+      return 'Editor not initialized. Please refresh the page.';
+    }
+    return null;
+  });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -207,40 +212,17 @@ function LspMonacoEditorComponent({
   const editorDisposablesRef = useRef<monaco.IDisposable[]>([]);
 
   // Use LSP hook for language server connection
+  // Monaco is guaranteed to be initialized by the parent (FileEditorPage)
   const { state: lspState } = useLsp({
-    monaco: monacoReady ? monaco : undefined,
+    monaco: error ? undefined : monaco,
     language,
     documentUri: filePath ? `file://${filePath}` : undefined,
     autoConnect: isPotentialLspLanguage(language) && !readOnly,
   });
 
-  // Initialize Monaco on mount
+  // Create editor once container is available (Monaco is already initialized by parent)
   useEffect(() => {
-    let mounted = true;
-
-    initializeMonaco()
-      .then(() => {
-        if (mounted) {
-          setMonacoReady(true);
-          setIsLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (mounted) {
-          console.error('[LspMonacoEditor] Failed to initialize Monaco:', err);
-          setError(err instanceof Error ? err.message : 'Failed to initialize editor');
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  // Create editor once Monaco is ready and container is available
-  useEffect(() => {
-    if (!monacoReady || !containerRef.current || editorRef.current) {
+    if (error || !containerRef.current || editorRef.current) {
       return;
     }
 
@@ -321,11 +303,11 @@ function LspMonacoEditorComponent({
     };
     // Only run on mount/unmount - dependencies handled in separate effects
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monacoReady]);
+  }, [error]);
 
   // Handle filePath changes (tab switching) by switching models
   useEffect(() => {
-    if (!editorRef.current || !monacoReady) return;
+    if (error || !editorRef.current) return;
     if (filePath === prevFilePathRef.current && language === prevLanguageRef.current) return;
 
     const editor = editorRef.current;
@@ -351,14 +333,14 @@ function LspMonacoEditorComponent({
     prevFilePathRef.current = filePath;
     prevLanguageRef.current = language;
     prevValuePropRef.current = value;
-  }, [filePath, language, value, monacoReady]);
+  }, [filePath, language, value, error]);
 
   // Unconditionally disable semantic validation from built-in TS worker.
   // The in-browser TS worker cannot resolve modules (no filesystem access),
   // so semantic diagnostics always produce false "Cannot find module" errors.
   // Syntax validation is kept as a useful baseline.
   useEffect(() => {
-    if (!monacoReady) return;
+    if (error) return;
     if (!TS_JS_LANGUAGES.includes(language)) return;
 
     const diagnosticsOptions = { noSemanticValidation: true, noSyntaxValidation: false };
@@ -373,11 +355,11 @@ function LspMonacoEditorComponent({
     } catch (err) {
       console.warn('[LspMonacoEditor] Failed to set diagnostics options:', err);
     }
-  }, [monacoReady, language]);
+  }, [error, language]);
 
   // Disable built-in TS intellisense features when LSP is connected to avoid duplicates
   useEffect(() => {
-    if (!monacoReady) return;
+    if (error) return;
     if (!TS_JS_LANGUAGES.includes(language)) return;
 
     const isLspConnected = lspState === 'connected';
@@ -395,7 +377,7 @@ function LspMonacoEditorComponent({
     } catch (err) {
       console.warn('[LspMonacoEditor] Failed to set mode configuration:', err);
     }
-  }, [monacoReady, language, lspState]);
+  }, [error, language, lspState]);
 
   // Send didOpen to LSP when connected and document is ready.
   // Handles file switches by sending didClose for the old file first.
@@ -462,16 +444,9 @@ function LspMonacoEditorComponent({
 
   // Update theme when it changes
   useEffect(() => {
-    if (!monacoReady) return;
+    if (error) return;
     monaco.editor.setTheme(theme);
-  }, [theme, monacoReady]);
-
-  // Loading spinner component
-  const LoadingSpinner = (
-    <div className="flex items-center justify-center h-full bg-[var(--color-surface)]">
-      <Loader2 className="w-8 h-8 animate-spin text-[var(--color-text-muted)]" />
-    </div>
-  );
+  }, [theme, error]);
 
   if (error) {
     return (
@@ -486,13 +461,11 @@ function LspMonacoEditorComponent({
 
   return (
     <div className={`relative h-full ${className}`} data-testid="lsp-monaco-editor">
-      {isLoading && LoadingSpinner}
       <div
         ref={containerRef}
         style={{
           width: '100%',
           height: '100%',
-          display: isLoading ? 'none' : 'block',
         }}
       />
     </div>

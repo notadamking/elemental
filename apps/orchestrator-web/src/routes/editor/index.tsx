@@ -46,6 +46,7 @@ import {
   detectLanguageFromFilename,
 } from '../../lib/language-detection';
 import { isPotentialLspLanguage, type LspState } from '../../lib/monaco-lsp';
+import { initializeMonaco } from '../../lib/monaco-init';
 
 // ============================================================================
 // Types
@@ -208,6 +209,10 @@ function ActivityBar({ activePanel, onPanelChange }: ActivityBarProps) {
 // ============================================================================
 
 export function FileEditorPage() {
+  // Monaco initialization state - must complete before rendering editor
+  const [monacoReady, setMonacoReady] = useState(false);
+  const [monacoError, setMonacoError] = useState<string | null>(null);
+
   // Tab state - array of open tabs and active tab ID
   const [tabs, setTabs] = useState<EditorTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -229,6 +234,28 @@ export function FileEditorPage() {
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const searchPanelRef = useRef<EditorSearchPanelRef>(null);
   const [lspState, setLspState] = useState<LspState>('idle');
+
+  // Initialize Monaco before rendering the editor
+  useEffect(() => {
+    let mounted = true;
+
+    initializeMonaco()
+      .then(() => {
+        if (mounted) {
+          setMonacoReady(true);
+        }
+      })
+      .catch((err) => {
+        if (mounted) {
+          console.error('[FileEditorPage] Failed to initialize Monaco:', err);
+          setMonacoError(err instanceof Error ? err.message : 'Failed to initialize editor');
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Workspace state from context (server-backed, always supported)
   const {
@@ -823,7 +850,20 @@ export function FileEditorPage() {
             onSaveRequest={handleSaveFile}
           />
 
-          {tabs.length === 0 ? (
+          {/* Monaco initialization error */}
+          {monacoError ? (
+            <div className="flex flex-col items-center justify-center h-full text-center p-6" data-testid="editor-monaco-error">
+              <AlertCircle className="w-8 h-8 text-[var(--color-danger)] mb-3" />
+              <h3 className="text-lg font-medium text-[var(--color-text)] mb-2">Editor Failed to Load</h3>
+              <p className="text-sm text-[var(--color-text-secondary)]">{monacoError}</p>
+            </div>
+          ) : !monacoReady ? (
+            /* Monaco initialization loading state */
+            <div className="flex flex-col items-center justify-center h-full" data-testid="editor-monaco-loading">
+              <Loader2 className="w-8 h-8 animate-spin text-[var(--color-text-muted)] mb-3" />
+              <p className="text-sm text-[var(--color-text-secondary)]">Initializing editor...</p>
+            </div>
+          ) : tabs.length === 0 ? (
             <NoFileSelected />
           ) : isContentLoading ? (
             <div className="flex items-center justify-center h-full" data-testid="editor-loading-content">
