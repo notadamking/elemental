@@ -839,6 +839,10 @@ export class WorktreeManagerImpl implements WorktreeManager {
    * Installs dependencies in a worktree directory.
    * Detects the package manager (pnpm, npm, yarn, bun) and runs install.
    * Uses a longer timeout since dependency installation can take a while.
+   *
+   * Tries a strict install first (--frozen-lockfile / ci) and falls back to
+   * a plain install when the lockfile is out of sync with package.json
+   * (common when the base branch has uncommitted lockfile changes).
    */
   private async installDependencies(worktreePath: string): Promise<void> {
     // Check if package.json exists
@@ -852,40 +856,55 @@ export class WorktreeManagerImpl implements WorktreeManager {
     const hasLockfile = (name: string) => fs.existsSync(path.join(worktreePath, name));
 
     let command: string;
-    let args: string[];
+    let strictArgs: string[];
 
     if (hasLockfile('pnpm-lock.yaml')) {
       command = 'pnpm';
-      args = ['install', '--frozen-lockfile'];
+      strictArgs = ['install', '--frozen-lockfile'];
     } else if (hasLockfile('bun.lockb') || hasLockfile('bun.lock')) {
       command = 'bun';
-      args = ['install', '--frozen-lockfile'];
+      strictArgs = ['install', '--frozen-lockfile'];
     } else if (hasLockfile('yarn.lock')) {
       command = 'yarn';
-      args = ['install', '--frozen-lockfile'];
+      strictArgs = ['install', '--frozen-lockfile'];
     } else if (hasLockfile('package-lock.json')) {
       command = 'npm';
-      args = ['ci'];
+      strictArgs = ['ci'];
     } else {
       // Default to pnpm if no lockfile detected (monorepo case)
       command = 'pnpm';
-      args = ['install'];
+      strictArgs = ['install'];
     }
 
+    // Use a longer timeout for dependency installation (5 minutes)
+    const INSTALL_TIMEOUT_MS = 5 * 60 * 1000;
+    const execOptions = {
+      cwd: worktreePath,
+      encoding: 'utf8' as const,
+      timeout: INSTALL_TIMEOUT_MS,
+    };
+
     try {
-      // Use a longer timeout for dependency installation (5 minutes)
-      const INSTALL_TIMEOUT_MS = 5 * 60 * 1000;
-      await execFileAsync(command, args, {
-        cwd: worktreePath,
-        encoding: 'utf8',
-        timeout: INSTALL_TIMEOUT_MS,
-      });
-    } catch (error) {
-      throw new WorktreeError(
-        `Failed to install dependencies in worktree: ${worktreePath}`,
-        'DEPENDENCY_INSTALL_FAILED',
-        (error as Error).message
-      );
+      await execFileAsync(command, strictArgs, execOptions);
+    } catch {
+      // Strict install failed — the lockfile may be out of sync with
+      // package.json (e.g. uncommitted lockfile changes on the base branch).
+      // Fall back to a plain install so the worktree is still usable.
+      try {
+        await execFileAsync(command, ['install'], execOptions);
+      } catch (error) {
+        const execError = error as Error & { stdout?: string; stderr?: string };
+        const details = [
+          execError.message,
+          execError.stderr ? `stderr: ${execError.stderr}` : '',
+          execError.stdout ? `stdout: ${execError.stdout}` : '',
+        ].filter(Boolean).join('\n');
+        throw new WorktreeError(
+          `Failed to install dependencies in worktree: ${worktreePath}`,
+          'DEPENDENCY_INSTALL_FAILED',
+          details
+        );
+      }
     }
   }
 
