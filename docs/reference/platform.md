@@ -32,9 +32,9 @@ bun run start  # Production
 | File | Purpose |
 |------|---------|
 | `src/index.ts` | Server entry, routes |
-| `src/ws/broadcaster.ts` | WebSocket broadcaster |
+| `src/ws/broadcaster.ts` | WebSocket broadcaster (re-exports from `@elemental/shared-routes`) |
 | `src/ws/handler.ts` | WebSocket handler |
-| `src/ws/types.ts` | WebSocket types |
+| `src/ws/types.ts` | WebSocket types (re-exports from `@elemental/shared-routes`) |
 
 ### API Routes
 
@@ -144,53 +144,40 @@ app.use('*', cors({
 
 ## WebSocket
 
-**Files:** `apps/server/src/ws/`
+**Shared types & broadcaster:** `packages/shared-routes/src/ws/` (types, `EventBroadcaster`, `shouldReceiveEvent`)
 
-### Broadcasting Events
+**Server handler:** `apps/server/src/ws/handler.ts` (re-exports types/broadcaster from `@elemental/shared-routes`)
 
-```typescript
-import { broadcaster } from './ws/broadcaster';
+**Orchestrator server:** `apps/orchestrator-server/src/events-websocket.ts` (event-subscription WS at `/ws/events`)
 
-// After mutations, broadcast to clients
-app.post('/api/tasks', async (c) => {
-  const task = await api.create(body);
+### Architecture
 
-  broadcaster.broadcast({
-    type: 'element:created',
-    payload: task,
-  });
+The WebSocket event-subscription protocol is shared between the standard server and orchestrator server:
 
-  return c.json(task, 201);
-});
-```
-
-### Event Types
-
-| Event | Payload |
-|-------|---------|
-| `element:created` | Element |
-| `element:updated` | Element |
-| `element:deleted` | `{ id }` |
-| `dependency:added` | Dependency |
-| `dependency:removed` | `{ blockedId, blockerId, type }` |
+- **Types** (`SubscriptionChannel`, `WebSocketEvent`, `ServerMessage`, etc.) live in `@elemental/shared-routes`
+- **EventBroadcaster** polls the DB for new events and dispatches to listeners — also in `@elemental/shared-routes`
+- **shouldReceiveEvent()** filters events based on client subscriptions — also in `@elemental/shared-routes`
+- Each server has its own handler that wires up WebSocket connections to the shared broadcaster
 
 ### Client Connection
 
+Both web apps (`apps/web`, `apps/orchestrator-web`) use `@elemental/ui`'s `useRealtimeEvents` hook with a thin local wrapper that derives the WebSocket URL from `window.location`:
+
 ```typescript
-// In web app
-import { useRealtimeEvents } from '@/api/hooks/useRealtimeEvents';
+// In any web app — the local wrapper handles URL derivation
+import { useRealtimeEvents } from './api/hooks/useRealtimeEvents';
 
 function MyComponent() {
   useRealtimeEvents({
-    onElementCreated: (element) => {
-      // Handle new element
-    },
-    onElementUpdated: (element) => {
-      // Handle update
+    channels: ['tasks', 'messages'],
+    onEvent: (event) => {
+      console.log('Event:', event.elementType, event.eventType);
     },
   });
 }
 ```
+
+The underlying `@elemental/ui` hook handles WebSocket connection, reconnection, channel subscriptions, and React Query cache invalidation via `defaultQueryKeyMapper`.
 
 **Note:** WebSocket uses 500ms polling, not instant push.
 
@@ -310,9 +297,11 @@ const { data: documents } = useAllDocuments();
 const { data: channels } = useAllChannels();
 const { data: messages } = useAllMessages();
 
-// WebSocket state
-const connectionState = useWebSocketState();
-// 'connecting' | 'connected' | 'disconnected' | 'reconnecting'
+// WebSocket real-time events (from @elemental/ui, wrapped locally)
+const { connectionState, lastEvent } = useRealtimeEvents({
+  channels: ['tasks', 'messages'],
+});
+// connectionState: 'connecting' | 'connected' | 'disconnected' | 'reconnecting'
 
 // In-place cache updates
 const handleEvent = useInPlaceCacheUpdates();
@@ -373,7 +362,8 @@ Hono-based API server for agent orchestration. Modular architecture with routes 
 | `src/config.ts` | Server configuration (ports, paths, CORS) |
 | `src/services.ts` | Service initialization |
 | `src/server.ts` | Cross-runtime startup (Bun/Node.js) |
-| `src/websocket.ts` | WebSocket connection handling |
+| `src/websocket.ts` | Terminal WebSocket connection handling |
+| `src/events-websocket.ts` | Event-subscription WebSocket (`/ws/events`) |
 | `src/formatters.ts` | Response formatters |
 | `src/types.ts` | Shared types |
 
@@ -664,19 +654,20 @@ import { AgentWorkspaceGraph } from '@/components/agent-graph';
 
 ## Vite Proxy Configuration
 
-For API calls during development:
+For API and WebSocket calls during development. The `/ws` prefix proxy covers both `/ws` (standard server event-subscription) and `/ws/events` (orchestrator server event-subscription):
 
 ```typescript
-// vite.config.ts
+// apps/web/vite.config.ts — standard server on port 3456
+// apps/orchestrator-web/vite.config.ts — orchestrator server on port 3457
 export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3456',
+        target: 'http://localhost:3456', // or 3457 for orchestrator
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:3456',
+        target: 'ws://localhost:3456', // or 3457 for orchestrator
         ws: true,
       },
     },

@@ -221,7 +221,8 @@ API call (get/list/query)
 | Configuration (ports, CORS) | `apps/orchestrator-server/src/config.ts` |
 | Service initialization | `apps/orchestrator-server/src/services.ts` |
 | Cross-runtime server (Bun/Node) | `apps/orchestrator-server/src/server.ts` |
-| WebSocket handling | `apps/orchestrator-server/src/websocket.ts` |
+| Terminal WebSocket handling | `apps/orchestrator-server/src/websocket.ts` |
+| Event-subscription WebSocket | `apps/orchestrator-server/src/events-websocket.ts` |
 | Task API endpoints | `apps/orchestrator-server/src/routes/tasks.ts` |
 | Agent API endpoints | `apps/orchestrator-server/src/routes/agents.ts` |
 | Session API endpoints | `apps/orchestrator-server/src/routes/sessions.ts` |

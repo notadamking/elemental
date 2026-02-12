@@ -15,6 +15,7 @@ export type ServerWebSocket<T> = {
 
 export interface WSClientData {
   id: string;
+  wsType?: 'terminal' | 'events' | 'lsp';
   agentId?: EntityId;
   sessionId?: string;
   isInteractive?: boolean;

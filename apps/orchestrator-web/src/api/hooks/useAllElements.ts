@@ -7,7 +7,7 @@
 
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import type { WebSocketEvent } from '../websocket';
+import type { WebSocketEvent } from '@elemental/ui';
 
 // ============================================================================
 // Types

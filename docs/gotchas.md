@@ -119,8 +119,10 @@ Common pitfalls and their solutions, organized by severity and category.
 
 ## Platform
 
-- **WebSocket uses 500ms polling**, not instant push
-- WebSocket events should invalidate TanStack Query cache
+- **WebSocket uses 500ms polling** (`EventBroadcaster` in `@elemental/shared-routes`), not instant push
+- WebSocket types/broadcaster are shared via `@elemental/shared-routes`, not duplicated per app
+- Client-side hooks come from `@elemental/ui` (`useRealtimeEvents`, `useWebSocket`), wrapped locally per app
+- WebSocket events auto-invalidate TanStack Query cache via `defaultQueryKeyMapper`
 - Routes must be registered in `router.tsx`
 - **CORS hardcoded for localhost:5173** - needs env vars for production
 - **Server default port is 3456**, not 3000

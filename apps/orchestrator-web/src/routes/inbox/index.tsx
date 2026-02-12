@@ -36,7 +36,7 @@ import { PageHeader } from '../../components/shared/PageHeader';
 import { useIsMobile } from '../../hooks/useBreakpoint';
 import { useCurrentUser } from '../../contexts';
 import { useRealtimeEvents } from '../../api/hooks/useRealtimeEvents';
-import type { WebSocketEvent } from '../../api/websocket';
+import type { WebSocketEvent } from '@elemental/ui';
 import { groupByTimePeriod, TIME_PERIOD_LABELS, type TimePeriod, formatCompactTime } from '../../lib';
 
 // Types

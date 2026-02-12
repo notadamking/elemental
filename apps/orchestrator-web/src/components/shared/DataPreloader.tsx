@@ -8,7 +8,7 @@
 import { ReactNode } from 'react';
 import { useAllElements, useInPlaceCacheUpdates } from '../../api/hooks/useAllElements';
 import { useRealtimeEvents } from '../../api/hooks/useRealtimeEvents';
-import type { WebSocketEvent } from '../../api/websocket';
+import type { WebSocketEvent } from '@elemental/ui';
 
 interface DataPreloaderProps {
   children: ReactNode;

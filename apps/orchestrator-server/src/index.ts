@@ -44,6 +44,7 @@ import { shouldDaemonAutoStart, saveDaemonState } from './daemon-state.js';
 import { createLspManager } from './services/lsp-manager.js';
 import { createLspRoutes } from './routes/lsp.js';
 import { PROJECT_ROOT } from './config.js';
+import { initializeBroadcaster } from '@elemental/shared-routes';
 
 // Main entry point - async to allow service initialization
 async function main() {
@@ -115,6 +116,10 @@ async function main() {
   const lspManager = createLspManager(PROJECT_ROOT);
   await lspManager.checkAvailability();
   app.route('/', createLspRoutes(lspManager));
+
+  // Initialize and start the event broadcaster for real-time WebSocket events
+  const broadcaster = initializeBroadcaster(services.api);
+  await broadcaster.start();
 
   startServer(app, services, lspManager);
 

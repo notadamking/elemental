@@ -11,9 +11,17 @@ import type { ServerWebSocket, WSClientData } from './types.js';
 import { handleWSOpen, handleWSMessage, handleWSClose } from './websocket.js';
 import type { LspWSClientData } from './lsp-websocket.js';
 import { handleLspWSOpen, handleLspWSMessage, handleLspWSClose } from './lsp-websocket.js';
+import type { EventsWSClientData } from './events-websocket.js';
+import { handleEventsWSOpen, handleEventsWSMessage, handleEventsWSClose } from './events-websocket.js';
 import type { LspManager } from './services/lsp-manager.js';
 
 const isBun = typeof globalThis.Bun !== 'undefined';
+
+/**
+ * Union of all possible WebSocket data types.
+ * Bun uses a single websocket handler for all paths, so we discriminate via wsType.
+ */
+type AnyWSData = WSClientData | EventsWSClientData | (LspWSClientData & { wsType?: 'lsp' });
 
 export function startServer(app: Hono, services: Services, lspManager?: LspManager): void {
   if (isBun) {
@@ -31,26 +39,52 @@ function startBunServer(app: Hono, services: Services, lspManager?: LspManager):
     hostname: HOST,
     fetch: app.fetch,
     websocket: {
-      open(ws: ServerWebSocket<WSClientData>) {
-        handleWSOpen(ws);
+      open(ws: ServerWebSocket<AnyWSData>) {
+        const data = ws.data;
+        if (data.wsType === 'events') {
+          handleEventsWSOpen(ws as ServerWebSocket<EventsWSClientData>);
+        } else if (data.wsType === 'lsp') {
+          // LSP open is handled after upgrade with language param
+        } else {
+          handleWSOpen(ws as ServerWebSocket<WSClientData>);
+        }
       },
-      message(ws: ServerWebSocket<WSClientData>, message: string | Buffer) {
-        handleWSMessage(ws, message, services);
+      message(ws: ServerWebSocket<AnyWSData>, message: string | Buffer) {
+        const data = ws.data;
+        if (data.wsType === 'events') {
+          handleEventsWSMessage(ws as ServerWebSocket<EventsWSClientData>, message);
+        } else if (data.wsType === 'lsp') {
+          handleLspWSMessage(ws as ServerWebSocket<LspWSClientData>, message);
+        } else {
+          handleWSMessage(ws as ServerWebSocket<WSClientData>, message, services);
+        }
       },
-      close(ws: ServerWebSocket<WSClientData>) {
-        handleWSClose(ws);
+      close(ws: ServerWebSocket<AnyWSData>) {
+        const data = ws.data;
+        if (data.wsType === 'events') {
+          handleEventsWSClose(ws as ServerWebSocket<EventsWSClientData>);
+        } else if (data.wsType === 'lsp') {
+          handleLspWSClose(ws as ServerWebSocket<LspWSClientData>);
+        } else {
+          handleWSClose(ws as ServerWebSocket<WSClientData>);
+        }
       },
     },
   });
 
+  // Terminal WebSocket endpoint
   app.get('/ws', (c) => {
-    const upgraded = server.upgrade(c.req.raw, { data: { id: '' } });
+    const upgraded = server.upgrade(c.req.raw, { data: { id: '', wsType: 'terminal' } });
     return upgraded ? new Response(null, { status: 101 }) : c.json({ error: 'WebSocket upgrade failed' }, 400);
   });
 
-  // LSP WebSocket endpoint - handled separately in Bun
-  // Note: Bun's WebSocket handling doesn't support multiple paths with different handlers easily,
-  // so LSP WebSocket is handled through /ws/lsp query params
+  // Event-subscription WebSocket endpoint
+  app.get('/ws/events', (c) => {
+    const upgraded = server.upgrade(c.req.raw, { data: { id: '', wsType: 'events' } });
+    return upgraded ? new Response(null, { status: 101 }) : c.json({ error: 'WebSocket upgrade failed' }, 400);
+  });
+
+  // LSP WebSocket endpoint
   app.get('/ws/lsp', (c) => {
     const language = c.req.query('language');
     if (!language) {
@@ -59,12 +93,13 @@ function startBunServer(app: Hono, services: Services, lspManager?: LspManager):
     if (!lspManager) {
       return c.json({ error: 'LSP manager not available' }, 503);
     }
-    const upgraded = server.upgrade(c.req.raw, { data: { id: '', language, isLsp: true } });
+    const upgraded = server.upgrade(c.req.raw, { data: { id: '', language, wsType: 'lsp', isLsp: true } });
     return upgraded ? new Response(null, { status: 101 }) : c.json({ error: 'WebSocket upgrade failed' }, 400);
   });
 
   console.log(`[orchestrator] Server running at http://${HOST}:${PORT} (Bun)`);
   console.log(`[orchestrator] WebSocket available at ws://${HOST}:${PORT}/ws`);
+  console.log(`[orchestrator] Events WebSocket available at ws://${HOST}:${PORT}/ws/events`);
   if (lspManager) {
     console.log(`[orchestrator] LSP WebSocket available at ws://${HOST}:${PORT}/ws/lsp?language=<lang>`);
   }
@@ -145,6 +180,35 @@ function startNodeServer(app: Hono, services: Services, lspManager?: LspManager)
           ws.on('close', () => handleWSClose(wsAdapter));
         });
 
+        // Event-subscription WebSocket server
+        const eventsWss = new WebSocketServer({ noServer: true });
+
+        eventsWss.on('connection', (ws) => {
+          const WS_OPEN = 1;
+          const wsAdapter: ServerWebSocket<EventsWSClientData> = {
+            data: {
+              id: '',
+              wsType: 'events',
+              subscriptions: new Set(),
+              eventListener: () => {},
+            },
+            send: (data: string | ArrayBuffer) => {
+              if (ws.readyState === WS_OPEN) {
+                ws.send(typeof data === 'string' ? data : Buffer.from(data));
+              }
+            },
+            close: () => ws.close(),
+            readyState: ws.readyState,
+          };
+
+          handleEventsWSOpen(wsAdapter);
+          ws.on('message', (msg) => {
+            (wsAdapter as { readyState: number }).readyState = ws.readyState;
+            handleEventsWSMessage(wsAdapter, msg.toString());
+          });
+          ws.on('close', () => handleEventsWSClose(wsAdapter));
+        });
+
         // LSP WebSocket server for language server connections
         const lspWss = new WebSocketServer({ noServer: true });
 
@@ -186,13 +250,17 @@ function startNodeServer(app: Hono, services: Services, lspManager?: LspManager)
         httpServer.on('upgrade', (req, socket, head) => {
           const pathname = parseUrl(req.url || '').pathname;
 
-          if (pathname === '/ws') {
-            wss.handleUpgrade(req, socket, head, (ws) => {
-              wss.emit('connection', ws, req);
+          if (pathname === '/ws/events') {
+            eventsWss.handleUpgrade(req, socket, head, (ws) => {
+              eventsWss.emit('connection', ws, req);
             });
           } else if (pathname === '/ws/lsp') {
             lspWss.handleUpgrade(req, socket, head, (ws) => {
               lspWss.emit('connection', ws, req);
+            });
+          } else if (pathname === '/ws') {
+            wss.handleUpgrade(req, socket, head, (ws) => {
+              wss.emit('connection', ws, req);
             });
           } else {
             socket.destroy();
@@ -202,6 +270,7 @@ function startNodeServer(app: Hono, services: Services, lspManager?: LspManager)
         httpServer.listen(PORT, HOST, () => {
           console.log(`[orchestrator] Server running at http://${HOST}:${PORT} (Node.js)`);
           console.log(`[orchestrator] WebSocket available at ws://${HOST}:${PORT}/ws`);
+          console.log(`[orchestrator] Events WebSocket available at ws://${HOST}:${PORT}/ws/events`);
           if (lspManager) {
             console.log(`[orchestrator] LSP WebSocket available at ws://${HOST}:${PORT}/ws/lsp?language=<lang>`);
           }

@@ -16,3 +16,6 @@ export { createLibraryRoutes } from './libraries.js';
 export { createDocumentRoutes } from './documents.js';
 export { createInboxRoutes } from './inbox.js';
 export { createPlanRoutes } from './plans.js';
+
+// WebSocket types, broadcaster, and handler utilities
+export * from './ws/index.js';

@@ -159,39 +159,13 @@ app.patch('/api/features/bulk', async (c) => {
 });
 ```
 
-### 6. Broadcast WebSocket Events
+### 6. WebSocket Events (Automatic)
 
-After mutations, notify connected clients:
+WebSocket event broadcasting is handled automatically by the `EventBroadcaster` (from `@elemental/shared-routes`). It polls the database for new events and dispatches them to connected WebSocket clients based on their subscriptions.
 
-```typescript
-import { broadcaster } from './ws/broadcaster';
+When your API endpoint creates, updates, or deletes elements via the `ElementalAPI`, the broadcaster will automatically pick up the resulting events from the `events` table and push them to clients — no manual broadcasting needed.
 
-app.post('/api/features', async (c) => {
-  const body = await c.req.json();
-  const feature = await api.create({ type: 'feature', ...body });
-
-  // Broadcast to WebSocket clients
-  broadcaster.broadcast({
-    type: 'element:created',
-    payload: feature,
-  });
-
-  return c.json(feature, 201);
-});
-
-app.patch('/api/features/:id', async (c) => {
-  const id = c.req.param('id');
-  const body = await c.req.json();
-  const updated = await api.update(id, body);
-
-  broadcaster.broadcast({
-    type: 'element:updated',
-    payload: updated,
-  });
-
-  return c.json(updated);
-});
-```
+If you need to broadcast custom events (e.g., inbox notifications), see `apps/server/src/ws/handler.ts` for the `broadcastInboxEvent()` pattern.
 
 ### 7. Error Handling
 

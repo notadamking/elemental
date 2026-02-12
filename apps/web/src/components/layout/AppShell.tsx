@@ -8,7 +8,7 @@ import { ThemeToggle } from '../ui/ThemeToggle';
 import { useRealtimeEvents } from '../../api/hooks/useRealtimeEvents';
 import { useQuery } from '@tanstack/react-query';
 import { useGlobalKeyboardShortcuts, useKeyboardShortcut, useIsMobile, useIsTablet, GlobalQuickActionsProvider } from '../../hooks';
-import type { ConnectionState } from '../../api/websocket';
+import type { ConnectionState } from '@elemental/ui';
 import {
   ChevronRight,
   LayoutDashboard,

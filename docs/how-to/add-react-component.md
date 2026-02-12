@@ -151,19 +151,21 @@ function TaskList() {
 
 ### 4. Handle Real-time Updates
 
+The `useRealtimeEvents` hook (local wrapper around `@elemental/ui`) connects to the WebSocket, subscribes to channels, and automatically invalidates React Query caches via `defaultQueryKeyMapper`. You can also handle events manually:
+
 ```typescript
-import { useRealtimeEvents } from '@/api/hooks/useRealtimeEvents';
-import { useQueryClient } from '@tanstack/react-query';
+import { useRealtimeEvents } from '../api/hooks/useRealtimeEvents';
+import type { WebSocketEvent } from '@elemental/ui';
 
 function TaskList() {
-  const queryClient = useQueryClient();
-
   useRealtimeEvents({
-    onElementUpdated: (element) => {
-      if (element.type === 'task') {
-        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    channels: ['tasks'],
+    onEvent: (event: WebSocketEvent) => {
+      if (event.elementType === 'task' && event.eventType === 'created') {
+        // Show a toast, play a sound, etc.
       }
     },
+    autoInvalidate: true, // default — auto-invalidates React Query caches
   });
 
   // ... rest of component
