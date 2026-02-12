@@ -53,6 +53,8 @@ export class LightweightLspClient {
   private workspaceRoot: string;
   private monacoInstance: typeof monaco | null = null;
   private _isConnected = false;
+  /** Maps LSP document URIs (absolute) to Monaco model URIs for diagnostic routing */
+  private documentToModelUri = new Map<string, string>();
 
   constructor(options: LightweightClientOptions) {
     this.language = options.language;
@@ -136,10 +138,14 @@ export class LightweightLspClient {
       (params: { uri: string; diagnostics: Diagnostic[] }) => {
         if (!this.monacoInstance) return;
 
-        // Find the Monaco model for this URI
+        // Resolve the diagnostic URI to the Monaco model URI via our mapping
+        const mappedModelUri = this.documentToModelUri.get(params.uri);
+
         const models = this.monacoInstance.editor.getModels();
         const model = models.find((m) => {
           const modelUri = m.uri.toString();
+          // Check mapped URI first (handles absolute→relative mapping)
+          if (mappedModelUri && modelUri === mappedModelUri) return true;
           return modelUri === params.uri ||
             `file://${modelUri}` === params.uri ||
             modelUri === params.uri.replace('file://', '');
@@ -148,6 +154,13 @@ export class LightweightLspClient {
         if (model) {
           const markers = params.diagnostics.map((d) => toMonacoMarker(d));
           this.monacoInstance.editor.setModelMarkers(model, 'lsp', markers);
+          console.log(`[lsp-client] Set ${markers.length} diagnostics for ${params.uri}`);
+        } else if (params.diagnostics.length > 0) {
+          console.warn(
+            `[lsp-client] No model found for diagnostics URI: ${params.uri}`,
+            `Mapped model URI: ${mappedModelUri || 'none'}`,
+            `Available models: ${models.map((m) => m.uri.toString()).join(', ')}`
+          );
         }
       }
     );
@@ -279,11 +292,25 @@ export class LightweightLspClient {
   }
 
   /**
-   * Notify the language server that a document was opened
+   * Resolve a relative file path to an absolute file:// URI using the workspace root.
+   * If already absolute, returns file://{path}. If relative, prepends the workspace root.
    */
-  sendDidOpen(uri: string, languageId: string, text: string): void {
+  resolveDocumentUri(filePath: string): string {
+    if (filePath.startsWith('/')) return `file://${filePath}`;
+    return `file://${this.workspaceRoot}/${filePath}`;
+  }
+
+  /**
+   * Notify the language server that a document was opened.
+   * @param modelUri - The Monaco model URI (may differ from the document URI)
+   *                   Used to route diagnostics back to the correct model.
+   */
+  sendDidOpen(uri: string, languageId: string, text: string, modelUri?: string): void {
     if (!this.connection) return;
     this.documentVersion = 1;
+    if (modelUri && modelUri !== uri) {
+      this.documentToModelUri.set(uri, modelUri);
+    }
     this.connection.sendNotification('textDocument/didOpen', {
       textDocument: {
         uri,
@@ -314,6 +341,7 @@ export class LightweightLspClient {
    */
   sendDidClose(uri: string): void {
     if (!this.connection) return;
+    this.documentToModelUri.delete(uri);
     this.connection.sendNotification('textDocument/didClose', {
       textDocument: { uri },
     });

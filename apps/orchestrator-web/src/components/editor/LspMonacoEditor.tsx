@@ -179,6 +179,11 @@ function LspMonacoEditorComponent({
   // Track the previous value prop to detect external changes (tab switches, file reloads)
   // without interfering with the user's typing
   const prevValuePropRef = useRef(value);
+  // Track previous filePath for didClose/didOpen lifecycle on tab switches
+  const prevFilePathRef = useRef<string | undefined>(filePath);
+  // Current filePath ref for use in closures that outlive prop changes
+  const filePathRef = useRef(filePath);
+  filePathRef.current = filePath;
   // Debounce timer for LSP didChange notifications
   const lspChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Disposables for editor subscriptions (content change, focus/blur)
@@ -236,20 +241,36 @@ function LspMonacoEditorComponent({
     }
   }, [monacoInstance, language, lspState]);
 
-  // Send didOpen to LSP when connected and document is ready
+  // Send didOpen to LSP when connected and document is ready.
+  // Handles file switches by sending didClose for the old file first.
+  // Uses resolveDocumentUri to convert relative paths to absolute file:// URIs.
   useEffect(() => {
-    if (lspState !== 'connected' || !editorRef.current || didOpenSentRef.current) return;
+    if (lspState !== 'connected' || !editorRef.current) return;
 
     const client = getActiveClient(language);
     if (!client) return;
 
+    // If file path changed, close the old document and reset
+    if (prevFilePathRef.current !== filePath) {
+      if (prevFilePathRef.current && didOpenSentRef.current) {
+        client.sendDidClose(client.resolveDocumentUri(prevFilePathRef.current));
+      }
+      didOpenSentRef.current = false;
+      prevFilePathRef.current = filePath;
+    }
+
+    if (didOpenSentRef.current) return;
+
     const model = editorRef.current.getModel();
     if (!model) return;
 
-    const uri = filePath ? `file://${filePath}` : model.uri.toString();
-    client.sendDidOpen(uri, language, model.getValue());
+    // Resolve filePath to absolute file:// URI for the language server.
+    // The model URI (e.g., inmemory://model/1) may differ, so pass it for diagnostic routing.
+    const documentUri = filePath ? client.resolveDocumentUri(filePath) : model.uri.toString();
+    const modelUri = model.uri.toString();
+    client.sendDidOpen(documentUri, language, model.getValue(), modelUri);
     didOpenSentRef.current = true;
-    console.log(`[LspMonacoEditor] Sent didOpen for ${uri}`);
+    console.log(`[LspMonacoEditor] Sent didOpen for ${documentUri} (model: ${modelUri})`);
   }, [lspState, language, filePath]);
 
   // Notify parent of LSP state changes
@@ -322,7 +343,8 @@ function LspMonacoEditorComponent({
           if (client) {
             const m = editor.getModel();
             if (m) {
-              const uri = filePath ? `file://${filePath}` : m.uri.toString();
+              const currentPath = filePathRef.current;
+              const uri = currentPath ? client.resolveDocumentUri(currentPath) : m.uri.toString();
               client.sendDidChange(uri, m.getValue());
             }
           }
