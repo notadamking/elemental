@@ -11,6 +11,7 @@ import {
   WebSocketMessageReader,
   WebSocketMessageWriter,
 } from 'vscode-ws-jsonrpc';
+import { ensureServicesInitialized } from './init-services';
 
 /**
  * Simple URI implementation compatible with vscode.Uri for workspace folder configuration.
@@ -256,6 +257,15 @@ export async function connectLsp(
   }
 
   console.log(`[lsp-client] Connecting to ${language} language server...`);
+
+  // Ensure VSCode services are initialized before creating MonacoLanguageClient
+  // This is required by monaco-languageclient v10.x which depends on @codingame/monaco-vscode-api
+  try {
+    await ensureServicesInitialized();
+  } catch (error) {
+    console.error('[lsp-client] Failed to initialize VSCode services:', error);
+    return null;
+  }
 
   return new Promise((resolve, reject) => {
     const url = getLspWebSocketUrl(language);

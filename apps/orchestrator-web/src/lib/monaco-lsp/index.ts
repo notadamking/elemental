@@ -37,3 +37,6 @@ export {
 
 // React hook for LSP management
 export { useLsp, type LspState } from './use-lsp';
+
+// VSCode services initialization (required for monaco-languageclient v10.x)
+export { ensureServicesInitialized, isServicesInitialized } from './init-services';
