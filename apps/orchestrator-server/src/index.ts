@@ -24,6 +24,7 @@ import {
   createWorkflowRoutes,
   createPoolRoutes,
   createWorkspaceFilesRoutes,
+  createExtensionsRoutes,
   markDaemonAsServerManaged,
 } from './routes/index.js';
 // Shared collaborate routes
@@ -96,6 +97,7 @@ async function main() {
   app.route('/', createWorkflowRoutes(services));
   app.route('/', createPoolRoutes(services));
   app.route('/', createWorkspaceFilesRoutes());
+  app.route('/', createExtensionsRoutes());
 
   // Register shared collaborate routes
   const collaborateServices = {
