@@ -136,6 +136,11 @@ export async function initializeMonaco(): Promise<void> {
     // Register custom theme after initialization
     registerElementalDarkTheme();
 
+    // Expose monaco on window for E2E testing (marker inspection, etc.)
+    if (typeof window !== 'undefined') {
+      (window as unknown as { monaco: typeof monaco }).monaco = monaco;
+    }
+
     initialized = true;
     console.log('[monaco-init] Monaco initialized with @codingame/monaco-vscode-api');
   })();
