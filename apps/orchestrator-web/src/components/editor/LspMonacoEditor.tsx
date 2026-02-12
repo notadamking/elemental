@@ -1,21 +1,22 @@
 /**
  * LspMonacoEditor - Monaco Editor Component with LSP Support
  *
- * A React component that wraps Monaco editor using @monaco-editor/react.
+ * A React component that wraps Monaco editor using the direct Monaco API.
  * Provides:
  * - Syntax highlighting via Monaco's built-in language support
  * - LSP features via WebSocket connection to server-side language servers
- * - Custom elemental-dark theme
+ * - Custom elemental-dark theme (from monaco-init.ts)
  * - Read-only mode support
  * - Responsive input handling
+ * - URI-based models for tab switching (preserves undo history)
  */
 
-import { useCallback, useState, memo, useEffect, useRef } from 'react';
-import Editor, { loader, OnMount, BeforeMount } from '@monaco-editor/react';
-import type * as monacoTypes from 'monaco-editor';
+import { useState, memo, useEffect, useRef } from 'react';
+import * as monaco from 'monaco-editor';
 import { Loader2 } from 'lucide-react';
 import { getKeyboardManager } from '@elemental/ui';
 import { useLsp, isPotentialLspLanguage, getActiveClient, type LspState } from '../../lib/monaco-lsp';
+import { initializeMonaco } from '../../lib/monaco-init';
 
 /**
  * TypeScript/JavaScript language IDs that use Monaco's built-in TS worker
@@ -67,7 +68,7 @@ interface LspMonacoEditorProps {
   /** Callback when content changes (lightweight notification, no value) */
   onChange?: () => void;
   /** Callback when editor mounts */
-  onMount?: (editor: monacoTypes.editor.IStandaloneCodeEditor, monacoInstance: typeof monacoTypes) => void;
+  onMount?: (editor: monaco.editor.IStandaloneCodeEditor, monacoInstance: typeof monaco) => void;
   /** Custom theme name */
   theme?: string;
   /** Additional CSS class for container */
@@ -78,83 +79,95 @@ interface LspMonacoEditorProps {
   onLspStateChange?: (state: LspState) => void;
 }
 
-// Track if we've defined the custom theme
-let themeInitialized = false;
+/**
+ * Editor options that are shared across all editor instances
+ */
+const EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
+  automaticLayout: true,
+  minimap: {
+    enabled: true,
+    scale: 1,
+    showSlider: 'mouseover',
+    renderCharacters: false,
+  },
+  fontSize: 14,
+  fontFamily: "'Fira Code', 'JetBrains Mono', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
+  fontLigatures: true,
+  lineNumbers: 'on',
+  scrollBeyondLastLine: false,
+  wordWrap: 'on',
+  padding: { top: 16, bottom: 16 },
+  // Enhanced syntax highlighting
+  renderWhitespace: 'selection',
+  bracketPairColorization: { enabled: true },
+  guides: {
+    bracketPairs: true,
+    indentation: true,
+    highlightActiveIndentation: true,
+  },
+  // Smooth scrolling and cursor
+  smoothScrolling: true,
+  cursorBlinking: 'smooth',
+  cursorSmoothCaretAnimation: 'on',
+  // Code folding
+  folding: true,
+  foldingStrategy: 'indentation',
+  showFoldingControls: 'mouseover',
+  // Hover and suggestions (enabled for all editable files)
+  hover: { enabled: true, delay: 300 },
+  // Selection highlighting
+  occurrencesHighlight: 'singleFile',
+  selectionHighlight: true,
+  // IntelliSense
+  suggest: {
+    showMethods: true,
+    showFunctions: true,
+    showConstructors: true,
+    showFields: true,
+    showVariables: true,
+    showClasses: true,
+    showStructs: true,
+    showInterfaces: true,
+    showModules: true,
+    showProperties: true,
+    showEvents: true,
+    showOperators: true,
+    showUnits: true,
+    showValues: true,
+    showConstants: true,
+    showEnums: true,
+    showEnumMembers: true,
+    showKeywords: true,
+    showWords: true,
+    showColors: true,
+    showFiles: true,
+    showReferences: true,
+    showFolders: true,
+    showTypeParameters: true,
+    showSnippets: true,
+  },
+};
 
 /**
- * Custom dark theme configuration for the editor
+ * Get or create a Monaco model for a file path
  */
-function defineCustomTheme(monacoInstance: typeof monacoTypes): void {
-  if (themeInitialized) return;
+function getOrCreateModel(
+  filePath: string | undefined,
+  content: string,
+  language: string
+): monaco.editor.ITextModel {
+  // Create a file:// URI for the model
+  const uriString = filePath ? `file:///${filePath.replace(/^\//, '')}` : `inmemory://model/${Date.now()}`;
+  const uri = monaco.Uri.parse(uriString);
 
-  monacoInstance.editor.defineTheme('elemental-dark', {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [
-      // Enhanced syntax highlighting rules
-      { token: 'comment', foreground: '6A9955', fontStyle: 'italic' },
-      { token: 'keyword', foreground: 'C586C0' },
-      { token: 'keyword.control', foreground: 'C586C0' },
-      { token: 'keyword.operator', foreground: 'C586C0' },
-      { token: 'string', foreground: 'CE9178' },
-      { token: 'string.escape', foreground: 'D7BA7D' },
-      { token: 'number', foreground: 'B5CEA8' },
-      { token: 'regexp', foreground: 'D16969' },
-      { token: 'type', foreground: '4EC9B0' },
-      { token: 'type.identifier', foreground: '4EC9B0' },
-      { token: 'class', foreground: '4EC9B0' },
-      { token: 'interface', foreground: '4EC9B0', fontStyle: 'italic' },
-      { token: 'enum', foreground: '4EC9B0' },
-      { token: 'typeParameter', foreground: '4EC9B0', fontStyle: 'italic' },
-      { token: 'function', foreground: 'DCDCAA' },
-      { token: 'function.declaration', foreground: 'DCDCAA' },
-      { token: 'method', foreground: 'DCDCAA' },
-      { token: 'variable', foreground: '9CDCFE' },
-      { token: 'variable.readonly', foreground: '4FC1FF' },
-      { token: 'variable.constant', foreground: '4FC1FF' },
-      { token: 'parameter', foreground: '9CDCFE', fontStyle: 'italic' },
-      { token: 'property', foreground: '9CDCFE' },
-      { token: 'namespace', foreground: '4EC9B0' },
-      { token: 'decorator', foreground: 'DCDCAA' },
-      { token: 'tag', foreground: '569CD6' },
-      { token: 'attribute.name', foreground: '9CDCFE' },
-      { token: 'attribute.value', foreground: 'CE9178' },
-      // JSX/TSX specific
-      { token: 'tag.tsx', foreground: '4EC9B0' },
-      { token: 'tag.jsx', foreground: '4EC9B0' },
-      // JSON
-      { token: 'string.key.json', foreground: '9CDCFE' },
-      { token: 'string.value.json', foreground: 'CE9178' },
-      // Markdown
-      { token: 'markup.heading', foreground: '569CD6', fontStyle: 'bold' },
-      { token: 'markup.bold', fontStyle: 'bold' },
-      { token: 'markup.italic', fontStyle: 'italic' },
-      { token: 'markup.inline.raw', foreground: 'CE9178' },
-      // Shell
-      { token: 'variable.shell', foreground: '9CDCFE' },
-    ],
-    colors: {
-      'editor.background': '#1a1a2e',
-      'editor.foreground': '#d4d4d4',
-      'editor.lineHighlightBackground': '#2a2a4e',
-      'editor.selectionBackground': '#264f78',
-      'editorCursor.foreground': '#aeafad',
-      'editorWhitespace.foreground': '#3b3b5b',
-      'editorLineNumber.foreground': '#5a5a8a',
-      'editorLineNumber.activeForeground': '#c6c6c6',
-      'editor.inactiveSelectionBackground': '#3a3d41',
-      'editorIndentGuide.background1': '#404060',
-      'editorIndentGuide.activeBackground1': '#707090',
-    },
-  });
+  // Check if model already exists
+  let model = monaco.editor.getModel(uri);
+  if (!model) {
+    model = monaco.editor.createModel(content, language, uri);
+  }
 
-  themeInitialized = true;
+  return model;
 }
-
-// Initialize the theme once on module load via loader
-loader.init().then((monaco) => {
-  defineCustomTheme(monaco);
-}).catch(console.error);
 
 /**
  * Monaco editor component with LSP support
@@ -170,10 +183,12 @@ function LspMonacoEditorComponent({
   filePath,
   onLspStateChange,
 }: LspMonacoEditorProps) {
-  const [error] = useState<string | null>(null);
-  // Store Monaco instance in state to trigger re-renders when it becomes available
-  const [monacoInstance, setMonacoInstance] = useState<typeof monacoTypes | null>(null);
-  const editorRef = useRef<monacoTypes.editor.IStandaloneCodeEditor | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [monacoReady, setMonacoReady] = useState(false);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const didOpenSentRef = useRef(false);
 
   // Track the previous value prop to detect external changes (tab switches, file reloads)
@@ -184,44 +199,185 @@ function LspMonacoEditorComponent({
   // Current filePath ref for use in closures that outlive prop changes
   const filePathRef = useRef(filePath);
   filePathRef.current = filePath;
+  // Track previous language for model updates
+  const prevLanguageRef = useRef(language);
   // Debounce timer for LSP didChange notifications
   const lspChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Disposables for editor subscriptions (content change, focus/blur)
-  const editorDisposablesRef = useRef<monacoTypes.IDisposable[]>([]);
+  const editorDisposablesRef = useRef<monaco.IDisposable[]>([]);
 
   // Use LSP hook for language server connection
   const { state: lspState } = useLsp({
-    monaco: monacoInstance ?? undefined,
+    monaco: monacoReady ? monaco : undefined,
     language,
     documentUri: filePath ? `file://${filePath}` : undefined,
     autoConnect: isPotentialLspLanguage(language) && !readOnly,
   });
+
+  // Initialize Monaco on mount
+  useEffect(() => {
+    let mounted = true;
+
+    initializeMonaco()
+      .then(() => {
+        if (mounted) {
+          setMonacoReady(true);
+          setIsLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (mounted) {
+          console.error('[LspMonacoEditor] Failed to initialize Monaco:', err);
+          setError(err instanceof Error ? err.message : 'Failed to initialize editor');
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Create editor once Monaco is ready and container is available
+  useEffect(() => {
+    if (!monacoReady || !containerRef.current || editorRef.current) {
+      return;
+    }
+
+    // Get or create model for this file
+    const model = getOrCreateModel(filePath, value, language);
+
+    // Create editor with options
+    const editor = monaco.editor.create(containerRef.current, {
+      ...EDITOR_OPTIONS,
+      model,
+      theme,
+      readOnly,
+      quickSuggestions: !readOnly,
+      suggestOnTriggerCharacters: !readOnly,
+      parameterHints: { enabled: !readOnly },
+    });
+
+    editorRef.current = editor;
+    didOpenSentRef.current = false;
+    prevValuePropRef.current = value;
+
+    // Set up content change listener
+    const contentDisposable = editor.onDidChangeModelContent(() => {
+      // Lightweight dirty notification to parent (no value extraction)
+      onChange?.();
+
+      // Debounce LSP didChange — only read model value when the timer fires
+      if (didOpenSentRef.current) {
+        if (lspChangeTimerRef.current) {
+          clearTimeout(lspChangeTimerRef.current);
+        }
+        lspChangeTimerRef.current = setTimeout(() => {
+          const client = getActiveClient(language);
+          if (client) {
+            const m = editor.getModel();
+            if (m) {
+              const currentPath = filePathRef.current;
+              const uri = currentPath ? client.resolveDocumentUri(currentPath) : m.uri.toString();
+              client.sendDidChange(uri, m.getValue());
+            }
+          }
+        }, 200);
+      }
+    });
+
+    // Disable global keyboard shortcuts when editor is focused
+    const focusDisposable = editor.onDidFocusEditorWidget(() => {
+      getKeyboardManager().setEnabled(false);
+    });
+    const blurDisposable = editor.onDidBlurEditorWidget(() => {
+      getKeyboardManager().setEnabled(true);
+    });
+
+    editorDisposablesRef.current = [contentDisposable, focusDisposable, blurDisposable];
+
+    // Call onMount callback
+    if (onMount) {
+      onMount(editor, monaco);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (lspChangeTimerRef.current) {
+        clearTimeout(lspChangeTimerRef.current);
+      }
+      for (const d of editorDisposablesRef.current) {
+        d.dispose();
+      }
+      editorDisposablesRef.current = [];
+      // Re-enable global shortcuts when editor unmounts
+      getKeyboardManager().setEnabled(true);
+
+      // Dispose editor
+      if (editorRef.current) {
+        editorRef.current.dispose();
+        editorRef.current = null;
+      }
+    };
+    // Only run on mount/unmount - dependencies handled in separate effects
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monacoReady]);
+
+  // Handle filePath changes (tab switching) by switching models
+  useEffect(() => {
+    if (!editorRef.current || !monacoReady) return;
+    if (filePath === prevFilePathRef.current && language === prevLanguageRef.current) return;
+
+    const editor = editorRef.current;
+    const client = getActiveClient(language);
+
+    // Send didClose for old file
+    if (prevFilePathRef.current && didOpenSentRef.current && client) {
+      client.sendDidClose(client.resolveDocumentUri(prevFilePathRef.current));
+    }
+    didOpenSentRef.current = false;
+
+    // Get or create new model
+    const newModel = getOrCreateModel(filePath, value, language);
+
+    // Switch to new model (preserves undo history per-model)
+    editor.setModel(newModel);
+
+    // Update model content if it differs from value
+    if (newModel.getValue() !== value) {
+      newModel.setValue(value);
+    }
+
+    prevFilePathRef.current = filePath;
+    prevLanguageRef.current = language;
+    prevValuePropRef.current = value;
+  }, [filePath, language, value, monacoReady]);
 
   // Unconditionally disable semantic validation from built-in TS worker.
   // The in-browser TS worker cannot resolve modules (no filesystem access),
   // so semantic diagnostics always produce false "Cannot find module" errors.
   // Syntax validation is kept as a useful baseline.
   useEffect(() => {
-    if (!monacoInstance) return;
+    if (!monacoReady) return;
     if (!TS_JS_LANGUAGES.includes(language)) return;
 
     const diagnosticsOptions = { noSemanticValidation: true, noSyntaxValidation: false };
 
     try {
       if (language === 'typescript' || language === 'typescriptreact') {
-        monacoInstance.languages.typescript.typescriptDefaults.setDiagnosticsOptions(diagnosticsOptions);
+        monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions(diagnosticsOptions);
       } else if (language === 'javascript' || language === 'javascriptreact') {
-        monacoInstance.languages.typescript.javascriptDefaults.setDiagnosticsOptions(diagnosticsOptions);
+        monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions(diagnosticsOptions);
       }
       console.log(`[LspMonacoEditor] Disabled built-in TS semantic validation for ${language}`);
     } catch (err) {
       console.warn('[LspMonacoEditor] Failed to set diagnostics options:', err);
     }
-  }, [monacoInstance, language]);
+  }, [monacoReady, language]);
 
   // Disable built-in TS intellisense features when LSP is connected to avoid duplicates
   useEffect(() => {
-    if (!monacoInstance) return;
+    if (!monacoReady) return;
     if (!TS_JS_LANGUAGES.includes(language)) return;
 
     const isLspConnected = lspState === 'connected';
@@ -229,9 +385,9 @@ function LspMonacoEditorComponent({
 
     try {
       if (language === 'typescript' || language === 'typescriptreact') {
-        monacoInstance.languages.typescript.typescriptDefaults.setModeConfiguration(modeConfig);
+        monaco.languages.typescript.typescriptDefaults.setModeConfiguration(modeConfig);
       } else if (language === 'javascript' || language === 'javascriptreact') {
-        monacoInstance.languages.typescript.javascriptDefaults.setModeConfiguration(modeConfig);
+        monaco.languages.typescript.javascriptDefaults.setModeConfiguration(modeConfig);
       }
       console.log(
         `[LspMonacoEditor] ${isLspConnected ? 'Disabled' : 'Enabled'} built-in TS intellisense for ${language}`
@@ -239,7 +395,7 @@ function LspMonacoEditorComponent({
     } catch (err) {
       console.warn('[LspMonacoEditor] Failed to set mode configuration:', err);
     }
-  }, [monacoInstance, language, lspState]);
+  }, [monacoReady, language, lspState]);
 
   // Send didOpen to LSP when connected and document is ready.
   // Handles file switches by sending didClose for the old file first.
@@ -293,93 +449,22 @@ function LspMonacoEditorComponent({
     }
   }, [value]);
 
-  // Cleanup editor subscriptions and debounce timer on unmount
+  // Update readOnly option when it changes
   useEffect(() => {
-    return () => {
-      if (lspChangeTimerRef.current) {
-        clearTimeout(lspChangeTimerRef.current);
-      }
-      for (const d of editorDisposablesRef.current) {
-        d.dispose();
-      }
-      editorDisposablesRef.current = [];
-      // Re-enable global shortcuts when editor unmounts
-      getKeyboardManager().setEnabled(true);
-    };
-  }, []);
-
-  // Handle editor mount
-  const handleMount: OnMount = useCallback((editor, monaco) => {
-    // Store editor and Monaco instance
-    editorRef.current = editor;
-    setMonacoInstance(monaco);
-    didOpenSentRef.current = false;
-
-    // Sync with latest value prop in case it changed before mount completed
-    prevValuePropRef.current = value;
-    const model = editor.getModel();
-    if (model && model.getValue() !== value) {
-      model.setValue(value);
-    }
-
-    // Dispose previous subscriptions (in case of re-mount)
-    for (const d of editorDisposablesRef.current) {
-      d.dispose();
-    }
-
-    // Subscribe to content changes directly (bypasses @monaco-editor/react's
-    // onChange which calls editor.getValue() O(n) on every keystroke)
-    const contentDisposable = editor.onDidChangeModelContent(() => {
-      // Lightweight dirty notification to parent (no value extraction)
-      onChange?.();
-
-      // Debounce LSP didChange — only read model value when the timer fires
-      if (didOpenSentRef.current) {
-        if (lspChangeTimerRef.current) {
-          clearTimeout(lspChangeTimerRef.current);
-        }
-        lspChangeTimerRef.current = setTimeout(() => {
-          const client = getActiveClient(language);
-          if (client) {
-            const m = editor.getModel();
-            if (m) {
-              const currentPath = filePathRef.current;
-              const uri = currentPath ? client.resolveDocumentUri(currentPath) : m.uri.toString();
-              client.sendDidChange(uri, m.getValue());
-            }
-          }
-        }, 200);
-      }
+    if (!editorRef.current) return;
+    editorRef.current.updateOptions({
+      readOnly,
+      quickSuggestions: !readOnly,
+      suggestOnTriggerCharacters: !readOnly,
+      parameterHints: { enabled: !readOnly },
     });
+  }, [readOnly]);
 
-    // Disable global keyboard shortcuts (G A, Cmd+B, etc.) when editor is focused
-    // so they don't steal keystrokes. Cmd+K (command palette) and Cmd+S (save)
-    // are handled by their own document-level listeners and remain unaffected.
-    const focusDisposable = editor.onDidFocusEditorWidget(() => {
-      getKeyboardManager().setEnabled(false);
-    });
-    const blurDisposable = editor.onDidBlurEditorWidget(() => {
-      getKeyboardManager().setEnabled(true);
-    });
-
-    editorDisposablesRef.current = [contentDisposable, focusDisposable, blurDisposable];
-
-    // Ensure theme is defined
-    defineCustomTheme(monaco);
-
-    // Set the theme
+  // Update theme when it changes
+  useEffect(() => {
+    if (!monacoReady) return;
     monaco.editor.setTheme(theme);
-
-    // Call onMount callback
-    if (onMount) {
-      onMount(editor, monaco);
-    }
-  }, [onMount, theme, value, onChange, language, filePath]);
-
-  // Handle beforeMount to define theme early
-  const handleBeforeMount: BeforeMount = useCallback((monaco) => {
-    defineCustomTheme(monaco);
-  }, []);
+  }, [theme, monacoReady]);
 
   // Loading spinner component
   const LoadingSpinner = (
@@ -401,82 +486,13 @@ function LspMonacoEditorComponent({
 
   return (
     <div className={`relative h-full ${className}`} data-testid="lsp-monaco-editor">
-      <Editor
-        defaultLanguage={language}
-        language={language}
-        defaultValue={value}
-        theme={theme}
-        onMount={handleMount}
-        beforeMount={handleBeforeMount}
-        loading={LoadingSpinner}
-        options={{
-          readOnly,
-          automaticLayout: true,
-          minimap: {
-            enabled: true,
-            scale: 1,
-            showSlider: 'mouseover',
-            renderCharacters: false,
-          },
-          fontSize: 14,
-          fontFamily: "'Fira Code', 'JetBrains Mono', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
-          fontLigatures: true,
-          lineNumbers: 'on',
-          scrollBeyondLastLine: false,
-          wordWrap: 'on',
-          padding: { top: 16, bottom: 16 },
-          // Enhanced syntax highlighting
-          renderWhitespace: 'selection',
-          bracketPairColorization: { enabled: true },
-          guides: {
-            bracketPairs: true,
-            indentation: true,
-            highlightActiveIndentation: true,
-          },
-          // Smooth scrolling and cursor
-          smoothScrolling: true,
-          cursorBlinking: 'smooth',
-          cursorSmoothCaretAnimation: 'on',
-          // Code folding
-          folding: true,
-          foldingStrategy: 'indentation',
-          showFoldingControls: 'mouseover',
-          // Hover and suggestions (enabled for all editable files)
-          hover: { enabled: true, delay: 300 },
-          quickSuggestions: !readOnly,
-          suggestOnTriggerCharacters: !readOnly,
-          parameterHints: { enabled: !readOnly },
-          // Selection highlighting
-          occurrencesHighlight: 'singleFile',
-          selectionHighlight: true,
-          // IntelliSense
-          suggest: {
-            showMethods: true,
-            showFunctions: true,
-            showConstructors: true,
-            showFields: true,
-            showVariables: true,
-            showClasses: true,
-            showStructs: true,
-            showInterfaces: true,
-            showModules: true,
-            showProperties: true,
-            showEvents: true,
-            showOperators: true,
-            showUnits: true,
-            showValues: true,
-            showConstants: true,
-            showEnums: true,
-            showEnumMembers: true,
-            showKeywords: true,
-            showWords: true,
-            showColors: true,
-            showFiles: true,
-            showReferences: true,
-            showFolders: true,
-            showTypeParameters: true,
-            showSnippets: true,
-          },
+      {isLoading && LoadingSpinner}
+      <div
+        ref={containerRef}
+        style={{
+          width: '100%',
+          height: '100%',
+          display: isLoading ? 'none' : 'block',
         }}
       />
     </div>
