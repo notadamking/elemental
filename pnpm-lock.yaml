@@ -66,6 +66,27 @@ importers:
 
   apps/orchestrator-web:
     dependencies:
+      '@codingame/monaco-vscode-api':
+        specifier: 10.0.0
+        version: 10.0.0
+      '@codingame/monaco-vscode-configuration-service-override':
+        specifier: 10.0.0
+        version: 10.0.0
+      '@codingame/monaco-vscode-languages-service-override':
+        specifier: 10.0.0
+        version: 10.0.0
+      '@codingame/monaco-vscode-model-service-override':
+        specifier: 10.0.0
+        version: 10.0.0
+      '@codingame/monaco-vscode-textmate-service-override':
+        specifier: 10.0.0
+        version: 10.0.0
+      '@codingame/monaco-vscode-theme-defaults-default-extension':
+        specifier: 10.0.0
+        version: 10.0.0
+      '@codingame/monaco-vscode-theme-service-override':
+        specifier: 10.0.0
+        version: 10.0.0
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.4)(react@19.2.4)
@@ -847,6 +868,113 @@ packages:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
     dev: true
+
+  /@codingame/monaco-vscode-api@10.0.0:
+    resolution: {integrity: sha512-Xf572hepF8RplsuXgYe2i5CCKRFav5YWCP2AwvzAdAS6YIi0sc0JrgH+mgoqg/DcuVxzmP6QxWqn5O8R/GR9qw==}
+    dependencies:
+      '@codingame/monaco-vscode-base-service-override': 10.0.0
+      '@codingame/monaco-vscode-environment-service-override': 10.0.0
+      '@codingame/monaco-vscode-extensions-service-override': 10.0.0
+      '@codingame/monaco-vscode-files-service-override': 10.0.0
+      '@codingame/monaco-vscode-host-service-override': 10.0.0
+      '@codingame/monaco-vscode-layout-service-override': 10.0.0
+      '@codingame/monaco-vscode-quickaccess-service-override': 10.0.0
+      '@vscode/iconv-lite-umd': 0.7.0
+      '@xterm/addon-clipboard': 0.2.0
+      '@xterm/addon-image': 0.9.0
+      '@xterm/addon-search': 0.16.0
+      '@xterm/addon-serialize': 0.14.0
+      '@xterm/addon-unicode11': 0.9.0
+      '@xterm/addon-webgl': 0.19.0
+      '@xterm/xterm': 5.6.0-beta.143
+      jschardet: 3.1.3
+      marked: 14.0.0
+    dev: false
+
+  /@codingame/monaco-vscode-base-service-override@10.0.0:
+    resolution: {integrity: sha512-En8wPWX2SmewFt0LzWchVVdeNhi9AXHA5u6SswHV/SUGpzxUhajvmBUUmAbe2twk5WG5fEbd0xYc+OwodgPqxQ==}
+    dependencies:
+      vscode: /@codingame/monaco-vscode-api@10.0.0
+    dev: false
+
+  /@codingame/monaco-vscode-configuration-service-override@10.0.0:
+    resolution: {integrity: sha512-7t0Qxa5EGoVBAUZjRHMSG+kObTtJbxAhasB2HEtzYq5JgyQu7ZWugwQV6s6mu/5AGKmBs7EWX4Cpv+no7y1+uA==}
+    dependencies:
+      '@codingame/monaco-vscode-files-service-override': 10.0.0
+      vscode: /@codingame/monaco-vscode-api@10.0.0
+    dev: false
+
+  /@codingame/monaco-vscode-environment-service-override@10.0.0:
+    resolution: {integrity: sha512-gnzC9Z9wvPGu4mqGrunhJbqOTx51iez0tQk7Km2Q6Xg+F26kGNoAGFHXhaFsvSsZWOHzDlBzNhPHNN7y0D3CPw==}
+    dependencies:
+      vscode: /@codingame/monaco-vscode-api@10.0.0
+    dev: false
+
+  /@codingame/monaco-vscode-extensions-service-override@10.0.0:
+    resolution: {integrity: sha512-kW4RgSXYkfbRwUsvmj7N8wgsUuod6pDJoujZkXJ+sJQ3dFb2XMMvgpn3dGOwIO4hXRXC73N7cGAtNETZF9HarA==}
+    dependencies:
+      '@codingame/monaco-vscode-files-service-override': 10.0.0
+      vscode: /@codingame/monaco-vscode-api@10.0.0
+    dev: false
+
+  /@codingame/monaco-vscode-files-service-override@10.0.0:
+    resolution: {integrity: sha512-uUfiHtieIHfMN4ZGgFqVqUaYGrQqg11ROuRHMbItZANr+eeDFKI8GgFAgInE0adeZzK/KPYLhFmrGTZ4ng7TSw==}
+    dependencies:
+      vscode: /@codingame/monaco-vscode-api@10.0.0
+    dev: false
+
+  /@codingame/monaco-vscode-host-service-override@10.0.0:
+    resolution: {integrity: sha512-TtTzA3mG/y+XZL/dp/oeBnOlHIeK91ecu1npPC2PNq7ngFnD7cIMVPRIviiFNYSA9/i3m+HbaJy4Taq61/tH5w==}
+    dependencies:
+      vscode: /@codingame/monaco-vscode-api@10.0.0
+    dev: false
+
+  /@codingame/monaco-vscode-languages-service-override@10.0.0:
+    resolution: {integrity: sha512-pjEgSl8aL4HcXkgUMO+6HQY6ogbFszc5iRIEun6ho8DTKqBPHqxFnX7FKHfSyR+mtIH/XJyYtO5zRwWs6sL7pQ==}
+    dependencies:
+      '@codingame/monaco-vscode-files-service-override': 10.0.0
+      vscode: /@codingame/monaco-vscode-api@10.0.0
+    dev: false
+
+  /@codingame/monaco-vscode-layout-service-override@10.0.0:
+    resolution: {integrity: sha512-4YPj9REoHKu6Yp/iRCQgHBX1wx2TaOlvyWJcOO2bFthYQ5FkfVoPfK0S4yDm76APS6xXZneG0W9YJtFZO1Tieg==}
+    dependencies:
+      vscode: /@codingame/monaco-vscode-api@10.0.0
+    dev: false
+
+  /@codingame/monaco-vscode-model-service-override@10.0.0:
+    resolution: {integrity: sha512-V/PzrykVHSH9tu4jexL3sW240kg6tm/mAItInrfb+Dd2KiUw5DH/tYy9jORNjEfHYBIvJq2hGlklFBLhY8DIEQ==}
+    dependencies:
+      vscode: /@codingame/monaco-vscode-api@10.0.0
+    dev: false
+
+  /@codingame/monaco-vscode-quickaccess-service-override@10.0.0:
+    resolution: {integrity: sha512-C1x1x3eIIxCIutQKbE1vvhVs+SF3uHeIcHMtmSU3mxoPIyMXWn1nOygT/LR19Amdz1jArMwzoj10WG7kclPq/Q==}
+    dependencies:
+      vscode: /@codingame/monaco-vscode-api@10.0.0
+    dev: false
+
+  /@codingame/monaco-vscode-textmate-service-override@10.0.0:
+    resolution: {integrity: sha512-Ua0N8JiEMQSQJElNp7o1YdytRJV54b1n8G6xnHoFt7n7WTtz1lRhTmaE5KM5bALvkKFLDYXjZHsGCoq9LrRo4w==}
+    dependencies:
+      '@codingame/monaco-vscode-files-service-override': 10.0.0
+      vscode: /@codingame/monaco-vscode-api@10.0.0
+      vscode-oniguruma: 1.7.0
+      vscode-textmate: 9.1.0
+    dev: false
+
+  /@codingame/monaco-vscode-theme-defaults-default-extension@10.0.0:
+    resolution: {integrity: sha512-nK/QgKJrP9tTToIHGmYdR21HcCnmagZHPo/GlySso/f2hZ2I/g02V/ONcSTi8RSznuu48oHMw1KlSQI6pjnucQ==}
+    dependencies:
+      vscode: /@codingame/monaco-vscode-api@10.0.0
+    dev: false
+
+  /@codingame/monaco-vscode-theme-service-override@10.0.0:
+    resolution: {integrity: sha512-FrTpAJ8SVu5jNuVu8cGLkIcfC1k44o8y5GvCx/1mBTj6ooism8OEiAgygUNib2m6G0P0L+tySqjfzePZxI9Rtg==}
+    dependencies:
+      '@codingame/monaco-vscode-files-service-override': 10.0.0
+      vscode: /@codingame/monaco-vscode-api@10.0.0
+    dev: false
 
   /@dnd-kit/accessibility@3.1.1(react@19.2.4):
     resolution: {integrity: sha512-2P+YgaXF+gRsIihwwY1gCsQSYnu9Zyj2py8kY5fFvUM1qm2WA2u639R6YNVfU4GWr+ZM5mqEsfHZZLoRONbemw==}
@@ -3742,6 +3870,10 @@ packages:
       tinyrainbow: 3.0.3
     dev: true
 
+  /@vscode/iconv-lite-umd@0.7.0:
+    resolution: {integrity: sha512-bRRFxLfg5dtAyl5XyiVWz/ZBPahpOpPrNYnnHpOpUZvam4tKH35wdhP4Kj6PbM0+KdliOsPzbGWpkxcdpNB/sg==}
+    dev: false
+
   /@vscode/l10n@0.0.10:
     resolution: {integrity: sha512-E1OCmDcDWa0Ya7vtSjp/XfHFGqYJfh+YPC1RkATU71fTac+j1JjCcB3qwSzmlKAighx2WxhLlfhS0RwAN++PFQ==}
     dev: true
@@ -3750,12 +3882,42 @@ packages:
     resolution: {integrity: sha512-KYSIHVmslkaCDyw013pphY+d7x1qV8IZupYfeIfzNA+nsaWHbn5uPuQRvdRFsa9zFzGeudPuoGoZ1Op4jrJXIQ==}
     dev: true
 
+  /@xterm/addon-clipboard@0.2.0:
+    resolution: {integrity: sha512-Dl31BCtBhLaUEECUbEiVcCLvLBbaeGYdT7NofB8OJkGTD3MWgBsaLjXvfGAD4tQNHhm6mbKyYkR7XD8kiZsdNg==}
+    dependencies:
+      js-base64: 3.7.8
+    dev: false
+
   /@xterm/addon-fit@0.11.0:
     resolution: {integrity: sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==}
     dev: false
 
+  /@xterm/addon-image@0.9.0:
+    resolution: {integrity: sha512-oYWA8/QAr5/Emwl1xL7WCoOqeG3IZfpzEz/OVq1j4Oi9934TQmHiyubClikRf0D/jL3JNiNuz/Lsqx0kXQ02BA==}
+    dev: false
+
+  /@xterm/addon-search@0.16.0:
+    resolution: {integrity: sha512-9OeuBFu0/uZJPu+9AHKY6g/w0Czyb/Ut0A5t79I4ULoU4IfU5BEpPFVGQxP4zTTMdfZEYkVIRYbHBX1xWwjeSA==}
+    dev: false
+
+  /@xterm/addon-serialize@0.14.0:
+    resolution: {integrity: sha512-uteyTU1EkrQa2Ux6P/uFl2fzmXI46jy5uoQMKEOM0fKTyiW7cSn0WrFenHm5vO5uEXX/GpwW/FgILvv3r0WbkA==}
+    dev: false
+
+  /@xterm/addon-unicode11@0.9.0:
+    resolution: {integrity: sha512-FxDnYcyuXhNl+XSqGZL/t0U9eiNb/q3EWT5rYkQT/zuig8Gz/VagnQANKHdDWFM2lTMk9ly0EFQxxxtZUoRetw==}
+    dev: false
+
   /@xterm/addon-web-links@0.12.0:
     resolution: {integrity: sha512-4Smom3RPyVp7ZMYOYDoC/9eGJJJqYhnPLGGqJ6wOBfB8VxPViJNSKdgRYb8NpaM6YSelEKbA2SStD7lGyqaobw==}
+    dev: false
+
+  /@xterm/addon-webgl@0.19.0:
+    resolution: {integrity: sha512-b3fMOsyLVuCeNJWxolACEUED0vm7qC0cy4wRvf3oURSzDTYVQiGPhTnhWZwIHdvC48Y+oLhvYXnY4XDXPoJo6A==}
+    dev: false
+
+  /@xterm/xterm@5.6.0-beta.143:
+    resolution: {integrity: sha512-zOxRKnxlwTAAlprUv9j8MVly4UyKJYQm2QzkRvZGJd9hMnjS3bQS9mRLmt91jwLleSzHdtUMe2jKjtQnFmho3Q==}
     dev: false
 
   /@xterm/xterm@6.0.0:
@@ -4505,8 +4667,17 @@ packages:
     hasBin: true
     dev: true
 
+  /js-base64@3.7.8:
+    resolution: {integrity: sha512-hNngCeKxIUQiEUN3GPJOkz4wF/YvdUdbNL9hsBcMQTkKzboD7T/q3OYOuuPZLUE6dBxSGpwhk5mwuDud7JVAow==}
+    dev: false
+
   /js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
+
+  /jschardet@3.1.3:
+    resolution: {integrity: sha512-Q1PKVMK/uu+yjdlobgWIYkUOCR1SqUmW9m/eUJNNj4zI2N12i25v8fYpVf+zCakQeaTdBdhnZTFbVIAVZIVVOg==}
+    engines: {node: '>=0.1.90'}
+    dev: false
 
   /jsesc@3.1.0:
     resolution: {integrity: sha512-/sM3dO2FOzXjKQhJuo0Q173wf2KOo8t4I8vHy6lF9poUp7bKT0/NHE8fPX23PwfhnykfqnC2xRxOnVw5XuGIaA==}
@@ -4716,6 +4887,12 @@ packages:
       mdurl: 2.0.0
       punycode.js: 2.3.1
       uc.micro: 2.1.0
+    dev: false
+
+  /marked@14.0.0:
+    resolution: {integrity: sha512-uIj4+faQ+MgHgwUW1l2PsPglZLOLOT1uErt06dAPtx2kjteLAkbsd/0FiYg/MGS+i7ZKLb7w2WClxHkzOOuryQ==}
+    engines: {node: '>= 18'}
+    hasBin: true
     dev: false
 
   /marked@17.0.1:
@@ -6069,6 +6246,14 @@ packages:
   /vscode-nls@5.2.0:
     resolution: {integrity: sha512-RAaHx7B14ZU04EU31pT+rKz2/zSl7xMsfIZuo8pd+KZO6PXtQmpevpq3vxvWNcrGbdmhM/rr5Uw5Mz+NBfhVng==}
     dev: true
+
+  /vscode-oniguruma@1.7.0:
+    resolution: {integrity: sha512-L9WMGRfrjOhgHSdOYgCt/yRMsXzLDJSL7BPrOZt73gU0iWO4mpqzqQzOz5srxqTvMBaR0XZTSrVWo4j55Rc6cA==}
+    dev: false
+
+  /vscode-textmate@9.1.0:
+    resolution: {integrity: sha512-lxKSVp2DkFOx9RDAvpiYUrB9/KT1fAfi1aE8CBGstP8N7rLF+Seifj8kDA198X0mYj1CjQUC+81+nQf8CO0nVA==}
+    dev: false
 
   /vscode-uri@3.1.0:
     resolution: {integrity: sha512-/BpdSx+yCQGnCvecbyXdxHDkuk55/G3xwnC0GqY4gmQ3j+A+g8kzzgB4Nk/SINjqn6+waqw3EgbVF2QKExkRxQ==}
