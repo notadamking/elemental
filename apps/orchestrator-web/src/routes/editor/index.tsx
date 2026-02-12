@@ -18,7 +18,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type * as monaco from '@codingame/monaco-vscode-editor-api';
+import type * as monaco from 'monaco-editor';
 import {
   FileCode,
   Loader2,
@@ -45,7 +45,6 @@ import {
   getMonacoLanguageFromContentType,
   detectLanguageFromFilename,
 } from '../../lib/language-detection';
-import { isLspSupportedLanguage } from '../../lib/monaco-lsp';
 
 // ============================================================================
 // Types
@@ -831,7 +830,7 @@ export function FileEditorPage() {
                     </span>
                   </div>
                   {/* LSP status indicator */}
-                  {isLspSupportedLanguage(activeTab.language) && (
+                  {['typescript', 'javascript', 'typescriptreact', 'javascriptreact'].includes(activeTab.language) && (
                     <div className="flex items-center gap-1.5 text-xs text-green-500" title="LSP enabled - Autocompletion, hover info, and diagnostics active">
                       <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
                       <span>LSP</span>

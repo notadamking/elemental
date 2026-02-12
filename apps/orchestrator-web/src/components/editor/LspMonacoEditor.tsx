@@ -1,19 +1,18 @@
 /**
- * LspMonacoEditor - Monaco Editor with LSP Support
+ * LspMonacoEditor - Monaco Editor Component
  *
- * A React component that wraps Monaco editor with full LSP support
- * for TypeScript/JavaScript files. Provides:
- * - Autocompletion
- * - Hover information with types
- * - Inline diagnostics (errors/warnings)
- * - Go-to-definition (Cmd/Ctrl+click)
- * - Syntax highlighting via TextMate
+ * A React component that wraps Monaco editor using @monaco-editor/react.
+ * Provides:
+ * - Syntax highlighting via Monaco's built-in language support
+ * - Custom elemental-dark theme
+ * - Read-only mode support
+ * - Responsive input handling
  */
 
-import { useEffect, useRef, useState, memo } from 'react';
-import type * as monaco from '@codingame/monaco-vscode-editor-api';
+import { useCallback, useState, memo, useRef } from 'react';
+import Editor, { loader, OnMount, BeforeMount } from '@monaco-editor/react';
+import type * as monacoTypes from 'monaco-editor';
 import { Loader2 } from 'lucide-react';
-import { initializeMonacoLsp, isLspInitialized, isLspSupportedLanguage } from '../../lib/monaco-lsp';
 
 interface LspMonacoEditorProps {
   /** Editor content */
@@ -25,17 +24,22 @@ interface LspMonacoEditorProps {
   /** Callback when content changes */
   onChange?: (value: string) => void;
   /** Callback when editor mounts */
-  onMount?: (editor: monaco.editor.IStandaloneCodeEditor, monacoInstance: typeof monaco) => void;
+  onMount?: (editor: monacoTypes.editor.IStandaloneCodeEditor, monacoInstance: typeof monacoTypes) => void;
   /** Custom theme name */
   theme?: string;
   /** Additional CSS class for container */
   className?: string;
 }
 
+// Track if we've defined the custom theme
+let themeInitialized = false;
+
 /**
  * Custom dark theme configuration for the editor
  */
-function defineCustomTheme(monacoInstance: typeof monaco): void {
+function defineCustomTheme(monacoInstance: typeof monacoTypes): void {
+  if (themeInitialized) return;
+
   monacoInstance.editor.defineTheme('elemental-dark', {
     base: 'vs-dark',
     inherit: true,
@@ -96,10 +100,17 @@ function defineCustomTheme(monacoInstance: typeof monaco): void {
       'editorIndentGuide.activeBackground1': '#707090',
     },
   });
+
+  themeInitialized = true;
 }
 
+// Initialize the theme once on module load via loader
+loader.init().then((monaco) => {
+  defineCustomTheme(monaco);
+}).catch(console.error);
+
 /**
- * Monaco editor with LSP support component
+ * Monaco editor component
  */
 function LspMonacoEditorComponent({
   value,
@@ -110,69 +121,67 @@ function LspMonacoEditorComponent({
   theme = 'elemental-dark',
   className = '',
 }: LspMonacoEditorProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const modelRef = useRef<monaco.editor.ITextModel | null>(null);
-  const monacoRef = useRef<typeof monaco | null>(null);
+  const [error] = useState<string | null>(null);
+  const monacoRef = useRef<typeof monacoTypes | null>(null);
 
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Handle editor mount
+  const handleMount: OnMount = useCallback((editor, monaco) => {
+    monacoRef.current = monaco;
 
-  // Track if value update is from external prop change
-  const isExternalUpdate = useRef(false);
-  // Track mounted state
-  const isMountedRef = useRef(true);
+    // Ensure theme is defined
+    defineCustomTheme(monaco);
 
-  // Initialize LSP and create editor
-  useEffect(() => {
-    isMountedRef.current = true;
-    let disposed = false;
+    // Set the theme
+    monaco.editor.setTheme(theme);
 
-    const setupEditor = async () => {
-      if (!containerRef.current) {
-        return;
-      }
+    // Call onMount callback
+    if (onMount) {
+      onMount(editor, monaco);
+    }
+  }, [onMount, theme]);
 
-      try {
-        setIsInitializing(true);
-        setError(null);
+  // Handle beforeMount to define theme early
+  const handleBeforeMount: BeforeMount = useCallback((monaco) => {
+    defineCustomTheme(monaco);
+  }, []);
 
-        // Initialize LSP services if not already done
-        if (!isLspInitialized()) {
-          await initializeMonacoLsp();
-        }
+  // Handle content changes
+  const handleChange = useCallback((newValue: string | undefined) => {
+    if (onChange && newValue !== undefined) {
+      onChange(newValue);
+    }
+  }, [onChange]);
 
-        if (disposed || !isMountedRef.current) {
-          return;
-        }
+  // Loading spinner component
+  const LoadingSpinner = (
+    <div className="flex items-center justify-center h-full bg-[var(--color-surface)]">
+      <Loader2 className="w-8 h-8 animate-spin text-[var(--color-text-muted)]" />
+    </div>
+  );
 
-        // Dynamic import to ensure initialization happens first
-        const monacoModule = await import('@codingame/monaco-vscode-editor-api');
-        monacoRef.current = monacoModule;
+  if (error) {
+    return (
+      <div className={`flex items-center justify-center h-full bg-[var(--color-surface)] ${className}`}>
+        <div className="text-center p-4">
+          <p className="text-[var(--color-danger)] mb-2">Failed to load editor</p>
+          <p className="text-sm text-[var(--color-text-secondary)]">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
-        if (disposed || !isMountedRef.current) {
-          return;
-        }
-
-        // Define custom theme (may not be available with VSCode theme service override)
-        let activeTheme = theme;
-        try {
-          defineCustomTheme(monacoModule);
-        } catch (themeErr) {
-          console.warn('[LspMonacoEditor] Custom theme unavailable, falling back to vs-dark:', themeErr);
-          activeTheme = 'vs-dark';
-        }
-
-        // Create model with unique URI
-        const uniqueId = Date.now().toString(36) + Math.random().toString(36).substr(2);
-        const modelUri = monacoModule.Uri.parse(`inmemory://model/${uniqueId}.${language === 'typescript' ? 'ts' : language === 'javascript' ? 'js' : language}`);
-        const model = monacoModule.editor.createModel(value, language, modelUri);
-        modelRef.current = model;
-
-        // Create editor with LSP-friendly options
-        const editor = monacoModule.editor.create(containerRef.current, {
-          model,
-          theme: activeTheme,
+  return (
+    <div className={`relative h-full ${className}`} data-testid="lsp-monaco-editor">
+      <Editor
+        defaultLanguage={language}
+        language={language}
+        value={value}
+        theme={theme}
+        onChange={handleChange}
+        onMount={handleMount}
+        beforeMount={handleBeforeMount}
+        loading={LoadingSpinner}
+        options={{
           readOnly,
           automaticLayout: true,
           minimap: {
@@ -196,8 +205,6 @@ function LspMonacoEditorComponent({
             indentation: true,
             highlightActiveIndentation: true,
           },
-          // Semantic highlighting for LSP
-          'semanticHighlighting.enabled': true,
           // Smooth scrolling and cursor
           smoothScrolling: true,
           cursorBlinking: 'smooth',
@@ -206,11 +213,11 @@ function LspMonacoEditorComponent({
           folding: true,
           foldingStrategy: 'indentation',
           showFoldingControls: 'mouseover',
-          // Hover and suggestions (enabled for LSP languages)
-          hover: { enabled: 'on', delay: 300 },
-          quickSuggestions: !readOnly && isLspSupportedLanguage(language),
-          suggestOnTriggerCharacters: !readOnly && isLspSupportedLanguage(language),
-          parameterHints: { enabled: !readOnly && isLspSupportedLanguage(language) },
+          // Hover and suggestions (enabled for all editable files)
+          hover: { enabled: true, delay: 300 },
+          quickSuggestions: !readOnly,
+          suggestOnTriggerCharacters: !readOnly,
+          parameterHints: { enabled: !readOnly },
           // Selection highlighting
           occurrencesHighlight: 'singleFile',
           selectionHighlight: true,
@@ -242,128 +249,7 @@ function LspMonacoEditorComponent({
             showTypeParameters: true,
             showSnippets: true,
           },
-        });
-
-        editorRef.current = editor;
-
-        if (disposed || !isMountedRef.current) {
-          editor.dispose();
-          model.dispose();
-          return;
-        }
-
-        setIsInitializing(false);
-
-        // Call onMount callback
-        if (onMount) {
-          onMount(editor, monacoModule);
-        }
-      } catch (err) {
-        console.error('[LspMonacoEditor] Setup failed:', err);
-        if (!disposed && isMountedRef.current) {
-          setError(err instanceof Error ? err.message : 'Failed to initialize editor');
-          setIsInitializing(false);
-        }
-      }
-    };
-
-    setupEditor();
-
-    return () => {
-      disposed = true;
-      isMountedRef.current = false;
-      if (editorRef.current) {
-        editorRef.current.dispose();
-        editorRef.current = null;
-      }
-      if (modelRef.current) {
-        modelRef.current.dispose();
-        modelRef.current = null;
-      }
-      monacoRef.current = null;
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
-
-  // Handle content changes
-  useEffect(() => {
-    if (!editorRef.current || !onChange) {
-      return;
-    }
-
-    const disposable = editorRef.current.onDidChangeModelContent(() => {
-      if (isExternalUpdate.current) {
-        isExternalUpdate.current = false;
-        return;
-      }
-      const content = editorRef.current?.getValue() || '';
-      onChange(content);
-    });
-
-    return () => disposable.dispose();
-  }, [onChange]);
-
-  // Update value when prop changes (controlled mode)
-  useEffect(() => {
-    if (editorRef.current && !isInitializing) {
-      const currentValue = editorRef.current.getValue();
-      if (currentValue !== value) {
-        isExternalUpdate.current = true;
-        editorRef.current.setValue(value);
-      }
-    }
-  }, [value, isInitializing]);
-
-  // Update language when prop changes
-  useEffect(() => {
-    if (modelRef.current && monacoRef.current && !isInitializing) {
-      const currentLanguage = modelRef.current.getLanguageId();
-      if (currentLanguage !== language) {
-        monacoRef.current.editor.setModelLanguage(modelRef.current, language);
-      }
-    }
-  }, [language, isInitializing]);
-
-  // Update readOnly when prop changes
-  useEffect(() => {
-    if (editorRef.current && !isInitializing) {
-      editorRef.current.updateOptions({ readOnly });
-    }
-  }, [readOnly, isInitializing]);
-
-  // Update theme when prop changes
-  useEffect(() => {
-    if (editorRef.current && monacoRef.current && !isInitializing) {
-      try {
-        monacoRef.current.editor.setTheme(theme);
-      } catch (themeErr) {
-        console.warn('[LspMonacoEditor] Theme change failed, keeping current theme:', themeErr);
-      }
-    }
-  }, [theme, isInitializing]);
-
-  if (error) {
-    return (
-      <div className={`flex items-center justify-center h-full bg-[var(--color-surface)] ${className}`}>
-        <div className="text-center p-4">
-          <p className="text-[var(--color-danger)] mb-2">Failed to load editor</p>
-          <p className="text-sm text-[var(--color-text-secondary)]">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={`relative h-full ${className}`}>
-      {isInitializing && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[var(--color-surface)] z-10">
-          <Loader2 className="w-8 h-8 animate-spin text-[var(--color-text-muted)]" />
-        </div>
-      )}
-      <div
-        ref={containerRef}
-        className="h-full w-full"
-        data-testid="lsp-monaco-editor"
+        }}
       />
     </div>
   );
