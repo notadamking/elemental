@@ -225,6 +225,11 @@ export function FileEditorPage() {
   // Ref to track current activeTabId for use in setTabs callbacks
   const activeTabIdRef = useRef<string | null>(null);
   activeTabIdRef.current = activeTabId;
+  // Ref to track current tabs for synchronous checks (avoids stale closure issues)
+  const tabsRef = useRef<EditorTab[]>([]);
+  tabsRef.current = tabs;
+  // Ref to track files currently being loaded (prevents duplicate concurrent loads)
+  const loadingFilesRef = useRef<Set<string>>(new Set());
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [fileSource, setFileSource] = useState<FileSource>('workspace');
@@ -317,8 +322,8 @@ export function FileEditorPage() {
       setSelectedId(node.id);
       setFileError(null);
 
-      // Check if file is already open
-      const existingTab = tabs.find(t => t.id === node.id);
+      // Check if file is already open (use ref for latest state, not stale closure)
+      const existingTab = tabsRef.current.find(t => t.id === node.id);
       if (existingTab) {
         setActiveTabId(node.id);
         if (pinTab) {
@@ -330,8 +335,12 @@ export function FileEditorPage() {
         return;
       }
 
+      // Prevent duplicate concurrent loads of the same file
+      if (loadingFilesRef.current.has(node.id)) return;
+
       if (fileSource === 'workspace' && node.fsEntry) {
-        // Read local file
+        // Mark file as loading
+        loadingFilesRef.current.add(node.id);
         setIsLoadingFile(true);
         try {
           const result = await readFile(node.fsEntry);
@@ -342,11 +351,23 @@ export function FileEditorPage() {
             content: result.content,
             language: result.language || 'plaintext',
             source: 'workspace',
-            isPreview: false,
+            isPreview: !pinTab,
             isDirty: false,
           };
 
           setTabs(prevTabs => {
+            // Check if file is already open (using latest state inside setTabs)
+            const existingIndex = prevTabs.findIndex(t => t.id === node.id);
+            if (existingIndex !== -1) {
+              // File already open — just update preview status if pinning
+              if (pinTab) {
+                const updated = [...prevTabs];
+                updated[existingIndex] = { ...updated[existingIndex], isPreview: false };
+                return updated;
+              }
+              return prevTabs;
+            }
+
             // If pinning, just add a new tab
             if (pinTab) {
               return [...prevTabs, newTab];
@@ -369,12 +390,13 @@ export function FileEditorPage() {
         } catch (error) {
           setFileError(error instanceof Error ? error.message : 'Failed to read file');
         } finally {
+          loadingFilesRef.current.delete(node.id);
           setIsLoadingFile(false);
         }
       }
       // For documents mode, the useEffect above handles loading
     },
-    [fileSource, readFile, tabs]
+    [fileSource, readFile]
   );
 
   // Handle double-click to pin tab (make it non-preview)
@@ -405,8 +427,8 @@ export function FileEditorPage() {
       const entry = findEntry(workspaceEntries, path);
 
       if (entry && entry.type === 'file') {
-        // Check if this file is already open
-        const existingTab = tabs.find(t => t.path === path);
+        // Check if this file is already open (use ref for latest state)
+        const existingTab = tabsRef.current.find(t => t.path === path);
         if (existingTab) {
           setActiveTabId(existingTab.id);
           // Navigate to the line
@@ -420,7 +442,11 @@ export function FileEditorPage() {
           return;
         }
 
-        // Load the file first
+        // Prevent duplicate concurrent loads of the same file
+        if (loadingFilesRef.current.has(entry.id)) return;
+
+        // Mark file as loading
+        loadingFilesRef.current.add(entry.id);
         setSelectedId(entry.id);
         setFileError(null);
         setIsLoadingFile(true);
@@ -439,6 +465,12 @@ export function FileEditorPage() {
           };
 
           setTabs(prevTabs => {
+            // Check if file is already open (using latest state inside setTabs)
+            const existingIndex = prevTabs.findIndex(t => t.id === entry.id);
+            if (existingIndex !== -1) {
+              return prevTabs;
+            }
+
             // Replace the active tab if it's not dirty
             const currentActiveId = activeTabIdRef.current;
             const activeIndex = prevTabs.findIndex(t => t.id === currentActiveId);
@@ -463,11 +495,12 @@ export function FileEditorPage() {
         } catch (error) {
           setFileError(error instanceof Error ? error.message : 'Failed to read file');
         } finally {
+          loadingFilesRef.current.delete(entry.id);
           setIsLoadingFile(false);
         }
       }
     },
-    [workspaceEntries, tabs, readFile]
+    [workspaceEntries, readFile]
   );
 
   // Handle tab selection
