@@ -3,72 +3,13 @@
  *
  * Manages WebSocket connections to language servers running on the orchestrator server.
  * Provides LSP features like autocompletion, hover, and diagnostics to Monaco editors.
+ *
+ * Uses a lightweight LSP client that works with vanilla Monaco editor without requiring
+ * @codingame/monaco-vscode-api initialization.
  */
 
-import { MonacoLanguageClient } from 'monaco-languageclient';
-import {
-  toSocket,
-  WebSocketMessageReader,
-  WebSocketMessageWriter,
-} from 'vscode-ws-jsonrpc';
-import { ensureServicesInitialized } from './init-services';
-
-/**
- * Simple URI implementation compatible with vscode.Uri for workspace folder configuration.
- * This provides the minimum interface needed by vscode-languageclient to construct
- * rootUri and workspaceFolders in the LSP initialize request.
- */
-interface SimpleUri {
-  readonly scheme: string;
-  readonly authority: string;
-  readonly path: string;
-  readonly query: string;
-  readonly fragment: string;
-  readonly fsPath: string;
-  toString(): string;
-  toJSON(): unknown;
-  with(change: { scheme?: string; authority?: string; path?: string; query?: string; fragment?: string }): SimpleUri;
-}
-
-/**
- * Create a file URI from an absolute file path.
- * Compatible with vscode.Uri.file() for use with language client.
- */
-function createFileUri(absolutePath: string): SimpleUri {
-  // Normalize path separators for Windows compatibility
-  const normalizedPath = absolutePath.replace(/\\/g, '/');
-  // Ensure path starts with / for proper file:// URI
-  const uriPath = normalizedPath.startsWith('/') ? normalizedPath : '/' + normalizedPath;
-
-  const uri: SimpleUri = {
-    scheme: 'file',
-    authority: '',
-    path: uriPath,
-    query: '',
-    fragment: '',
-    fsPath: absolutePath,
-    toString() {
-      return `file://${uriPath}`;
-    },
-    toJSON() {
-      return this.toString();
-    },
-    with(change) {
-      return createFileUri(change.path ?? absolutePath);
-    },
-  };
-
-  return uri;
-}
-
-/**
- * Workspace folder structure compatible with vscode.WorkspaceFolder
- */
-interface WorkspaceFolder {
-  readonly uri: SimpleUri;
-  readonly name: string;
-  readonly index: number;
-}
+import { LightweightLspClient } from './lightweight-client';
+import type * as monacoTypes from 'monaco-editor';
 
 /**
  * LSP server status from the API
@@ -93,7 +34,7 @@ export interface LspStatusResponse {
  * Active language client connection
  */
 interface ActiveClient {
-  client: MonacoLanguageClient;
+  client: LightweightLspClient;
   socket: WebSocket;
   language: string;
 }
@@ -206,22 +147,28 @@ function getLspWebSocketUrl(language: string): string {
 }
 
 /**
- * Create WebSocket message transports for the language client
+ * Create a file URI from an absolute file path.
  */
-function createWebSocketTransports(socket: WebSocket) {
-  const reader = new WebSocketMessageReader(toSocket(socket));
-  const writer = new WebSocketMessageWriter(toSocket(socket));
-  return { reader, writer };
+function createFileUri(absolutePath: string): string {
+  // Normalize path separators for Windows compatibility
+  const normalizedPath = absolutePath.replace(/\\/g, '/');
+  // Ensure path starts with / for proper file:// URI
+  const uriPath = normalizedPath.startsWith('/') ? normalizedPath : '/' + normalizedPath;
+  return `file://${uriPath}`;
 }
 
 /**
  * Connect to a language server for a specific language
+ *
+ * @param language - The language ID to connect to (e.g., 'typescript', 'javascript')
+ * @param monacoInstance - The Monaco editor instance for provider registration
+ * @param documentUri - Optional document URI (unused, kept for API compatibility)
  */
 export async function connectLsp(
   language: string,
-  _monacoInstance?: typeof import('monaco-editor'),
+  monacoInstance?: typeof monacoTypes,
   _documentUri?: string
-): Promise<MonacoLanguageClient | null> {
+): Promise<LightweightLspClient | null> {
   // Check if already connected
   if (activeClients.has(language)) {
     const existing = activeClients.get(language)!;
@@ -231,6 +178,12 @@ export async function connectLsp(
     }
     // Clean up stale connection
     await disconnectLsp(language);
+  }
+
+  // Monaco instance is required for the lightweight client
+  if (!monacoInstance) {
+    console.log('[lsp-client] Monaco instance is required for LSP connection');
+    return null;
   }
 
   // Fetch status to check availability and get workspace root
@@ -243,51 +196,36 @@ export async function connectLsp(
 
   // Get workspace root from status response
   const workspaceRoot = status.workspaceRoot;
-  let workspaceFolder: WorkspaceFolder | undefined;
+  let workspaceRootUri: string | undefined;
+  let workspaceName: string | undefined;
 
   if (workspaceRoot) {
-    // Create workspace folder with proper URI for LSP initialize request
-    const workspaceName = workspaceRoot.split('/').pop() || 'workspace';
-    workspaceFolder = {
-      uri: createFileUri(workspaceRoot),
-      name: workspaceName,
-      index: 0,
-    };
+    workspaceRootUri = createFileUri(workspaceRoot);
+    workspaceName = workspaceRoot.split('/').pop() || 'workspace';
     console.log(`[lsp-client] Using workspace root: ${workspaceRoot}`);
   }
 
   console.log(`[lsp-client] Connecting to ${language} language server...`);
 
-  // Ensure VSCode services are initialized before creating MonacoLanguageClient
-  // This is required by monaco-languageclient v10.x which depends on @codingame/monaco-vscode-api
-  try {
-    await ensureServicesInitialized();
-  } catch (error) {
-    console.error('[lsp-client] Failed to initialize VSCode services:', error);
-    return null;
-  }
-
   return new Promise((resolve, reject) => {
     const url = getLspWebSocketUrl(language);
     const socket = new WebSocket(url);
 
-    socket.onopen = () => {
+    socket.onopen = async () => {
       console.log(`[lsp-client] WebSocket connected for ${language}`);
 
       try {
-        const transports = createWebSocketTransports(socket);
-
-        // Configure client with workspaceFolder to send rootUri in LSP initialize request
-        const client = new MonacoLanguageClient({
-          name: `${language} Language Client`,
-          clientOptions: {
-            documentSelector: [{ language }],
-            workspaceFolder,
-          },
-          messageTransports: transports,
+        // Create the lightweight LSP client
+        const client = new LightweightLspClient({
+          socket,
+          language,
+          monaco: monacoInstance,
+          workspaceRootUri,
+          workspaceName,
         });
 
-        client.start();
+        // Start the client (initializes server and registers providers)
+        await client.start();
 
         activeClients.set(language, { client, socket, language });
 
@@ -376,4 +314,12 @@ export function getConnectedLanguages(): string[] {
  */
 export function clearLspStatusCache(): void {
   cachedStatus = null;
+}
+
+/**
+ * Get the active client for a language (for document sync operations)
+ */
+export function getActiveClient(language: string): LightweightLspClient | null {
+  const active = activeClients.get(language);
+  return active?.client ?? null;
 }

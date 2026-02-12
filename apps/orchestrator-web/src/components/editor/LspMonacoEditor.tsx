@@ -10,11 +10,11 @@
  * - Responsive input handling
  */
 
-import { useCallback, useState, memo, useEffect } from 'react';
+import { useCallback, useState, memo, useEffect, useRef } from 'react';
 import Editor, { loader, OnMount, BeforeMount } from '@monaco-editor/react';
 import type * as monacoTypes from 'monaco-editor';
 import { Loader2 } from 'lucide-react';
-import { useLsp, isPotentialLspLanguage, type LspState } from '../../lib/monaco-lsp';
+import { useLsp, isPotentialLspLanguage, getActiveClient, type LspState } from '../../lib/monaco-lsp';
 
 /**
  * TypeScript/JavaScript language IDs that use Monaco's built-in TS worker
@@ -172,15 +172,51 @@ function LspMonacoEditorComponent({
   const [error] = useState<string | null>(null);
   // Store Monaco instance in state to trigger re-renders when it becomes available
   const [monacoInstance, setMonacoInstance] = useState<typeof monacoTypes | null>(null);
+  // Track if we've opened the document with the LSP server
+  const documentOpenedRef = useRef(false);
+  // Store current value for document sync
+  const currentValueRef = useRef(value);
+  currentValueRef.current = value;
+
+  // Calculate document URI
+  const documentUri = filePath ? `file://${filePath}` : undefined;
 
   // Use LSP hook for language server connection
   // Now uses state instead of ref, so the hook will re-run when Monaco mounts
   const { state: lspState } = useLsp({
     monaco: monacoInstance ?? undefined,
     language,
-    documentUri: filePath ? `file://${filePath}` : undefined,
+    documentUri,
     autoConnect: isPotentialLspLanguage(language) && !readOnly,
   });
+
+  // Open document with LSP server when connected
+  useEffect(() => {
+    if (lspState !== 'connected' || !documentUri) {
+      documentOpenedRef.current = false;
+      return;
+    }
+
+    const client = getActiveClient(language);
+    if (!client || documentOpenedRef.current) return;
+
+    // Open the document with the language server
+    client.openDocument(documentUri, language, currentValueRef.current);
+    documentOpenedRef.current = true;
+    console.log(`[LspMonacoEditor] Opened document with LSP: ${documentUri}`);
+
+    // Clean up when disconnecting
+    return () => {
+      if (documentOpenedRef.current) {
+        const activeClient = getActiveClient(language);
+        if (activeClient) {
+          activeClient.closeDocument(documentUri);
+          console.log(`[LspMonacoEditor] Closed document with LSP: ${documentUri}`);
+        }
+        documentOpenedRef.current = false;
+      }
+    };
+  }, [lspState, language, documentUri]);
 
   // Unconditionally disable semantic validation from Monaco's built-in TS worker.
   // The in-browser TS worker cannot resolve modules (no filesystem access),
@@ -263,10 +299,21 @@ function LspMonacoEditorComponent({
 
   // Handle content changes
   const handleChange = useCallback((newValue: string | undefined) => {
-    if (onChange && newValue !== undefined) {
+    if (newValue === undefined) return;
+
+    // Notify the LSP server of content changes
+    if (documentOpenedRef.current && documentUri) {
+      const client = getActiveClient(language);
+      if (client) {
+        client.changeDocument(documentUri, newValue);
+      }
+    }
+
+    // Call the onChange callback
+    if (onChange) {
       onChange(newValue);
     }
-  }, [onChange]);
+  }, [onChange, language, documentUri]);
 
   // Loading spinner component
   const LoadingSpinner = (

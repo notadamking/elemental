@@ -30,13 +30,14 @@ export {
   getConnectedLanguages,
   clearLspStatusCache,
   subscribeToConnectionState,
+  getActiveClient,
   type LspServerStatus,
   type LspStatusResponse,
   type ConnectionStateChangeCallback,
 } from './lsp-client';
 
+// Lightweight LSP client (for direct usage)
+export { LightweightLspClient, type LightweightLspClientOptions } from './lightweight-client';
+
 // React hook for LSP management
 export { useLsp, type LspState } from './use-lsp';
-
-// VSCode services initialization (required for monaco-languageclient v10.x)
-export { ensureServicesInitialized, isServicesInitialized } from './init-services';
