@@ -150,6 +150,9 @@ importers:
       emoji-picker-react:
         specifier: ^4.17.0
         version: 4.17.1(react@19.2.4)
+      idb:
+        specifier: ^8.0.3
+        version: 8.0.3
       lowlight:
         specifier: ^3.3.0
         version: 3.3.0
@@ -4438,6 +4441,10 @@ packages:
   /hono@4.11.6:
     resolution: {integrity: sha512-ofIiiHyl34SV6AuhE3YT2mhO5HRWokce+eUYE82TsP6z0/H3JeJcjVWEMSIAiw2QkjDOEpES/lYsg8eEbsLtdw==}
     engines: {node: '>=16.9.0'}
+    dev: false
+
+  /idb@8.0.3:
+    resolution: {integrity: sha512-LtwtVyVYO5BqRvcsKuB2iUMnHwPVByPCXFXOpuU96IZPPoPN6xjOGxZQ74pgSVVLQWtUOYgyeL4GE98BY5D3wg==}
     dev: false
 
   /ieee754@1.2.1:
