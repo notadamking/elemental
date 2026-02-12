@@ -32,10 +32,12 @@ import {
   Save,
   CheckCircle,
   Settings,
+  Puzzle,
 } from 'lucide-react';
 import { EditorFileTree, type FileTreeNodeData, type FileSource } from '../../components/editor/EditorFileTree';
 import { EditorSearchPanel, type EditorSearchPanelRef } from '../../components/editor/EditorSearchPanel';
 import { EditorSettingsPanel } from '../../components/editor/EditorSettingsPanel';
+import { EditorExtensionsPanel } from '../../components/editor/EditorExtensionsPanel';
 import { EditorTabBar, type EditorTab } from '../../components/editor/EditorTabBar';
 import { LspMonacoEditor } from '../../components/editor/LspMonacoEditor';
 import { useAllDocuments } from '../../api/hooks/useAllElements';
@@ -53,7 +55,7 @@ import { initializeMonaco } from '../../lib/monaco-init';
 // ============================================================================
 
 /** Active sidebar panel */
-type SidebarPanel = 'files' | 'search' | 'settings';
+type SidebarPanel = 'files' | 'search' | 'extensions' | 'settings';
 
 // ============================================================================
 // Hook to fetch document content
@@ -157,6 +159,7 @@ function ActivityBar({ activePanel, onPanelChange }: ActivityBarProps) {
   const topItems: { id: SidebarPanel; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
     { id: 'files', icon: Files, label: 'Explorer' },
     { id: 'search', icon: Search, label: 'Search' },
+    { id: 'extensions', icon: Puzzle, label: 'Extensions' },
   ];
 
   const bottomItems: { id: SidebarPanel; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
@@ -819,6 +822,18 @@ export function FileEditorPage() {
                 ref={searchPanelRef}
                 onSelectResult={handleSearchResultSelect}
               />
+            </>
+          )}
+
+          {/* Extensions Panel */}
+          {activePanel === 'extensions' && (
+            <>
+              <div className="px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface-hover)]">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+                  Extensions
+                </h2>
+              </div>
+              <EditorExtensionsPanel />
             </>
           )}
 
