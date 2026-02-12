@@ -1,6 +1,6 @@
 /**
  * QuickFileOpen - Ctrl/Cmd+P quick file open popup
- * Provides fuzzy search for files in the workspace using the File System Access API
+ * Provides fuzzy search for files in the workspace using the server API
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -10,14 +10,12 @@ import {
   Search,
   FileCode,
   FileText,
-  Folder,
-  FolderOpen,
   Loader2,
   AlertCircle,
   File,
   ChevronRight,
 } from 'lucide-react';
-import { useWorkspace, type FileSystemEntry } from '../../contexts';
+import { useWorkspace, type FileEntry } from '../../contexts';
 
 // ============================================================================
 // Types
@@ -34,7 +32,6 @@ interface FlattenedFile {
   path: string;
   type: 'file' | 'directory';
   depth: number;
-  entry: FileSystemEntry;
 }
 
 // ============================================================================
@@ -94,7 +91,7 @@ function getLanguageLabel(filename: string): string | null {
 // Flatten file tree for search
 // ============================================================================
 
-function flattenFileTree(entries: FileSystemEntry[], depth = 0): FlattenedFile[] {
+function flattenFileTree(entries: FileEntry[], depth = 0): FlattenedFile[] {
   const result: FlattenedFile[] = [];
 
   for (const entry of entries) {
@@ -104,7 +101,6 @@ function flattenFileTree(entries: FileSystemEntry[], depth = 0): FlattenedFile[]
       path: entry.path,
       type: entry.type,
       depth,
-      entry,
     });
 
     if (entry.children && entry.children.length > 0) {
@@ -124,15 +120,13 @@ export function QuickFileOpen({ open, onOpenChange }: QuickFileOpenProps) {
   const [search, setSearch] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Get workspace state from context
+  // Get workspace state from context (server-backed, always available)
   const {
-    isSupported,
     isOpen: isWorkspaceOpen,
     workspaceName,
     entries,
     isLoading,
     error,
-    openWorkspace,
   } = useWorkspace();
 
   // Reset search when closing
@@ -170,11 +164,6 @@ export function QuickFileOpen({ open, onOpenChange }: QuickFileOpenProps) {
     },
     [navigate, onOpenChange]
   );
-
-  // Handle opening workspace
-  const handleOpenWorkspace = useCallback(async () => {
-    await openWorkspace();
-  }, [openWorkspace]);
 
   // Get parent directory for display
   const getParentDir = (path: string): string => {
@@ -252,28 +241,14 @@ export function QuickFileOpen({ open, onOpenChange }: QuickFileOpenProps) {
             </div>
           )}
 
-          {/* No workspace open */}
+          {/* No workspace loaded yet */}
           {!isLoading && !error && !isWorkspaceOpen && (
             <div className="flex flex-col items-center justify-center py-10 text-center px-4">
-              <FolderOpen className="w-12 h-12 text-[var(--color-text-muted)] mb-4" />
-              <h3 className="text-lg font-medium text-[var(--color-text)] mb-2">No Workspace Open</h3>
-              <p className="text-sm text-[var(--color-text-secondary)] mb-4 max-w-xs">
-                Open a local workspace folder to quickly search and navigate to files.
+              <Loader2 className="w-12 h-12 text-[var(--color-text-muted)] mb-4 animate-spin" />
+              <h3 className="text-lg font-medium text-[var(--color-text)] mb-2">Loading Workspace</h3>
+              <p className="text-sm text-[var(--color-text-secondary)] max-w-xs">
+                The workspace is loading from the server...
               </p>
-              {isSupported ? (
-                <button
-                  onClick={handleOpenWorkspace}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors"
-                  data-testid="quick-file-open-workspace-btn"
-                >
-                  <Folder className="w-4 h-4" />
-                  Open Workspace
-                </button>
-              ) : (
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  File System Access API is not supported in this browser.
-                </p>
-              )}
             </div>
           )}
 

@@ -2,7 +2,9 @@ export { CurrentUserProvider, useCurrentUser } from './CurrentUserContext';
 export {
   WorkspaceProvider,
   useWorkspace,
-  type FileSystemEntry,
+  type FileEntry,
+  type FileSystemEntry, // Deprecated alias for FileEntry
   type FileReadResult,
-  type UseFileSystemAccessReturn,
+  type FileWriteResult,
+  type UseServerWorkspaceReturn,
 } from './WorkspaceContext';

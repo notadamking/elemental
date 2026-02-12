@@ -1,24 +1,24 @@
 /**
- * WorkspaceContext - Global context for local workspace file system access
+ * WorkspaceContext - Global context for server-backed workspace file access
  *
- * Provides access to the File System Access API state across the application,
- * allowing components to browse and read files from a user-selected workspace directory.
+ * Provides access to the workspace file system via the orchestrator-server API,
+ * allowing components to browse, read, and write files from the project workspace.
  */
 
 import { createContext, useContext, ReactNode } from 'react';
 import {
-  useFileSystemAccess,
-  type UseFileSystemAccessReturn,
-  type FileSystemEntry,
+  useServerWorkspace,
+  type UseServerWorkspaceReturn,
+  type FileEntry,
   type FileReadResult,
   type FileWriteResult,
-} from '../hooks/useFileSystemAccess';
+} from '../hooks/useServerWorkspace';
 
 // ============================================================================
 // Context
 // ============================================================================
 
-const WorkspaceContext = createContext<UseFileSystemAccessReturn | null>(null);
+const WorkspaceContext = createContext<UseServerWorkspaceReturn | null>(null);
 
 // ============================================================================
 // Provider
@@ -32,10 +32,10 @@ export interface WorkspaceProviderProps {
  * Provider component for workspace file system access
  */
 export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
-  const fileSystemAccess = useFileSystemAccess();
+  const serverWorkspace = useServerWorkspace();
 
   return (
-    <WorkspaceContext.Provider value={fileSystemAccess}>
+    <WorkspaceContext.Provider value={serverWorkspace}>
       {children}
     </WorkspaceContext.Provider>
   );
@@ -50,7 +50,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
  *
  * @throws Error if used outside of WorkspaceProvider
  */
-export function useWorkspace(): UseFileSystemAccessReturn {
+export function useWorkspace(): UseServerWorkspaceReturn {
   const context = useContext(WorkspaceContext);
 
   if (!context) {
@@ -62,6 +62,10 @@ export function useWorkspace(): UseFileSystemAccessReturn {
 
 // ============================================================================
 // Re-exports for convenience
+// Maintain backwards compatibility by exporting FileEntry as FileSystemEntry alias
 // ============================================================================
 
-export type { FileSystemEntry, FileReadResult, FileWriteResult, UseFileSystemAccessReturn };
+/** @deprecated Use FileEntry instead */
+export type FileSystemEntry = FileEntry;
+
+export type { FileEntry, FileReadResult, FileWriteResult, UseServerWorkspaceReturn };

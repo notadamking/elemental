@@ -1,18 +1,20 @@
 /**
- * useFileContentSearch Hook - File Content Search with Real-time Results
+ * useFileContentSearch Hook - Server-backed File Content Search
  *
- * Provides a hook for searching through file contents in the workspace.
+ * Provides a hook for searching through file contents in the workspace
+ * using the orchestrator-server search API.
+ *
  * Features:
  * - Debounced search input
- * - Real-time streaming results as files are searched
+ * - Server-side search for better performance
  * - Regex support (optional)
  * - Case sensitivity toggle
- * - Search progress tracking
+ * - Whole word matching
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useDebounce } from './useDebounce';
-import { useWorkspace, type FileSystemEntry } from '../contexts';
+import { useWorkspace } from '../contexts';
 
 // ============================================================================
 // Constants
@@ -21,14 +23,11 @@ import { useWorkspace, type FileSystemEntry } from '../contexts';
 /** Default debounce delay in milliseconds */
 export const SEARCH_DEBOUNCE_DELAY = 300;
 
-/** Maximum number of matches to return per file */
-export const MAX_MATCHES_PER_FILE = 10;
+/** Maximum number of matches to return per file (server-side default) */
+export const MAX_MATCHES_PER_FILE = 20;
 
-/** Maximum total matches to return */
+/** Maximum total matches to return (server-side default) */
 export const MAX_TOTAL_MATCHES = 200;
-
-/** Maximum file size to search (skip large files) */
-export const MAX_FILE_SIZE = 1024 * 1024; // 1MB
 
 // ============================================================================
 // Types
@@ -129,158 +128,60 @@ export interface UseFileContentSearchReturn extends FileContentSearchState {
 }
 
 // ============================================================================
+// Server Response Types
+// ============================================================================
+
+interface ServerSearchMatch {
+  line: number;
+  column: number;
+  length: number;
+  lineContent: string;
+}
+
+interface ServerSearchFileResult {
+  path: string;
+  matches: ServerSearchMatch[];
+}
+
+interface SearchResponse {
+  results: ServerSearchFileResult[];
+  totalMatches: number;
+  truncated: boolean;
+  error?: { code: string; message: string };
+}
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 
 /**
- * Flatten file tree to get all files
+ * Get file name from path
  */
-function flattenFiles(entries: FileSystemEntry[]): FileSystemEntry[] {
-  const files: FileSystemEntry[] = [];
-
-  function traverse(entry: FileSystemEntry) {
-    if (entry.type === 'file') {
-      files.push(entry);
-    } else if (entry.children) {
-      for (const child of entry.children) {
-        traverse(child);
-      }
-    }
-  }
-
-  for (const entry of entries) {
-    traverse(entry);
-  }
-
-  return files;
+function getFileName(path: string): string {
+  const parts = path.split('/');
+  return parts[parts.length - 1] || path;
 }
 
 /**
- * Get file extension from filename
+ * Convert server search result to client format
  */
-function getExtension(filename: string): string {
-  const parts = filename.split('.');
-  return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
-}
+function convertServerResult(serverResult: ServerSearchFileResult): FileSearchResult {
+  const name = getFileName(serverResult.path);
+  const matches: FileMatch[] = serverResult.matches.map((m) => ({
+    line: m.line,
+    column: m.column,
+    matchedText: m.lineContent.slice(m.column - 1, m.column - 1 + m.length),
+    lineContent: m.lineContent,
+    startIndex: m.column - 1,
+    endIndex: m.column - 1 + m.length,
+  }));
 
-/**
- * Check if file should be searched based on options
- */
-function shouldSearchFile(
-  file: FileSystemEntry,
-  options: FileContentSearchOptions
-): boolean {
-  const ext = getExtension(file.name);
-
-  if (options.includeExtensions && options.includeExtensions.length > 0) {
-    if (!options.includeExtensions.includes(ext)) {
-      return false;
-    }
-  }
-
-  if (options.excludeExtensions && options.excludeExtensions.length > 0) {
-    if (options.excludeExtensions.includes(ext)) {
-      return false;
-    }
-  }
-
-  // Skip files that are too large
-  if (file.size && file.size > MAX_FILE_SIZE) {
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Create search pattern from query
- */
-function createSearchPattern(
-  query: string,
-  options: FileContentSearchOptions
-): RegExp | null {
-  if (!query) return null;
-
-  try {
-    let pattern = query;
-
-    if (!options.useRegex) {
-      // Escape special regex characters for literal search
-      pattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
-
-    if (options.wholeWord) {
-      pattern = `\\b${pattern}\\b`;
-    }
-
-    const flags = options.caseSensitive ? 'g' : 'gi';
-    return new RegExp(pattern, flags);
-  } catch {
-    // Invalid regex pattern
-    return null;
-  }
-}
-
-/**
- * Search file content for matches
- */
-function searchContent(
-  content: string,
-  pattern: RegExp,
-  maxMatches: number = MAX_MATCHES_PER_FILE
-): { matches: FileMatch[]; totalMatches: number } {
-  const matches: FileMatch[] = [];
-  const lines = content.split('\n');
-  let totalMatches = 0;
-
-  for (let lineNum = 0; lineNum < lines.length && matches.length < maxMatches; lineNum++) {
-    const line = lines[lineNum];
-    // Reset lastIndex for each line
-    pattern.lastIndex = 0;
-
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(line)) !== null && matches.length < maxMatches) {
-      totalMatches++;
-      matches.push({
-        line: lineNum + 1,
-        column: match.index + 1,
-        matchedText: match[0],
-        lineContent: line,
-        startIndex: match.index,
-        endIndex: match.index + match[0].length,
-      });
-
-      // Prevent infinite loop on zero-length matches
-      if (match.index === pattern.lastIndex) {
-        pattern.lastIndex++;
-      }
-    }
-
-    // Continue counting total matches even if we've hit the limit
-    if (matches.length >= maxMatches) {
-      while ((match = pattern.exec(line)) !== null) {
-        totalMatches++;
-        if (match.index === pattern.lastIndex) {
-          pattern.lastIndex++;
-        }
-      }
-    }
-  }
-
-  // Count remaining matches in remaining lines
-  for (let lineNum = lines.findIndex(l => l === lines[lines.length - 1]) + 1; lineNum < lines.length; lineNum++) {
-    const line = lines[lineNum];
-    pattern.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(line)) !== null) {
-      totalMatches++;
-      if (match.index === pattern.lastIndex) {
-        pattern.lastIndex++;
-      }
-    }
-  }
-
-  return { matches, totalMatches };
+  return {
+    path: serverResult.path,
+    name,
+    matches,
+    totalMatches: serverResult.matches.length,
+  };
 }
 
 // ============================================================================
@@ -315,12 +216,12 @@ const defaultOptions: FileContentSearchOptions = {
 // ============================================================================
 
 /**
- * Hook for searching file contents with real-time results
+ * Hook for searching file contents via server API
  */
 export function useFileContentSearch(
   initialOptions: FileContentSearchOptions = {}
 ): UseFileContentSearchReturn {
-  const { entries, readFile, isOpen } = useWorkspace();
+  const { isOpen } = useWorkspace();
   const [state, setState] = useState<FileContentSearchState>(initialState);
   const [options, setOptionsState] = useState<FileContentSearchOptions>({
     ...defaultOptions,
@@ -411,28 +312,12 @@ export function useFileContentSearch(
     const runSearch = async () => {
       const startTime = performance.now();
 
-      // Create search pattern
-      const pattern = createSearchPattern(debouncedQuery, options);
-      if (!pattern) {
-        setState(prev => ({
-          ...prev,
-          error: 'Invalid search pattern',
-          isSearching: false,
-          isComplete: true,
-        }));
-        return;
-      }
-
-      // Get all files to search
-      const allFiles = flattenFiles(entries);
-      const filesToSearch = allFiles.filter(f => shouldSearchFile(f, options));
-
       setState(prev => ({
         ...prev,
         isSearching: true,
         results: [],
         filesSearched: 0,
-        totalFiles: filesToSearch.length,
+        totalFiles: 0,
         totalMatches: 0,
         progress: 0,
         error: null,
@@ -440,79 +325,77 @@ export function useFileContentSearch(
         searchTime: null,
       }));
 
-      const results: FileSearchResult[] = [];
-      let totalMatchesFound = 0;
+      try {
+        // Build include/exclude patterns from extensions
+        let includePattern: string | undefined;
+        let excludePattern: string | undefined;
 
-      for (let i = 0; i < filesToSearch.length; i++) {
-        // Check for cancellation
-        if (abortController.signal.aborted) {
+        if (options.includeExtensions && options.includeExtensions.length > 0) {
+          includePattern = `*.{${options.includeExtensions.join(',')}}`;
+        }
+
+        if (options.excludeExtensions && options.excludeExtensions.length > 0) {
+          excludePattern = `*.{${options.excludeExtensions.join(',')}}`;
+        }
+
+        const response = await fetch('/api/workspace/search', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: debouncedQuery,
+            isRegex: options.useRegex ?? false,
+            caseSensitive: options.caseSensitive ?? false,
+            wholeWord: options.wholeWord ?? false,
+            includePattern,
+            excludePattern,
+            maxResults: MAX_TOTAL_MATCHES,
+          }),
+          signal: abortController.signal,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: { message: 'Search failed' } }));
+          throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json() as SearchResponse;
+
+        if (data.error) {
+          throw new Error(data.error.message);
+        }
+
+        const results = data.results.map(convertServerResult);
+        const endTime = performance.now();
+
+        setState(prev => ({
+          ...prev,
+          results,
+          filesSearched: results.length,
+          totalFiles: results.length,
+          totalMatches: data.totalMatches,
+          progress: 1,
+          isSearching: false,
+          isComplete: true,
+          searchTime: endTime - startTime,
+          error: data.truncated ? `Search stopped: Maximum ${MAX_TOTAL_MATCHES} matches reached` : null,
+        }));
+      } catch (error) {
+        // Ignore abort errors
+        if (error instanceof Error && error.name === 'AbortError') {
           return;
         }
 
-        const file = filesToSearch[i];
-
-        try {
-          // Read file content
-          const fileResult = await readFile(file);
-
-          // Search content
-          const { matches, totalMatches } = searchContent(fileResult.content, pattern);
-
-          if (matches.length > 0) {
-            results.push({
-              path: file.path,
-              name: file.name,
-              matches,
-              totalMatches,
-            });
-            totalMatchesFound += totalMatches;
-
-            // Check if we've hit the total match limit
-            if (totalMatchesFound >= MAX_TOTAL_MATCHES) {
-              // Update state with final results
-              setState(prev => ({
-                ...prev,
-                results: [...results],
-                filesSearched: i + 1,
-                totalMatches: totalMatchesFound,
-                progress: 1,
-                isSearching: false,
-                isComplete: true,
-                searchTime: performance.now() - startTime,
-                error: `Search stopped: Maximum ${MAX_TOTAL_MATCHES} matches reached`,
-              }));
-              return;
-            }
-          }
-
-          // Update progress periodically (every 5 files or on match)
-          if (i % 5 === 0 || matches.length > 0) {
-            setState(prev => ({
-              ...prev,
-              results: [...results],
-              filesSearched: i + 1,
-              totalMatches: totalMatchesFound,
-              progress: (i + 1) / filesToSearch.length,
-            }));
-          }
-        } catch {
-          // Skip files that can't be read (binary files, etc.)
-          continue;
-        }
+        const endTime = performance.now();
+        setState(prev => ({
+          ...prev,
+          isSearching: false,
+          isComplete: true,
+          searchTime: endTime - startTime,
+          error: error instanceof Error ? error.message : 'Search failed',
+        }));
       }
-
-      // Final update
-      const endTime = performance.now();
-      setState(prev => ({
-        ...prev,
-        results,
-        filesSearched: filesToSearch.length,
-        totalMatches: totalMatchesFound,
-        progress: 1,
-        isSearching: false,
-        isComplete: true,
-        searchTime: endTime - startTime,
-      }));
     };
 
     runSearch();
@@ -521,7 +404,7 @@ export function useFileContentSearch(
     return () => {
       abortController.abort();
     };
-  }, [debouncedQuery, entries, isOpen, options, readFile]);
+  }, [debouncedQuery, isOpen, options.caseSensitive, options.useRegex, options.wholeWord, options.includeExtensions, options.excludeExtensions]);
 
   return {
     ...state,

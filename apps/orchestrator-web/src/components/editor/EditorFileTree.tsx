@@ -25,7 +25,7 @@ import {
   Lock,
   Package,
 } from 'lucide-react';
-import type { FileSystemEntry } from '../../contexts';
+import type { FileEntry } from '../../contexts';
 import type { Document } from '../../api/hooks/useAllElements';
 import {
   isCodeFile,
@@ -55,8 +55,6 @@ export interface FileTreeNodeData {
   nodeType: 'file' | 'folder';
   path: string;
   children?: FileTreeNodeData[];
-  /** For workspace mode */
-  fsEntry?: FileSystemEntry;
   /** For documents mode */
   document?: Document;
 }
@@ -278,16 +276,15 @@ function FileNode({ node, style }: NodeRendererProps<FileTreeNodeData>) {
 // ============================================================================
 
 /**
- * Convert FileSystemEntry to tree node format
+ * Convert FileEntry to tree node format
  */
-function fsEntryToTreeNode(entry: FileSystemEntry): FileTreeNodeData {
+function fileEntryToTreeNode(entry: FileEntry): FileTreeNodeData {
   return {
     id: entry.id,
     name: entry.name,
     nodeType: entry.type === 'directory' ? 'folder' : 'file',
     path: entry.path,
-    children: entry.children?.map(fsEntryToTreeNode),
-    fsEntry: entry,
+    children: entry.children?.map(fileEntryToTreeNode),
   };
 }
 
@@ -310,7 +307,7 @@ function documentToTreeNode(doc: Document): FileTreeNodeData {
 
 interface EditorFileTreeProps {
   /** Workspace file entries (for workspace mode) */
-  workspaceEntries?: FileSystemEntry[];
+  workspaceEntries?: FileEntry[];
   /** Documents (for documents mode) */
   documents?: Document[];
   /** Current source mode */
@@ -356,7 +353,7 @@ export function EditorFileTree({
   // Convert data to tree format
   const treeData = useMemo(() => {
     if (source === 'workspace') {
-      return workspaceEntries.map(fsEntryToTreeNode);
+      return workspaceEntries.map(fileEntryToTreeNode);
     }
     return documents.map(documentToTreeNode);
   }, [source, workspaceEntries, documents]);

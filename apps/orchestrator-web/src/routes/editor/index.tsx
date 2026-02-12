@@ -23,8 +23,6 @@ import {
   FileCode,
   Loader2,
   AlertCircle,
-  FolderInput,
-  X,
   RefreshCw,
   HardDrive,
   Database,
@@ -88,23 +86,14 @@ function getLanguageFromDocument(doc: Document | null): string {
 // Empty state component
 // ============================================================================
 
-function NoFileSelected({ onOpenWorkspace, isSupported }: { onOpenWorkspace: () => void; isSupported: boolean }) {
+function NoFileSelected() {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center p-6" data-testid="editor-no-file-selected">
       <FileCode className="w-12 h-12 text-[var(--color-text-muted)] mb-4" />
       <h3 className="text-lg font-medium text-[var(--color-text)] mb-2">Select a File</h3>
-      <p className="text-sm text-[var(--color-text-secondary)] max-w-xs mb-4">
+      <p className="text-sm text-[var(--color-text-secondary)] max-w-xs">
         Choose a file from the sidebar to view its content in the editor.
       </p>
-      {isSupported && (
-        <button
-          onClick={onOpenWorkspace}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors"
-        >
-          <FolderInput className="w-4 h-4" />
-          Open Local Workspace
-        </button>
-      )}
     </div>
   );
 }
@@ -241,18 +230,15 @@ export function FileEditorPage() {
   const searchPanelRef = useRef<EditorSearchPanelRef>(null);
   const [lspState, setLspState] = useState<LspState>('idle');
 
-  // Workspace state from context
+  // Workspace state from context (server-backed, always supported)
   const {
-    isSupported,
     isOpen: isWorkspaceOpen,
     workspaceName,
     entries: workspaceEntries,
     isLoading: workspaceLoading,
     error: workspaceError,
-    openWorkspace,
-    closeWorkspace,
     refreshTree,
-    readFile,
+    readFileByPath,
     writeFile,
   } = useWorkspace();
 
@@ -338,12 +324,15 @@ export function FileEditorPage() {
       // Prevent duplicate concurrent loads of the same file
       if (loadingFilesRef.current.has(node.id)) return;
 
-      if (fileSource === 'workspace' && node.fsEntry) {
+      if (fileSource === 'workspace') {
         // Mark file as loading
         loadingFilesRef.current.add(node.id);
         setIsLoadingFile(true);
         try {
-          const result = await readFile(node.fsEntry);
+          const result = await readFileByPath(node.path);
+          if (!result) {
+            throw new Error('File not found');
+          }
           const newTab: EditorTab = {
             id: node.id,
             name: result.name,
@@ -396,7 +385,7 @@ export function FileEditorPage() {
       }
       // For documents mode, the useEffect above handles loading
     },
-    [fileSource, readFile]
+    [fileSource, readFileByPath]
   );
 
   // Handle double-click to pin tab (make it non-preview)
@@ -410,97 +399,70 @@ export function FileEditorPage() {
   // Handle search result selection - open file and navigate to line
   const handleSearchResultSelect = useCallback(
     async (path: string, line: number, column: number) => {
-      // Find the file in workspace entries
-      const findEntry = (entries: typeof workspaceEntries, targetPath: string): (typeof workspaceEntries)[0] | null => {
-        for (const entry of entries) {
-          if (entry.path === targetPath) {
-            return entry;
+      // Check if this file is already open
+      const existingTab = tabs.find(t => t.path === path);
+      if (existingTab) {
+        setActiveTabId(existingTab.id);
+        // Navigate to the line
+        setTimeout(() => {
+          if (editorRef.current) {
+            editorRef.current.revealLineInCenter(line);
+            editorRef.current.setPosition({ lineNumber: line, column });
+            editorRef.current.focus();
           }
-          if (entry.children) {
-            const found = findEntry(entry.children, targetPath);
-            if (found) return found;
+        }, 50);
+        return;
+      }
+
+      // Load the file by path
+      setSelectedId(path);
+      setFileError(null);
+      setIsLoadingFile(true);
+
+      try {
+        const result = await readFileByPath(path);
+        if (!result) {
+          throw new Error('File not found');
+        }
+        const newTab: EditorTab = {
+          id: path,
+          name: result.name,
+          path: result.path,
+          content: result.content,
+          language: result.language || 'plaintext',
+          source: 'workspace',
+          isPreview: true,
+          isDirty: false,
+        };
+
+        setTabs(prevTabs => {
+          // Find preview tab to replace
+          const previewIndex = prevTabs.findIndex(t => t.isPreview && !t.isDirty);
+          if (previewIndex !== -1) {
+            const updated = [...prevTabs];
+            updated[previewIndex] = newTab;
+            return updated;
           }
-        }
-        return null;
-      };
+          return [...prevTabs, newTab];
+        });
 
-      const entry = findEntry(workspaceEntries, path);
+        setActiveTabId(path);
 
-      if (entry && entry.type === 'file') {
-        // Check if this file is already open (use ref for latest state)
-        const existingTab = tabsRef.current.find(t => t.path === path);
-        if (existingTab) {
-          setActiveTabId(existingTab.id);
-          // Navigate to the line
-          setTimeout(() => {
-            if (editorRef.current) {
-              editorRef.current.revealLineInCenter(line);
-              editorRef.current.setPosition({ lineNumber: line, column });
-              editorRef.current.focus();
-            }
-          }, 50);
-          return;
-        }
-
-        // Prevent duplicate concurrent loads of the same file
-        if (loadingFilesRef.current.has(entry.id)) return;
-
-        // Mark file as loading
-        loadingFilesRef.current.add(entry.id);
-        setSelectedId(entry.id);
-        setFileError(null);
-        setIsLoadingFile(true);
-
-        try {
-          const result = await readFile(entry);
-          const newTab: EditorTab = {
-            id: entry.id,
-            name: result.name,
-            path: result.path,
-            content: result.content,
-            language: result.language || 'plaintext',
-            source: 'workspace',
-            isPreview: false,
-            isDirty: false,
-          };
-
-          setTabs(prevTabs => {
-            // Check if file is already open (using latest state inside setTabs)
-            const existingIndex = prevTabs.findIndex(t => t.id === entry.id);
-            if (existingIndex !== -1) {
-              return prevTabs;
-            }
-
-            // Replace the active tab if it's not dirty
-            const currentActiveId = activeTabIdRef.current;
-            const activeIndex = prevTabs.findIndex(t => t.id === currentActiveId);
-            if (activeIndex !== -1 && !prevTabs[activeIndex].isDirty) {
-              const updated = [...prevTabs];
-              updated[activeIndex] = newTab;
-              return updated;
-            }
-            return [...prevTabs, newTab];
-          });
-
-          setActiveTabId(entry.id);
-
-          // Navigate to line after a short delay to ensure editor is ready
-          setTimeout(() => {
-            if (editorRef.current) {
-              editorRef.current.revealLineInCenter(line);
-              editorRef.current.setPosition({ lineNumber: line, column });
-              editorRef.current.focus();
-            }
-          }, 100);
-        } catch (error) {
-          setFileError(error instanceof Error ? error.message : 'Failed to read file');
-        } finally {
-          loadingFilesRef.current.delete(entry.id);
-          setIsLoadingFile(false);
-        }
+        // Navigate to line after a short delay to ensure editor is ready
+        setTimeout(() => {
+          if (editorRef.current) {
+            editorRef.current.revealLineInCenter(line);
+            editorRef.current.setPosition({ lineNumber: line, column });
+            editorRef.current.focus();
+          }
+        }, 100);
+      } catch (error) {
+        setFileError(error instanceof Error ? error.message : 'Failed to read file');
+      } finally {
+        setIsLoadingFile(false);
       }
     },
-    [workspaceEntries, readFile]
+    [tabs, readFileByPath]
   );
 
   // Handle tab selection
@@ -574,31 +536,17 @@ export function FileEditorPage() {
       return;
     }
 
-    // Find the file entry from workspace entries
-    const findEntry = (entries: typeof workspaceEntries, targetPath: string): (typeof workspaceEntries)[0] | null => {
-      for (const entry of entries) {
-        if (entry.path === tab.path) {
-          return entry;
-        }
-        if (entry.children) {
-          const found = findEntry(entry.children, targetPath);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    const entry = findEntry(workspaceEntries, tab.path);
-    if (!entry) {
-      setSaveMessage({ type: 'error', text: 'File entry not found. The file may have been moved.' });
-      setTimeout(() => setSaveMessage(null), 3000);
-      return;
-    }
-
     setIsSaving(true);
     setSaveMessage(null);
 
     try {
+      // Create a minimal entry object for the writeFile API
+      const entry = {
+        id: tab.path,
+        name: tab.name,
+        type: 'file' as const,
+        path: tab.path,
+      };
       await writeFile(entry, tab.content);
 
       // Mark tab as clean
@@ -617,7 +565,7 @@ export function FileEditorPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [activeTabId, tabs, workspaceEntries, writeFile]);
+  }, [activeTabId, tabs, writeFile]);
 
   // Handle source change
   const handleSourceChange = useCallback((source: FileSource) => {
@@ -749,38 +697,19 @@ export function FileEditorPage() {
                 </div>
 
                 {/* Workspace controls */}
-                {fileSource === 'workspace' && isSupported && (
+                {fileSource === 'workspace' && (
                   <div className="flex items-center gap-1">
-                    {isWorkspaceOpen ? (
-                      <>
-                        <button
-                          onClick={refreshTree}
-                          disabled={workspaceLoading}
-                          className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] rounded transition-colors disabled:opacity-50"
-                          title="Refresh"
-                        >
-                          <RefreshCw className={`w-3 h-3 ${workspaceLoading ? 'animate-spin' : ''}`} />
-                        </button>
-                        <button
-                          onClick={closeWorkspace}
-                          className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-surface)] rounded transition-colors"
-                          title="Close workspace"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                        <span className="flex-1 text-xs text-[var(--color-text-muted)] truncate ml-1">
-                          {workspaceName}
-                        </span>
-                      </>
-                    ) : (
-                      <button
-                        onClick={openWorkspace}
-                        className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-surface)] rounded transition-colors"
-                      >
-                        <FolderInput className="w-3 h-3" />
-                        Open Folder
-                      </button>
-                    )}
+                    <button
+                      onClick={refreshTree}
+                      disabled={workspaceLoading}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] rounded transition-colors disabled:opacity-50"
+                      title="Refresh"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${workspaceLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                    <span className="flex-1 text-xs text-[var(--color-text-muted)] truncate ml-1">
+                      {workspaceName || 'Workspace'}
+                    </span>
                   </div>
                 )}
               </div>
@@ -800,28 +729,9 @@ export function FileEditorPage() {
                   </div>
                 ) : isTreeEmpty ? (
                   <div className="text-center py-8" data-testid="editor-empty-tree">
-                    {fileSource === 'workspace' && !isWorkspaceOpen ? (
-                      <div className="space-y-2">
-                        <FolderInput className="w-6 h-6 text-[var(--color-text-muted)] mx-auto" />
-                        <p className="text-xs text-[var(--color-text-muted)]">
-                          {isSupported
-                            ? 'Open a folder to browse files'
-                            : 'File System Access API not supported'}
-                        </p>
-                        {isSupported && (
-                          <button
-                            onClick={openWorkspace}
-                            className="px-3 py-1.5 text-xs font-medium text-white bg-[var(--color-primary)] rounded hover:bg-[var(--color-primary-hover)] transition-colors"
-                          >
-                            Open Folder
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-[var(--color-text-muted)]">
-                        {fileSource === 'workspace' ? 'No files found' : 'No documents available'}
-                      </p>
-                    )}
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      {fileSource === 'workspace' ? 'No files found' : 'No documents available'}
+                    </p>
                   </div>
                 ) : (
                   <EditorFileTree
@@ -884,7 +794,7 @@ export function FileEditorPage() {
           />
 
           {tabs.length === 0 ? (
-            <NoFileSelected onOpenWorkspace={openWorkspace} isSupported={isSupported} />
+            <NoFileSelected />
           ) : isContentLoading ? (
             <div className="flex items-center justify-center h-full" data-testid="editor-loading-content">
               <Loader2 className="w-8 h-8 animate-spin text-[var(--color-text-muted)]" />

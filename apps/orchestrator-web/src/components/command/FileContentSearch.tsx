@@ -10,8 +10,6 @@ import {
   Search,
   FileCode,
   FileText,
-  Folder,
-  FolderOpen,
   Loader2,
   AlertCircle,
   Settings2,
@@ -238,14 +236,12 @@ export function FileContentSearch({ open, onOpenChange }: FileContentSearchProps
   const inputRef = useRef<HTMLInputElement>(null);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
 
-  // Get workspace state from context
+  // Get workspace state from context (server-backed, always available)
   const {
-    isSupported,
     isOpen: isWorkspaceOpen,
     workspaceName,
     isLoading: isWorkspaceLoading,
     error: workspaceError,
-    openWorkspace,
   } = useWorkspace();
 
   // File content search hook
@@ -316,11 +312,6 @@ export function FileContentSearch({ open, onOpenChange }: FileContentSearchProps
       return next;
     });
   }, []);
-
-  // Handle opening workspace
-  const handleOpenWorkspace = useCallback(async () => {
-    await openWorkspace();
-  }, [openWorkspace]);
 
   // Toggle search options
   const toggleCaseSensitive = useCallback(() => {
@@ -469,28 +460,14 @@ export function FileContentSearch({ open, onOpenChange }: FileContentSearchProps
             </div>
           )}
 
-          {/* No workspace open */}
+          {/* No workspace open - loading in progress */}
           {!isWorkspaceLoading && !workspaceError && !isWorkspaceOpen && (
             <div className="flex flex-col items-center justify-center py-10 text-center px-4">
-              <FolderOpen className="w-12 h-12 text-[var(--color-text-muted)] mb-4" />
-              <h3 className="text-lg font-medium text-[var(--color-text)] mb-2">No Workspace Open</h3>
-              <p className="text-sm text-[var(--color-text-secondary)] mb-4 max-w-xs">
-                Open a local workspace folder to search through file contents.
+              <Loader2 className="w-12 h-12 text-[var(--color-text-muted)] mb-4 animate-spin" />
+              <h3 className="text-lg font-medium text-[var(--color-text)] mb-2">Loading Workspace</h3>
+              <p className="text-sm text-[var(--color-text-secondary)] max-w-xs">
+                The workspace is loading from the server...
               </p>
-              {isSupported ? (
-                <button
-                  onClick={handleOpenWorkspace}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors"
-                  data-testid="file-content-search-workspace-btn"
-                >
-                  <Folder className="w-4 h-4" />
-                  Open Workspace
-                </button>
-              ) : (
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  File System Access API is not supported in this browser.
-                </p>
-              )}
             </div>
           )}
 

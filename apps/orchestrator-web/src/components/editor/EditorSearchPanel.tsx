@@ -18,7 +18,6 @@ import {
   CaseSensitive,
   Regex,
   WholeWord,
-  FolderOpen,
 } from 'lucide-react';
 import { useWorkspace } from '../../contexts';
 import {
@@ -229,13 +228,11 @@ export const EditorSearchPanel = forwardRef<EditorSearchPanelRef, EditorSearchPa
     const inputRef = useRef<HTMLInputElement>(null);
     const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
 
-    // Get workspace state from context
+    // Get workspace state from context (server-backed, always available)
     const {
-      isSupported,
       isOpen: isWorkspaceOpen,
       isLoading: isWorkspaceLoading,
       error: workspaceError,
-      openWorkspace,
     } = useWorkspace();
 
     // File content search hook
@@ -290,11 +287,6 @@ export const EditorSearchPanel = forwardRef<EditorSearchPanelRef, EditorSearchPa
         return next;
       });
     }, []);
-
-    // Handle opening workspace
-    const handleOpenWorkspace = useCallback(async () => {
-      await openWorkspace();
-    }, [openWorkspace]);
 
     // Toggle search options
     const toggleCaseSensitive = useCallback(() => {
@@ -425,24 +417,14 @@ export const EditorSearchPanel = forwardRef<EditorSearchPanelRef, EditorSearchPa
             </div>
           )}
 
-          {/* No workspace open */}
+          {/* No workspace loaded yet */}
           {!isWorkspaceLoading && !workspaceError && !isWorkspaceOpen && (
             <div className="flex flex-col items-center justify-center py-8 text-center px-3">
-              <FolderOpen className="w-8 h-8 text-[var(--color-text-muted)] mb-3" />
-              <h4 className="text-sm font-medium text-[var(--color-text)] mb-1">No Workspace</h4>
-              <p className="text-xs text-[var(--color-text-secondary)] mb-3">
-                Open a folder to search files
+              <Loader2 className="w-8 h-8 text-[var(--color-text-muted)] mb-3 animate-spin" />
+              <h4 className="text-sm font-medium text-[var(--color-text)] mb-1">Loading...</h4>
+              <p className="text-xs text-[var(--color-text-secondary)]">
+                Workspace is loading
               </p>
-              {isSupported && (
-                <button
-                  onClick={handleOpenWorkspace}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[var(--color-primary)] rounded hover:bg-[var(--color-primary-hover)] transition-colors"
-                  data-testid="editor-search-open-workspace"
-                >
-                  <FolderOpen className="w-3.5 h-3.5" />
-                  Open Workspace
-                </button>
-              )}
             </div>
           )}
 

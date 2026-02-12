@@ -46,17 +46,14 @@ export type { UseDeepLinkOptions, UseDeepLinkResult } from './useDeepLink';
 // Paginated data hook
 export { usePaginatedData } from './usePaginatedData';
 
-// File System Access hook
-export {
-  useFileSystemAccess,
-  isFileSystemAccessSupported,
-} from './useFileSystemAccess';
+// Server Workspace hook (replaced FSAPI)
+export { useServerWorkspace } from './useServerWorkspace';
 export type {
-  FileSystemEntry,
+  FileEntry,
   FileReadResult,
-  FileSystemAccessState,
-  UseFileSystemAccessReturn,
-} from './useFileSystemAccess';
+  FileWriteResult,
+  UseServerWorkspaceReturn,
+} from './useServerWorkspace';
 
 // File Content Search hook
 export {
