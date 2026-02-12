@@ -77,7 +77,7 @@ describe('Agent Command Structure', () => {
 
     it('should have all registration options', () => {
       expect(agentRegisterCommand.options).toBeDefined();
-      expect(agentRegisterCommand.options!.length).toBe(9);
+      expect(agentRegisterCommand.options!.length).toBe(10);
 
       // Required role option
       const roleOption = agentRegisterCommand.options![0];
@@ -118,6 +118,23 @@ describe('Agent Command Structure', () => {
       const triggerOption = agentRegisterCommand.options![7];
       expect(triggerOption.name).toBe('trigger');
       expect(triggerOption.hasValue).toBe(true);
+
+      // Provider option
+      const providerOption = agentRegisterCommand.options![8];
+      expect(providerOption.name).toBe('provider');
+      expect(providerOption.hasValue).toBe(true);
+
+      // Model option
+      const modelOption = agentRegisterCommand.options![9];
+      expect(modelOption.name).toBe('model');
+      expect(modelOption.hasValue).toBe(true);
+    });
+
+    it('should have --model option with correct properties', () => {
+      const modelOption = agentRegisterCommand.options!.find(opt => opt.name === 'model');
+      expect(modelOption).toBeDefined();
+      expect(modelOption!.hasValue).toBe(true);
+      expect(modelOption!.description).toContain('LLM model');
     });
   });
 
@@ -131,7 +148,7 @@ describe('Agent Command Structure', () => {
 
     it('should have all start options', () => {
       expect(agentStartCommand.options).toBeDefined();
-      expect(agentStartCommand.options!.length).toBe(11);
+      expect(agentStartCommand.options!.length).toBe(12);
       expect(agentStartCommand.options![0].name).toBe('prompt');
       expect(agentStartCommand.options![1].name).toBe('mode');
       expect(agentStartCommand.options![2].name).toBe('resume');
@@ -142,6 +159,15 @@ describe('Agent Command Structure', () => {
       expect(agentStartCommand.options![7].name).toBe('env');
       expect(agentStartCommand.options![8].name).toBe('taskId');
       expect(agentStartCommand.options![9].name).toBe('stream');
+      expect(agentStartCommand.options![10].name).toBe('provider');
+      expect(agentStartCommand.options![11].name).toBe('model');
+    });
+
+    it('should have --model option with correct properties', () => {
+      const modelOption = agentStartCommand.options!.find(opt => opt.name === 'model');
+      expect(modelOption).toBeDefined();
+      expect(modelOption!.hasValue).toBe(true);
+      expect(modelOption!.description).toContain('model');
     });
   });
 

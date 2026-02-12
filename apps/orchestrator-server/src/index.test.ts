@@ -375,3 +375,143 @@ describe('Dispatch Service Integration', () => {
   });
 
 });
+
+describe('Provider Models API Routes', () => {
+  // Import and create route app
+  let routeApp: ReturnType<typeof import('./routes/agents.js').createAgentRoutes>;
+
+  beforeEach(async () => {
+    // Import dynamically to get the route creator
+    const { createAgentRoutes } = await import('./routes/agents.js');
+
+    // Create route app with minimal services needed for agent routes
+    routeApp = createAgentRoutes({
+      agentRegistry,
+      sessionManager,
+      taskAssignmentService,
+      dispatchService,
+      api,
+    } as Parameters<typeof createAgentRoutes>[0]);
+  });
+
+  test('GET /api/providers/claude/models returns models array or 503 if unavailable', async () => {
+    const res = await routeApp.request('/api/providers/claude/models');
+    // Claude provider may return 200 (available) or 503 (unavailable)
+    expect([200, 503]).toContain(res.status);
+
+    const data = await res.json() as { models?: unknown[]; error?: { code: string } };
+    if (res.status === 200) {
+      expect(data.models).toBeDefined();
+      expect(Array.isArray(data.models)).toBe(true);
+    } else {
+      expect(data.error?.code).toBe('PROVIDER_UNAVAILABLE');
+    }
+  });
+
+  test('GET /api/providers/unknown-provider/models returns 404', async () => {
+    const res = await routeApp.request('/api/providers/unknown-provider/models');
+    expect(res.status).toBe(404);
+
+    const data = await res.json() as { error: { code: string; message: string } };
+    expect(data.error.code).toBe('NOT_FOUND');
+    expect(data.error.message).toContain('Provider not found');
+  });
+});
+
+describe('Agent Model Field API Routes', () => {
+  // Import and create route app
+  let routeApp: ReturnType<typeof import('./routes/agents.js').createAgentRoutes>;
+
+  beforeEach(async () => {
+    const { createAgentRoutes } = await import('./routes/agents.js');
+
+    routeApp = createAgentRoutes({
+      agentRegistry,
+      sessionManager,
+      taskAssignmentService,
+      dispatchService,
+      api,
+    } as Parameters<typeof createAgentRoutes>[0]);
+  });
+
+  test('POST /api/agents stores model in agent metadata', async () => {
+    const res = await routeApp.request('/api/agents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'model-test-worker',
+        role: 'worker',
+        workerMode: 'ephemeral',
+        model: 'claude-sonnet-4-20250514',
+        createdBy: systemEntity,
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const data = await res.json() as { agent: { id: string; name: string; metadata?: { agent?: { model?: string } } } };
+    expect(data.agent).toBeDefined();
+    expect(data.agent.name).toBe('model-test-worker');
+    // Model is stored inside metadata.agent.model (following AgentMetadata structure)
+    expect(data.agent.metadata?.agent?.model).toBe('claude-sonnet-4-20250514');
+  });
+
+  test('PATCH /api/agents/:id updates model in metadata', async () => {
+    // First create an agent without a model
+    const createRes = await routeApp.request('/api/agents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'patch-model-test-worker',
+        role: 'worker',
+        workerMode: 'ephemeral',
+        createdBy: systemEntity,
+      }),
+    });
+
+    expect(createRes.status).toBe(201);
+    const createData = await createRes.json() as { agent: { id: string } };
+    const agentId = createData.agent.id;
+
+    // Now update with model
+    const patchRes = await routeApp.request(`/api/agents/${agentId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-opus-4-20250514' }),
+    });
+
+    expect(patchRes.status).toBe(200);
+    const patchData = await patchRes.json() as { agent: { id: string; metadata?: { agent?: { model?: string } } } };
+    // Model is stored inside metadata.agent.model (following AgentMetadata structure)
+    expect(patchData.agent.metadata?.agent?.model).toBe('claude-opus-4-20250514');
+  });
+
+  test('PATCH /api/agents/:id with empty model string returns validation error', async () => {
+    // First create an agent
+    const createRes = await routeApp.request('/api/agents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'validation-test-worker',
+        role: 'worker',
+        workerMode: 'ephemeral',
+        createdBy: systemEntity,
+      }),
+    });
+
+    expect(createRes.status).toBe(201);
+    const createData = await createRes.json() as { agent: { id: string } };
+    const agentId = createData.agent.id;
+
+    // Try to update with empty model string
+    const patchRes = await routeApp.request(`/api/agents/${agentId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: '' }),
+    });
+
+    expect(patchRes.status).toBe(400);
+    const patchData = await patchRes.json() as { error: { code: string; message: string } };
+    expect(patchData.error.code).toBe('VALIDATION_ERROR');
+    expect(patchData.error.message).toContain('Model must be a non-empty string');
+  });
+});

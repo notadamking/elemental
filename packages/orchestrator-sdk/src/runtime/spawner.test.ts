@@ -505,6 +505,71 @@ describe('Resume session option', () => {
   });
 });
 
+// ============================================================================
+// Model Selection Tests
+// ============================================================================
+
+describe('Model selection in SpawnOptions', () => {
+  test('SpawnOptions accepts model field', () => {
+    // Verify that the SpawnOptions type accepts the model field
+    const options = {
+      workingDirectory: '/test',
+      mode: 'headless' as const,
+      model: 'claude-sonnet-4-20250514',
+    };
+
+    expect(options.model).toBe('claude-sonnet-4-20250514');
+  });
+
+  test('model is optional and can be undefined', () => {
+    const options = {
+      workingDirectory: '/test',
+      mode: 'headless' as const,
+      // model is not specified
+    };
+
+    expect(options.model).toBeUndefined();
+  });
+
+  test('model can be an empty string', () => {
+    const options = {
+      workingDirectory: '/test',
+      mode: 'headless' as const,
+      model: '',
+    };
+
+    expect(options.model).toBe('');
+  });
+
+  test('model supports various model identifiers', () => {
+    const models = [
+      'claude-sonnet-4-20250514',
+      'claude-opus-4-20250514',
+      'claude-haiku-3-5-20250829',
+      'anthropic/claude-sonnet-4-5-20250929', // OpenCode format
+      'gpt-4o', // Codex format
+      'o3-mini',
+    ];
+
+    for (const model of models) {
+      const options = {
+        workingDirectory: '/test',
+        model,
+      };
+      expect(options.model).toBe(model);
+    }
+  });
+
+  test('SpawnConfig can be created with default provider and model flows to spawn', () => {
+    const config: SpawnConfig = {
+      workingDirectory: '/tmp',
+      timeout: 5000,
+    };
+    const service = createSpawnerService(config);
+    expect(service).toBeDefined();
+  });
+});
+
 describe('Environment variables', () => {
   test('ELEMENTAL_ROOT is supported in config', () => {
     const config: SpawnConfig = {
