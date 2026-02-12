@@ -10,6 +10,15 @@ const apiPort = process.env.VITE_API_PORT || '3457';
 
 export default defineConfig({
   plugins: [react()],
+  test: {
+    // Exclude Playwright E2E tests from Vitest unit test runs
+    exclude: [
+      '**/node_modules/**',
+      '**/tests/**', // Playwright E2E tests
+    ],
+    // Include unit tests in src/ directories
+    include: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
+  },
   resolve: {
     dedupe: ['react', 'react-dom'],
     alias: {
