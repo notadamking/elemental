@@ -46,6 +46,13 @@ export default defineConfig({
     cssCodeSplit: true,
     sourcemap: false,
     rollupOptions: {
+      // Suppress warnings from @codingame/monaco-vscode-theme-defaults-default-extension
+      // which uses new URL("./resources/*.svg", import.meta.url) for file icons that
+      // don't exist at the resolved path during build (they're embedded in the package)
+      onwarn(warning, warn) {
+        if (warning.message?.includes("doesn't exist at build time")) return;
+        warn(warning);
+      },
       output: {
         manualChunks: {
           'router-vendor': ['@tanstack/react-router', '@tanstack/react-query'],
