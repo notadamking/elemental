@@ -182,8 +182,32 @@ function LspMonacoEditorComponent({
     autoConnect: isPotentialLspLanguage(language) && !readOnly,
   });
 
-  // Part B: Disable built-in TS features when LSP is connected
-  // Re-enable them as fallback when LSP is not connected
+  // Unconditionally disable semantic validation from Monaco's built-in TS worker.
+  // The in-browser TS worker cannot resolve modules (no filesystem access),
+  // so semantic diagnostics always produce false "Cannot find module" errors.
+  // Syntax validation is kept as a useful baseline for catching basic errors.
+  // When LSP is connected, it provides its own accurate diagnostics via markers.
+  useEffect(() => {
+    if (!monacoInstance) return;
+    if (!TS_JS_LANGUAGES.includes(language)) return;
+
+    const diagnosticsOptions = { noSemanticValidation: true, noSyntaxValidation: false };
+
+    try {
+      if (language === 'typescript' || language === 'typescriptreact') {
+        monacoInstance.languages.typescript.typescriptDefaults.setDiagnosticsOptions(diagnosticsOptions);
+      } else if (language === 'javascript' || language === 'javascriptreact') {
+        monacoInstance.languages.typescript.javascriptDefaults.setDiagnosticsOptions(diagnosticsOptions);
+      }
+      console.log(`[LspMonacoEditor] Disabled semantic validation for ${language} (syntax validation still active)`);
+    } catch (err) {
+      console.warn('[LspMonacoEditor] Failed to set diagnostics options:', err);
+    }
+  }, [monacoInstance, language]);
+
+  // Disable built-in TS intellisense features when LSP is connected to avoid duplicates.
+  // Re-enable them as fallback when LSP is not connected.
+  // Note: Diagnostics are handled separately via setDiagnosticsOptions above.
   useEffect(() => {
     if (!monacoInstance) return;
 
@@ -201,7 +225,7 @@ function LspMonacoEditorComponent({
         monacoInstance.languages.typescript.javascriptDefaults.setModeConfiguration(modeConfig);
       }
       console.log(
-        `[LspMonacoEditor] ${isLspConnected ? 'Disabled' : 'Enabled'} built-in TS features for ${language}`
+        `[LspMonacoEditor] ${isLspConnected ? 'Disabled' : 'Enabled'} built-in TS intellisense features for ${language}`
       );
     } catch (err) {
       console.warn('[LspMonacoEditor] Failed to set mode configuration:', err);
