@@ -2,14 +2,11 @@
  * LSP Client Module
  *
  * Manages WebSocket connections to language servers running on the orchestrator server.
- * Provides LSP features like autocompletion, hover, and diagnostics to Monaco editors.
- *
- * Uses a lightweight LSP client that works with vanilla Monaco editor without requiring
- * @codingame/monaco-vscode-api initialization.
+ * Uses a lightweight LSP client (vscode-ws-jsonrpc + vscode-jsonrpc) that works with
+ * vanilla monaco-editor without requiring @codingame/monaco-vscode-api.
  */
 
 import { LightweightLspClient } from './lightweight-client';
-import type * as monacoTypes from 'monaco-editor';
 
 /**
  * LSP server status from the API
@@ -147,32 +144,17 @@ function getLspWebSocketUrl(language: string): string {
 }
 
 /**
- * Create a file URI from an absolute file path.
- */
-function createFileUri(absolutePath: string): string {
-  // Normalize path separators for Windows compatibility
-  const normalizedPath = absolutePath.replace(/\\/g, '/');
-  // Ensure path starts with / for proper file:// URI
-  const uriPath = normalizedPath.startsWith('/') ? normalizedPath : '/' + normalizedPath;
-  return `file://${uriPath}`;
-}
-
-/**
  * Connect to a language server for a specific language
- *
- * @param language - The language ID to connect to (e.g., 'typescript', 'javascript')
- * @param monacoInstance - The Monaco editor instance for provider registration
- * @param documentUri - Optional document URI (unused, kept for API compatibility)
  */
 export async function connectLsp(
   language: string,
-  monacoInstance?: typeof monacoTypes,
+  monacoInstance?: typeof import('monaco-editor'),
   _documentUri?: string
 ): Promise<LightweightLspClient | null> {
   // Check if already connected
   if (activeClients.has(language)) {
     const existing = activeClients.get(language)!;
-    if (existing.socket.readyState === WebSocket.OPEN) {
+    if (existing.socket.readyState === WebSocket.OPEN && existing.client.isConnected) {
       console.log(`[lsp-client] Already connected to ${language} server`);
       return existing.client;
     }
@@ -180,9 +162,8 @@ export async function connectLsp(
     await disconnectLsp(language);
   }
 
-  // Monaco instance is required for the lightweight client
   if (!monacoInstance) {
-    console.log('[lsp-client] Monaco instance is required for LSP connection');
+    console.log(`[lsp-client] Monaco instance required for ${language} LSP connection`);
     return null;
   }
 
@@ -194,17 +175,7 @@ export async function connectLsp(
     return null;
   }
 
-  // Get workspace root from status response
   const workspaceRoot = status.workspaceRoot;
-  let workspaceRootUri: string | undefined;
-  let workspaceName: string | undefined;
-
-  if (workspaceRoot) {
-    workspaceRootUri = createFileUri(workspaceRoot);
-    workspaceName = workspaceRoot.split('/').pop() || 'workspace';
-    console.log(`[lsp-client] Using workspace root: ${workspaceRoot}`);
-  }
-
   console.log(`[lsp-client] Connecting to ${language} language server...`);
 
   return new Promise((resolve, reject) => {
@@ -215,17 +186,12 @@ export async function connectLsp(
       console.log(`[lsp-client] WebSocket connected for ${language}`);
 
       try {
-        // Create the lightweight LSP client
         const client = new LightweightLspClient({
-          socket,
           language,
-          monaco: monacoInstance,
-          workspaceRootUri,
-          workspaceName,
+          workspaceRoot,
         });
 
-        // Start the client (initializes server and registers providers)
-        await client.start();
+        await client.start(socket, monacoInstance);
 
         activeClients.set(language, { client, socket, language });
 
@@ -274,10 +240,6 @@ export async function disconnectLsp(language: string): Promise<void> {
     console.warn(`[lsp-client] Error stopping client for ${language}:`, error);
   }
 
-  if (active.socket.readyState === WebSocket.OPEN) {
-    active.socket.close();
-  }
-
   activeClients.delete(language);
 }
 
@@ -297,7 +259,9 @@ export function getLspConnectionState(language: string): 'connected' | 'disconne
   if (!active) {
     return 'disconnected';
   }
-  return active.socket.readyState === WebSocket.OPEN ? 'connected' : 'disconnected';
+  return active.socket.readyState === WebSocket.OPEN && active.client.isConnected
+    ? 'connected'
+    : 'disconnected';
 }
 
 /**
@@ -310,16 +274,16 @@ export function getConnectedLanguages(): string[] {
 }
 
 /**
- * Clear the cached LSP status
- */
-export function clearLspStatusCache(): void {
-  cachedStatus = null;
-}
-
-/**
- * Get the active client for a language (for document sync operations)
+ * Get the active client for a language (for document sync)
  */
 export function getActiveClient(language: string): LightweightLspClient | null {
   const active = activeClients.get(language);
   return active?.client ?? null;
+}
+
+/**
+ * Clear the cached LSP status
+ */
+export function clearLspStatusCache(): void {
+  cachedStatus = null;
 }

@@ -14,6 +14,7 @@ import { useCallback, useState, memo, useEffect, useRef } from 'react';
 import Editor, { loader, OnMount, BeforeMount } from '@monaco-editor/react';
 import type * as monacoTypes from 'monaco-editor';
 import { Loader2 } from 'lucide-react';
+import { getKeyboardManager } from '@elemental/ui';
 import { useLsp, isPotentialLspLanguage, getActiveClient, type LspState } from '../../lib/monaco-lsp';
 
 /**
@@ -63,8 +64,8 @@ interface LspMonacoEditorProps {
   language: string;
   /** Whether the editor is read-only */
   readOnly?: boolean;
-  /** Callback when content changes */
-  onChange?: (value: string) => void;
+  /** Callback when content changes (lightweight notification, no value) */
+  onChange?: () => void;
   /** Callback when editor mounts */
   onMount?: (editor: monacoTypes.editor.IStandaloneCodeEditor, monacoInstance: typeof monacoTypes) => void;
   /** Custom theme name */
@@ -172,57 +173,29 @@ function LspMonacoEditorComponent({
   const [error] = useState<string | null>(null);
   // Store Monaco instance in state to trigger re-renders when it becomes available
   const [monacoInstance, setMonacoInstance] = useState<typeof monacoTypes | null>(null);
-  // Track if we've opened the document with the LSP server
-  const documentOpenedRef = useRef(false);
-  // Store current value for document sync
-  const currentValueRef = useRef(value);
-  currentValueRef.current = value;
+  const editorRef = useRef<monacoTypes.editor.IStandaloneCodeEditor | null>(null);
+  const didOpenSentRef = useRef(false);
 
-  // Calculate document URI
-  const documentUri = filePath ? `file://${filePath}` : undefined;
+  // Track the previous value prop to detect external changes (tab switches, file reloads)
+  // without interfering with the user's typing
+  const prevValuePropRef = useRef(value);
+  // Debounce timer for LSP didChange notifications
+  const lspChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Disposables for editor subscriptions (content change, focus/blur)
+  const editorDisposablesRef = useRef<monacoTypes.IDisposable[]>([]);
 
   // Use LSP hook for language server connection
-  // Now uses state instead of ref, so the hook will re-run when Monaco mounts
   const { state: lspState } = useLsp({
     monaco: monacoInstance ?? undefined,
     language,
-    documentUri,
+    documentUri: filePath ? `file://${filePath}` : undefined,
     autoConnect: isPotentialLspLanguage(language) && !readOnly,
   });
 
-  // Open document with LSP server when connected
-  useEffect(() => {
-    if (lspState !== 'connected' || !documentUri) {
-      documentOpenedRef.current = false;
-      return;
-    }
-
-    const client = getActiveClient(language);
-    if (!client || documentOpenedRef.current) return;
-
-    // Open the document with the language server
-    client.openDocument(documentUri, language, currentValueRef.current);
-    documentOpenedRef.current = true;
-    console.log(`[LspMonacoEditor] Opened document with LSP: ${documentUri}`);
-
-    // Clean up when disconnecting
-    return () => {
-      if (documentOpenedRef.current) {
-        const activeClient = getActiveClient(language);
-        if (activeClient) {
-          activeClient.closeDocument(documentUri);
-          console.log(`[LspMonacoEditor] Closed document with LSP: ${documentUri}`);
-        }
-        documentOpenedRef.current = false;
-      }
-    };
-  }, [lspState, language, documentUri]);
-
-  // Unconditionally disable semantic validation from Monaco's built-in TS worker.
+  // Unconditionally disable semantic validation from built-in TS worker.
   // The in-browser TS worker cannot resolve modules (no filesystem access),
   // so semantic diagnostics always produce false "Cannot find module" errors.
-  // Syntax validation is kept as a useful baseline for catching basic errors.
-  // When LSP is connected, it provides its own accurate diagnostics via markers.
+  // Syntax validation is kept as a useful baseline.
   useEffect(() => {
     if (!monacoInstance) return;
     if (!TS_JS_LANGUAGES.includes(language)) return;
@@ -235,25 +208,20 @@ function LspMonacoEditorComponent({
       } else if (language === 'javascript' || language === 'javascriptreact') {
         monacoInstance.languages.typescript.javascriptDefaults.setDiagnosticsOptions(diagnosticsOptions);
       }
-      console.log(`[LspMonacoEditor] Disabled semantic validation for ${language} (syntax validation still active)`);
+      console.log(`[LspMonacoEditor] Disabled built-in TS semantic validation for ${language}`);
     } catch (err) {
       console.warn('[LspMonacoEditor] Failed to set diagnostics options:', err);
     }
   }, [monacoInstance, language]);
 
-  // Disable built-in TS intellisense features when LSP is connected to avoid duplicates.
-  // Re-enable them as fallback when LSP is not connected.
-  // Note: Diagnostics are handled separately via setDiagnosticsOptions above.
+  // Disable built-in TS intellisense features when LSP is connected to avoid duplicates
   useEffect(() => {
     if (!monacoInstance) return;
-
-    // Only apply to TypeScript/JavaScript languages
     if (!TS_JS_LANGUAGES.includes(language)) return;
 
     const isLspConnected = lspState === 'connected';
     const modeConfig = isLspConnected ? DISABLED_TS_MODE_CONFIG : DEFAULT_TS_MODE_CONFIG;
 
-    // Apply to both TS and JS defaults (they share settings for some language IDs)
     try {
       if (language === 'typescript' || language === 'typescriptreact') {
         monacoInstance.languages.typescript.typescriptDefaults.setModeConfiguration(modeConfig);
@@ -261,12 +229,28 @@ function LspMonacoEditorComponent({
         monacoInstance.languages.typescript.javascriptDefaults.setModeConfiguration(modeConfig);
       }
       console.log(
-        `[LspMonacoEditor] ${isLspConnected ? 'Disabled' : 'Enabled'} built-in TS intellisense features for ${language}`
+        `[LspMonacoEditor] ${isLspConnected ? 'Disabled' : 'Enabled'} built-in TS intellisense for ${language}`
       );
     } catch (err) {
       console.warn('[LspMonacoEditor] Failed to set mode configuration:', err);
     }
   }, [monacoInstance, language, lspState]);
+
+  // Send didOpen to LSP when connected and document is ready
+  useEffect(() => {
+    if (lspState !== 'connected' || !editorRef.current || didOpenSentRef.current) return;
+
+    const client = getActiveClient(language);
+    if (!client) return;
+
+    const model = editorRef.current.getModel();
+    if (!model) return;
+
+    const uri = filePath ? `file://${filePath}` : model.uri.toString();
+    client.sendDidOpen(uri, language, model.getValue());
+    didOpenSentRef.current = true;
+    console.log(`[LspMonacoEditor] Sent didOpen for ${uri}`);
+  }, [lspState, language, filePath]);
 
   // Notify parent of LSP state changes
   useEffect(() => {
@@ -275,10 +259,88 @@ function LspMonacoEditorComponent({
     }
   }, [lspState, onLspStateChange]);
 
+  // Apply external value changes (tab switch, file reload) without interfering with typing.
+  // Only triggers model.setValue when the value prop itself changed (not from our own onChange).
+  useEffect(() => {
+    if (value === prevValuePropRef.current) return;
+    prevValuePropRef.current = value;
+
+    if (!editorRef.current) return;
+    const model = editorRef.current.getModel();
+    if (model && model.getValue() !== value) {
+      model.setValue(value);
+    }
+  }, [value]);
+
+  // Cleanup editor subscriptions and debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (lspChangeTimerRef.current) {
+        clearTimeout(lspChangeTimerRef.current);
+      }
+      for (const d of editorDisposablesRef.current) {
+        d.dispose();
+      }
+      editorDisposablesRef.current = [];
+      // Re-enable global shortcuts when editor unmounts
+      getKeyboardManager().setEnabled(true);
+    };
+  }, []);
+
   // Handle editor mount
   const handleMount: OnMount = useCallback((editor, monaco) => {
-    // Store Monaco instance in state to trigger re-render and allow useLsp to receive it
+    // Store editor and Monaco instance
+    editorRef.current = editor;
     setMonacoInstance(monaco);
+    didOpenSentRef.current = false;
+
+    // Sync with latest value prop in case it changed before mount completed
+    prevValuePropRef.current = value;
+    const model = editor.getModel();
+    if (model && model.getValue() !== value) {
+      model.setValue(value);
+    }
+
+    // Dispose previous subscriptions (in case of re-mount)
+    for (const d of editorDisposablesRef.current) {
+      d.dispose();
+    }
+
+    // Subscribe to content changes directly (bypasses @monaco-editor/react's
+    // onChange which calls editor.getValue() O(n) on every keystroke)
+    const contentDisposable = editor.onDidChangeModelContent(() => {
+      // Lightweight dirty notification to parent (no value extraction)
+      onChange?.();
+
+      // Debounce LSP didChange — only read model value when the timer fires
+      if (didOpenSentRef.current) {
+        if (lspChangeTimerRef.current) {
+          clearTimeout(lspChangeTimerRef.current);
+        }
+        lspChangeTimerRef.current = setTimeout(() => {
+          const client = getActiveClient(language);
+          if (client) {
+            const m = editor.getModel();
+            if (m) {
+              const uri = filePath ? `file://${filePath}` : m.uri.toString();
+              client.sendDidChange(uri, m.getValue());
+            }
+          }
+        }, 200);
+      }
+    });
+
+    // Disable global keyboard shortcuts (G A, Cmd+B, etc.) when editor is focused
+    // so they don't steal keystrokes. Cmd+K (command palette) and Cmd+S (save)
+    // are handled by their own document-level listeners and remain unaffected.
+    const focusDisposable = editor.onDidFocusEditorWidget(() => {
+      getKeyboardManager().setEnabled(false);
+    });
+    const blurDisposable = editor.onDidBlurEditorWidget(() => {
+      getKeyboardManager().setEnabled(true);
+    });
+
+    editorDisposablesRef.current = [contentDisposable, focusDisposable, blurDisposable];
 
     // Ensure theme is defined
     defineCustomTheme(monaco);
@@ -290,30 +352,12 @@ function LspMonacoEditorComponent({
     if (onMount) {
       onMount(editor, monaco);
     }
-  }, [onMount, theme]);
+  }, [onMount, theme, value, onChange, language, filePath]);
 
   // Handle beforeMount to define theme early
   const handleBeforeMount: BeforeMount = useCallback((monaco) => {
     defineCustomTheme(monaco);
   }, []);
-
-  // Handle content changes
-  const handleChange = useCallback((newValue: string | undefined) => {
-    if (newValue === undefined) return;
-
-    // Notify the LSP server of content changes
-    if (documentOpenedRef.current && documentUri) {
-      const client = getActiveClient(language);
-      if (client) {
-        client.changeDocument(documentUri, newValue);
-      }
-    }
-
-    // Call the onChange callback
-    if (onChange) {
-      onChange(newValue);
-    }
-  }, [onChange, language, documentUri]);
 
   // Loading spinner component
   const LoadingSpinner = (
@@ -338,9 +382,8 @@ function LspMonacoEditorComponent({
       <Editor
         defaultLanguage={language}
         language={language}
-        value={value}
+        defaultValue={value}
         theme={theme}
-        onChange={handleChange}
         onMount={handleMount}
         beforeMount={handleBeforeMount}
         loading={LoadingSpinner}

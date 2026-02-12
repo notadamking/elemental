@@ -71,8 +71,7 @@ async function commandExists(cmd: string): Promise<boolean> {
  * Get the path to node_modules/.bin for locally installed binaries
  */
 function getLocalBinPath(): string {
-  // Navigate from src/services/ to the package root (apps/orchestrator-server/), then to node_modules/.bin
-  // Path: src/services -> src -> apps/orchestrator-server -> node_modules/.bin
+  // Navigate from src/services to the package root, then to node_modules/.bin
   return resolve(__dirname, '../../node_modules/.bin');
 }
 

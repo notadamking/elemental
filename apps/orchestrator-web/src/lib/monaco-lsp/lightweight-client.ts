@@ -1,761 +1,430 @@
 /**
  * Lightweight LSP Client
  *
- * A minimal Language Server Protocol client that works with vanilla Monaco editor
- * without requiring @codingame/monaco-vscode-api initialization.
+ * Replaces MonacoLanguageClient with a direct JSON-RPC client that uses
+ * vscode-ws-jsonrpc for WebSocket transport. Works with vanilla monaco-editor
+ * without requiring @codingame/monaco-vscode-api service initialization.
  *
- * Uses vscode-ws-jsonrpc for JSON-RPC over WebSocket transport and manually
- * registers Monaco language providers for completion, hover, and diagnostics.
+ * Uses string-based method names for JSON-RPC to avoid version mismatches
+ * between vscode-jsonrpc and vscode-languageserver-protocol types.
  */
 
 import {
   createMessageConnection,
-  MessageConnection,
-  Disposable,
-} from 'vscode-jsonrpc/browser';
+  type MessageConnection,
+} from 'vscode-jsonrpc';
 import {
-  toSocket,
   WebSocketMessageReader,
   WebSocketMessageWriter,
+  toSocket,
 } from 'vscode-ws-jsonrpc';
-import type {
-  InitializeParams,
-  InitializeResult,
-  DidOpenTextDocumentParams,
-  DidChangeTextDocumentParams,
-  DidCloseTextDocumentParams,
-  CompletionParams,
-  CompletionItem as LspCompletionItem,
-  CompletionList,
-  HoverParams,
-  Hover as LspHover,
-  DefinitionParams,
-  Location,
-  LocationLink,
-  PublishDiagnosticsParams,
-  Diagnostic,
+import {
   DiagnosticSeverity,
-  CompletionItemKind,
-  MarkupContent,
-  ServerCapabilities,
+  CompletionItemKind as LspCompletionItemKind,
+  MarkupKind,
+  type Diagnostic,
+  type CompletionItem as LspCompletionItem,
+  type CompletionList,
+  type MarkupContent,
+  type Hover,
+  type Location,
+  type LocationLink,
 } from 'vscode-languageserver-protocol';
 import type * as monaco from 'monaco-editor';
 
 /**
- * Lightweight LSP client options
+ * Options for creating a lightweight LSP client
  */
-export interface LightweightLspClientOptions {
-  /** WebSocket instance for LSP communication */
-  socket: WebSocket;
-  /** Language ID for filtering capabilities */
+export interface LightweightClientOptions {
   language: string;
-  /** Monaco editor instance for provider registration */
-  monaco: typeof monaco;
-  /** Workspace root URI (file://...) */
-  workspaceRootUri?: string;
-  /** Workspace name */
-  workspaceName?: string;
+  workspaceRoot?: string;
+  documentUri?: string;
 }
 
 /**
- * Document state tracked by the client
- */
-interface TrackedDocument {
-  uri: string;
-  languageId: string;
-  version: number;
-  content: string;
-}
-
-/**
- * Lightweight LSP client that registers Monaco providers directly
+ * Lightweight LSP client that bridges LSP protocol to Monaco editor providers
  */
 export class LightweightLspClient {
   private connection: MessageConnection | null = null;
-  private socket: WebSocket;
+  private socket: WebSocket | null = null;
+  private disposables: monaco.IDisposable[] = [];
+  private documentVersion = 0;
   private language: string;
-  private monacoInstance: typeof monaco;
-  private workspaceRootUri?: string;
-  private workspaceName?: string;
+  private workspaceRoot: string;
+  private monacoInstance: typeof monaco | null = null;
+  private _isConnected = false;
 
-  private serverCapabilities: ServerCapabilities | null = null;
-  private trackedDocuments = new Map<string, TrackedDocument>();
-  private disposables: Disposable[] = [];
-  private monacoDisposables: monaco.IDisposable[] = [];
-
-  // Callbacks for connection state
-  private onConnectedCallbacks: (() => void)[] = [];
-  private onDisconnectedCallbacks: (() => void)[] = [];
-  private onErrorCallbacks: ((error: Error) => void)[] = [];
-
-  constructor(options: LightweightLspClientOptions) {
-    this.socket = options.socket;
+  constructor(options: LightweightClientOptions) {
     this.language = options.language;
-    this.monacoInstance = options.monaco;
-    this.workspaceRootUri = options.workspaceRootUri;
-    this.workspaceName = options.workspaceName;
+    this.workspaceRoot = options.workspaceRoot || '/';
+  }
+
+  get isConnected(): boolean {
+    return this._isConnected;
   }
 
   /**
-   * Start the LSP client and initialize the connection
+   * Connect to the language server via WebSocket and initialize the LSP session
    */
-  async start(): Promise<void> {
-    if (this.socket.readyState !== WebSocket.OPEN) {
-      throw new Error('WebSocket is not open');
-    }
+  async start(webSocket: WebSocket, monacoInstance: typeof monaco): Promise<void> {
+    this.socket = webSocket;
+    this.monacoInstance = monacoInstance;
 
-    // Create JSON-RPC message connection
-    const socketWrapper = toSocket(this.socket);
+    const socketWrapper = toSocket(webSocket);
     const reader = new WebSocketMessageReader(socketWrapper);
     const writer = new WebSocketMessageWriter(socketWrapper);
     this.connection = createMessageConnection(reader, writer);
 
-    // Set up notification handlers
+    // Set up notification handlers before listening
     this.setupNotificationHandlers();
 
-    // Start listening
     this.connection.listen();
 
-    // Initialize the language server
-    await this.initializeServer();
-
-    // Register Monaco providers
-    this.registerMonacoProviders();
-
-    // Notify connected
-    this.onConnectedCallbacks.forEach((cb) => cb());
-  }
-
-  /**
-   * Stop the LSP client and clean up
-   */
-  async stop(): Promise<void> {
-    // Dispose Monaco providers
-    this.monacoDisposables.forEach((d) => d.dispose());
-    this.monacoDisposables = [];
-
-    // Dispose connection handlers
-    this.disposables.forEach((d) => d.dispose());
-    this.disposables = [];
-
-    // Send shutdown request and exit notification
-    if (this.connection) {
-      try {
-        await this.connection.sendRequest('shutdown');
-        this.connection.sendNotification('exit');
-      } catch {
-        // Ignore errors during shutdown
-      }
-      this.connection.dispose();
-      this.connection = null;
-    }
-
-    // Clear tracked documents
-    this.trackedDocuments.clear();
-
-    // Clear server capabilities
-    this.serverCapabilities = null;
-  }
-
-  /**
-   * Register a callback for when the client connects
-   */
-  onConnected(callback: () => void): () => void {
-    this.onConnectedCallbacks.push(callback);
-    return () => {
-      const idx = this.onConnectedCallbacks.indexOf(callback);
-      if (idx >= 0) this.onConnectedCallbacks.splice(idx, 1);
-    };
-  }
-
-  /**
-   * Register a callback for when the client disconnects
-   */
-  onDisconnected(callback: () => void): () => void {
-    this.onDisconnectedCallbacks.push(callback);
-    return () => {
-      const idx = this.onDisconnectedCallbacks.indexOf(callback);
-      if (idx >= 0) this.onDisconnectedCallbacks.splice(idx, 1);
-    };
-  }
-
-  /**
-   * Register a callback for errors
-   */
-  onError(callback: (error: Error) => void): () => void {
-    this.onErrorCallbacks.push(callback);
-    return () => {
-      const idx = this.onErrorCallbacks.indexOf(callback);
-      if (idx >= 0) this.onErrorCallbacks.splice(idx, 1);
-    };
-  }
-
-  /**
-   * Open a document in the language server
-   */
-  openDocument(uri: string, languageId: string, content: string): void {
-    if (!this.connection) return;
-
-    const version = 1;
-    this.trackedDocuments.set(uri, { uri, languageId, version, content });
-
-    const params: DidOpenTextDocumentParams = {
-      textDocument: {
-        uri,
-        languageId,
-        version,
-        text: content,
-      },
-    };
-
-    this.connection.sendNotification('textDocument/didOpen', params);
-  }
-
-  /**
-   * Update a document in the language server
-   */
-  changeDocument(uri: string, content: string): void {
-    if (!this.connection) return;
-
-    const doc = this.trackedDocuments.get(uri);
-    if (!doc) return;
-
-    doc.version++;
-    doc.content = content;
-
-    const params: DidChangeTextDocumentParams = {
-      textDocument: {
-        uri,
-        version: doc.version,
-      },
-      contentChanges: [{ text: content }],
-    };
-
-    this.connection.sendNotification('textDocument/didChange', params);
-  }
-
-  /**
-   * Close a document in the language server
-   */
-  closeDocument(uri: string): void {
-    if (!this.connection) return;
-
-    this.trackedDocuments.delete(uri);
-
-    const params: DidCloseTextDocumentParams = {
-      textDocument: { uri },
-    };
-
-    this.connection.sendNotification('textDocument/didClose', params);
-  }
-
-  /**
-   * Set up LSP notification handlers
-   */
-  private setupNotificationHandlers(): void {
-    if (!this.connection) return;
-
-    // Handle publishDiagnostics notification
-    this.disposables.push(
-      this.connection.onNotification(
-        'textDocument/publishDiagnostics',
-        (params: PublishDiagnosticsParams) => {
-          this.handleDiagnostics(params);
-        }
-      )
-    );
-
-    // Handle connection errors
-    this.connection.onError((error) => {
-      console.error('[lightweight-client] Connection error:', error);
-      this.onErrorCallbacks.forEach((cb) => cb(new Error(String(error))));
-    });
-
-    // Handle connection close
-    this.connection.onClose(() => {
-      console.log('[lightweight-client] Connection closed');
-      this.onDisconnectedCallbacks.forEach((cb) => cb());
-    });
-  }
-
-  /**
-   * Initialize the language server with proper workspace configuration
-   */
-  private async initializeServer(): Promise<void> {
-    if (!this.connection) return;
-
-    const initParams: InitializeParams = {
+    // Send initialize request (using string method name for version compat)
+    await this.connection.sendRequest('initialize', {
       processId: null,
       capabilities: {
         textDocument: {
-          synchronization: {
-            dynamicRegistration: false,
-            willSave: false,
-            willSaveWaitUntil: false,
-            didSave: true,
-          },
           completion: {
-            dynamicRegistration: false,
             completionItem: {
               snippetSupport: true,
-              commitCharactersSupport: true,
-              documentationFormat: ['markdown', 'plaintext'],
-              deprecatedSupport: true,
-              preselectSupport: true,
-              insertReplaceSupport: true,
-              labelDetailsSupport: true,
-              resolveSupport: {
-                properties: ['documentation', 'detail', 'additionalTextEdits'],
-              },
+              documentationFormat: [MarkupKind.Markdown, MarkupKind.PlainText],
             },
-            contextSupport: true,
           },
           hover: {
-            dynamicRegistration: false,
-            contentFormat: ['markdown', 'plaintext'],
-          },
-          definition: {
-            dynamicRegistration: false,
-            linkSupport: true,
+            contentFormat: [MarkupKind.Markdown, MarkupKind.PlainText],
           },
           publishDiagnostics: {
             relatedInformation: true,
-            tagSupport: { valueSet: [1, 2] },
-            codeDescriptionSupport: true,
+          },
+          definition: {},
+          synchronization: {
+            didSave: true,
+            dynamicRegistration: false,
           },
         },
         workspace: {
           workspaceFolders: true,
         },
       },
-      rootUri: this.workspaceRootUri ?? null,
-      workspaceFolders: this.workspaceRootUri
-        ? [
-            {
-              uri: this.workspaceRootUri,
-              name: this.workspaceName ?? 'workspace',
-            },
-          ]
-        : null,
-    };
-
-    console.log('[lightweight-client] Sending initialize request with rootUri:', this.workspaceRootUri);
-
-    const result: InitializeResult = await this.connection.sendRequest(
-      'initialize',
-      initParams
-    );
-
-    this.serverCapabilities = result.capabilities;
-    console.log('[lightweight-client] Server initialized, capabilities:', result.capabilities);
+      rootUri: `file://${this.workspaceRoot}`,
+      workspaceFolders: [
+        {
+          uri: `file://${this.workspaceRoot}`,
+          name: this.workspaceRoot.split('/').pop() || 'workspace',
+        },
+      ],
+    });
 
     // Send initialized notification
     this.connection.sendNotification('initialized', {});
+
+    // Register Monaco providers
+    this.registerProviders();
+
+    this._isConnected = true;
   }
 
   /**
-   * Register Monaco language providers
+   * Set up LSP notification handlers (diagnostics, etc.)
    */
-  private registerMonacoProviders(): void {
-    const caps = this.serverCapabilities;
-    if (!caps) return;
+  private setupNotificationHandlers(): void {
+    if (!this.connection) return;
 
-    // Register completion provider
-    if (caps.completionProvider) {
-      const completionProvider: monaco.languages.CompletionItemProvider = {
-        triggerCharacters: caps.completionProvider.triggerCharacters,
-        provideCompletionItems: async (model, position, context, token) => {
-          return this.provideCompletionItems(model, position, context, token);
-        },
-      };
+    this.connection.onNotification(
+      'textDocument/publishDiagnostics',
+      (params: { uri: string; diagnostics: Diagnostic[] }) => {
+        if (!this.monacoInstance) return;
 
-      const disposable = this.monacoInstance.languages.registerCompletionItemProvider(
-        this.language,
-        completionProvider
-      );
-      this.monacoDisposables.push(disposable);
-      console.log('[lightweight-client] Registered completion provider for', this.language);
-    }
+        // Find the Monaco model for this URI
+        const models = this.monacoInstance.editor.getModels();
+        const model = models.find((m) => {
+          const modelUri = m.uri.toString();
+          return modelUri === params.uri ||
+            `file://${modelUri}` === params.uri ||
+            modelUri === params.uri.replace('file://', '');
+        });
 
-    // Register hover provider
-    if (caps.hoverProvider) {
-      const hoverProvider: monaco.languages.HoverProvider = {
-        provideHover: async (model, position, token) => {
-          return this.provideHover(model, position, token);
-        },
-      };
-
-      const disposable = this.monacoInstance.languages.registerHoverProvider(
-        this.language,
-        hoverProvider
-      );
-      this.monacoDisposables.push(disposable);
-      console.log('[lightweight-client] Registered hover provider for', this.language);
-    }
-
-    // Register definition provider
-    if (caps.definitionProvider) {
-      const definitionProvider: monaco.languages.DefinitionProvider = {
-        provideDefinition: async (model, position, token) => {
-          return this.provideDefinition(model, position, token);
-        },
-      };
-
-      const disposable = this.monacoInstance.languages.registerDefinitionProvider(
-        this.language,
-        definitionProvider
-      );
-      this.monacoDisposables.push(disposable);
-      console.log('[lightweight-client] Registered definition provider for', this.language);
-    }
-  }
-
-  /**
-   * Handle diagnostics from the language server
-   */
-  private handleDiagnostics(params: PublishDiagnosticsParams): void {
-    const uri = params.uri;
-    const model = this.monacoInstance.editor
-      .getModels()
-      .find((m) => m.uri.toString() === uri);
-
-    if (!model) {
-      console.log('[lightweight-client] No model found for diagnostics URI:', uri);
-      return;
-    }
-
-    const markers = params.diagnostics.map((diag) => this.toMonacoMarker(diag));
-    this.monacoInstance.editor.setModelMarkers(model, 'lsp', markers);
-    console.log(`[lightweight-client] Set ${markers.length} markers for ${uri}`);
-  }
-
-  /**
-   * Convert LSP Diagnostic to Monaco IMarkerData
-   */
-  private toMonacoMarker(diagnostic: Diagnostic): monaco.editor.IMarkerData {
-    return {
-      severity: this.toMonacoSeverity(diagnostic.severity),
-      message: diagnostic.message,
-      startLineNumber: diagnostic.range.start.line + 1, // LSP is 0-based, Monaco is 1-based
-      startColumn: diagnostic.range.start.character + 1,
-      endLineNumber: diagnostic.range.end.line + 1,
-      endColumn: diagnostic.range.end.character + 1,
-      source: diagnostic.source,
-      code:
-        typeof diagnostic.code === 'number'
-          ? String(diagnostic.code)
-          : diagnostic.code,
-    };
-  }
-
-  /**
-   * Convert LSP DiagnosticSeverity to Monaco MarkerSeverity
-   */
-  private toMonacoSeverity(
-    severity?: DiagnosticSeverity
-  ): monaco.MarkerSeverity {
-    // DiagnosticSeverity values: Error = 1, Warning = 2, Information = 3, Hint = 4
-    switch (severity) {
-      case 1: // DiagnosticSeverity.Error
-        return this.monacoInstance.MarkerSeverity.Error;
-      case 2: // DiagnosticSeverity.Warning
-        return this.monacoInstance.MarkerSeverity.Warning;
-      case 3: // DiagnosticSeverity.Information
-        return this.monacoInstance.MarkerSeverity.Info;
-      case 4: // DiagnosticSeverity.Hint
-        return this.monacoInstance.MarkerSeverity.Hint;
-      default:
-        return this.monacoInstance.MarkerSeverity.Info;
-    }
-  }
-
-  /**
-   * Provide completion items from the language server
-   */
-  private async provideCompletionItems(
-    model: monaco.editor.ITextModel,
-    position: monaco.Position,
-    _context: monaco.languages.CompletionContext,
-    _token: monaco.CancellationToken
-  ): Promise<monaco.languages.CompletionList | null> {
-    if (!this.connection) return null;
-
-    const params: CompletionParams = {
-      textDocument: { uri: model.uri.toString() },
-      position: {
-        line: position.lineNumber - 1, // Monaco is 1-based, LSP is 0-based
-        character: position.column - 1,
-      },
-    };
-
-    try {
-      const result = await this.connection.sendRequest<CompletionList | LspCompletionItem[] | null>(
-        'textDocument/completion',
-        params
-      );
-
-      if (!result) return null;
-
-      const items = Array.isArray(result)
-        ? result
-        : (result as CompletionList).items;
-
-      const wordRange = model.getWordUntilPosition(position);
-      const range = {
-        startLineNumber: position.lineNumber,
-        startColumn: wordRange.startColumn,
-        endLineNumber: position.lineNumber,
-        endColumn: wordRange.endColumn,
-      };
-
-      const suggestions = items.map((item) =>
-        this.toMonacoCompletionItem(item, range)
-      );
-
-      return {
-        suggestions,
-        incomplete: !Array.isArray(result) && (result as CompletionList).isIncomplete,
-      };
-    } catch (error) {
-      console.error('[lightweight-client] Completion request failed:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Convert LSP CompletionItem to Monaco CompletionItem
-   */
-  private toMonacoCompletionItem(
-    item: LspCompletionItem,
-    range: monaco.IRange
-  ): monaco.languages.CompletionItem {
-    // Handle label which can be string or { label: string, ... }
-    const labelText = typeof item.label === 'string'
-      ? item.label
-      : (item.label as { label: string }).label;
-    const insertText = item.insertText ?? labelText;
-    const insertTextRules = item.insertTextFormat === 2
-      ? this.monacoInstance.languages.CompletionItemInsertTextRule.InsertAsSnippet
-      : undefined;
-
-    return {
-      label: labelText,
-      kind: this.toMonacoCompletionKind(item.kind),
-      detail: item.detail,
-      documentation: this.toMonacoDocumentation(item.documentation),
-      sortText: item.sortText,
-      filterText: item.filterText,
-      insertText,
-      insertTextRules,
-      range,
-    };
-  }
-
-  /**
-   * Convert LSP CompletionItemKind to Monaco CompletionItemKind
-   */
-  private toMonacoCompletionKind(
-    kind?: CompletionItemKind
-  ): monaco.languages.CompletionItemKind {
-    const m = this.monacoInstance.languages.CompletionItemKind;
-    // CompletionItemKind values from LSP spec
-    switch (kind) {
-      case 1: return m.Text;
-      case 2: return m.Method;
-      case 3: return m.Function;
-      case 4: return m.Constructor;
-      case 5: return m.Field;
-      case 6: return m.Variable;
-      case 7: return m.Class;
-      case 8: return m.Interface;
-      case 9: return m.Module;
-      case 10: return m.Property;
-      case 11: return m.Unit;
-      case 12: return m.Value;
-      case 13: return m.Enum;
-      case 14: return m.Keyword;
-      case 15: return m.Snippet;
-      case 16: return m.Color;
-      case 17: return m.File;
-      case 18: return m.Reference;
-      case 19: return m.Folder;
-      case 20: return m.EnumMember;
-      case 21: return m.Constant;
-      case 22: return m.Struct;
-      case 23: return m.Event;
-      case 24: return m.Operator;
-      case 25: return m.TypeParameter;
-      default: return m.Text;
-    }
-  }
-
-  /**
-   * Convert LSP documentation to Monaco documentation format
-   */
-  private toMonacoDocumentation(
-    documentation?: string | MarkupContent
-  ): string | monaco.IMarkdownString | undefined {
-    if (!documentation) return undefined;
-
-    if (typeof documentation === 'string') {
-      return documentation;
-    }
-
-    if (documentation.kind === 'markdown') {
-      return { value: documentation.value };
-    }
-
-    return documentation.value;
-  }
-
-  /**
-   * Provide hover information from the language server
-   */
-  private async provideHover(
-    model: monaco.editor.ITextModel,
-    position: monaco.Position,
-    _token: monaco.CancellationToken
-  ): Promise<monaco.languages.Hover | null> {
-    if (!this.connection) return null;
-
-    const params: HoverParams = {
-      textDocument: { uri: model.uri.toString() },
-      position: {
-        line: position.lineNumber - 1,
-        character: position.column - 1,
-      },
-    };
-
-    try {
-      const result = await this.connection.sendRequest<LspHover | null>(
-        'textDocument/hover',
-        params
-      );
-
-      if (!result || !result.contents) return null;
-
-      return this.toMonacoHover(result);
-    } catch (error) {
-      console.error('[lightweight-client] Hover request failed:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Convert LSP Hover to Monaco Hover
-   */
-  private toMonacoHover(hover: LspHover): monaco.languages.Hover {
-    const contents = this.toMonacoHoverContents(hover.contents);
-    const range = hover.range
-      ? {
-          startLineNumber: hover.range.start.line + 1,
-          startColumn: hover.range.start.character + 1,
-          endLineNumber: hover.range.end.line + 1,
-          endColumn: hover.range.end.character + 1,
+        if (model) {
+          const markers = params.diagnostics.map((d) => toMonacoMarker(d));
+          this.monacoInstance.editor.setModelMarkers(model, 'lsp', markers);
         }
-      : undefined;
-
-    return { contents, range };
-  }
-
-  /**
-   * Convert LSP hover contents to Monaco IMarkdownString array
-   */
-  private toMonacoHoverContents(
-    contents: LspHover['contents']
-  ): monaco.IMarkdownString[] {
-    if (typeof contents === 'string') {
-      return [{ value: contents }];
-    }
-
-    if (Array.isArray(contents)) {
-      return contents.map((c) => {
-        if (typeof c === 'string') {
-          return { value: c };
-        }
-        if ('language' in c) {
-          return { value: `\`\`\`${c.language}\n${c.value}\n\`\`\`` };
-        }
-        return { value: (c as MarkupContent).value };
-      });
-    }
-
-    if ('kind' in contents) {
-      return [{ value: contents.value }];
-    }
-
-    if ('language' in contents) {
-      return [{ value: `\`\`\`${contents.language}\n${contents.value}\n\`\`\`` }];
-    }
-
-    return [];
-  }
-
-  /**
-   * Provide definition from the language server
-   */
-  private async provideDefinition(
-    model: monaco.editor.ITextModel,
-    position: monaco.Position,
-    _token: monaco.CancellationToken
-  ): Promise<monaco.languages.Definition | null> {
-    if (!this.connection) return null;
-
-    const params: DefinitionParams = {
-      textDocument: { uri: model.uri.toString() },
-      position: {
-        line: position.lineNumber - 1,
-        character: position.column - 1,
-      },
-    };
-
-    try {
-      const result = await this.connection.sendRequest<Location | Location[] | LocationLink[] | null>(
-        'textDocument/definition',
-        params
-      );
-
-      if (!result) return null;
-
-      if (Array.isArray(result)) {
-        return result.map((loc) => this.toMonacoLocation(loc));
       }
-
-      return this.toMonacoLocation(result);
-    } catch (error) {
-      console.error('[lightweight-client] Definition request failed:', error);
-      return null;
-    }
+    );
   }
 
   /**
-   * Convert LSP Location or LocationLink to Monaco Location
+   * Register Monaco language providers for completions, hover, definitions
    */
-  private toMonacoLocation(
-    location: Location | LocationLink
-  ): monaco.languages.Location {
-    // Check if it's a LocationLink
-    if ('targetUri' in location) {
-      return {
-        uri: this.monacoInstance.Uri.parse(location.targetUri),
-        range: {
-          startLineNumber: location.targetRange.start.line + 1,
-          startColumn: location.targetRange.start.character + 1,
-          endLineNumber: location.targetRange.end.line + 1,
-          endColumn: location.targetRange.end.character + 1,
+  private registerProviders(): void {
+    if (!this.monacoInstance || !this.connection) return;
+
+    const conn = this.connection;
+    const lang = this.language;
+
+    // Completion provider
+    this.disposables.push(
+      this.monacoInstance.languages.registerCompletionItemProvider(lang, {
+        triggerCharacters: ['.', '/', '"', "'", '`', '<', '@'],
+        provideCompletionItems: async (model, position) => {
+          try {
+            const result = await conn.sendRequest('textDocument/completion', {
+              textDocument: { uri: model.uri.toString() },
+              position: {
+                line: position.lineNumber - 1,
+                character: position.column - 1,
+              },
+            });
+            if (!result) return { suggestions: [] };
+
+            const items: LspCompletionItem[] = Array.isArray(result)
+              ? result
+              : (result as CompletionList).items;
+
+            const word = model.getWordUntilPosition(position);
+            const range = {
+              startLineNumber: position.lineNumber,
+              startColumn: word.startColumn,
+              endLineNumber: position.lineNumber,
+              endColumn: word.endColumn,
+            };
+
+            return {
+              suggestions: items.map((item) =>
+                toMonacoCompletionItem(item, range, this.monacoInstance!)
+              ),
+            };
+          } catch {
+            return { suggestions: [] };
+          }
         },
-      };
+      })
+    );
+
+    // Hover provider
+    this.disposables.push(
+      this.monacoInstance.languages.registerHoverProvider(lang, {
+        provideHover: async (model, position) => {
+          try {
+            const result: Hover | null = await conn.sendRequest('textDocument/hover', {
+              textDocument: { uri: model.uri.toString() },
+              position: {
+                line: position.lineNumber - 1,
+                character: position.column - 1,
+              },
+            });
+            if (!result) return null;
+
+            const toMonacoHoverContent = (c: unknown): { value: string } => {
+              if (typeof c === 'string') return { value: c };
+              if (c && typeof c === 'object' && 'value' in c) return { value: String((c as { value: string }).value) };
+              return { value: String(c) };
+            };
+
+            const contents = Array.isArray(result.contents)
+              ? result.contents.map(toMonacoHoverContent)
+              : [toMonacoHoverContent(result.contents)];
+
+            return {
+              contents,
+              range: result.range
+                ? {
+                    startLineNumber: result.range.start.line + 1,
+                    startColumn: result.range.start.character + 1,
+                    endLineNumber: result.range.end.line + 1,
+                    endColumn: result.range.end.character + 1,
+                  }
+                : undefined,
+            };
+          } catch {
+            return null;
+          }
+        },
+      })
+    );
+
+    // Definition provider
+    this.disposables.push(
+      this.monacoInstance.languages.registerDefinitionProvider(lang, {
+        provideDefinition: async (model, position) => {
+          try {
+            const result: Location | Location[] | LocationLink[] | null = await conn.sendRequest(
+              'textDocument/definition',
+              {
+                textDocument: { uri: model.uri.toString() },
+                position: {
+                  line: position.lineNumber - 1,
+                  character: position.column - 1,
+                },
+              }
+            );
+            if (!result) return null;
+
+            const locations = Array.isArray(result) ? result : [result];
+            return locations.map((loc) => ({
+              uri: this.monacoInstance!.Uri.parse('uri' in loc ? loc.uri : ''),
+              range: {
+                startLineNumber: ('range' in loc ? loc.range.start.line : 0) + 1,
+                startColumn: ('range' in loc ? loc.range.start.character : 0) + 1,
+                endLineNumber: ('range' in loc ? loc.range.end.line : 0) + 1,
+                endColumn: ('range' in loc ? loc.range.end.character : 0) + 1,
+              },
+            }));
+          } catch {
+            return null;
+          }
+        },
+      })
+    );
+  }
+
+  /**
+   * Notify the language server that a document was opened
+   */
+  sendDidOpen(uri: string, languageId: string, text: string): void {
+    if (!this.connection) return;
+    this.documentVersion = 1;
+    this.connection.sendNotification('textDocument/didOpen', {
+      textDocument: {
+        uri,
+        languageId,
+        version: this.documentVersion,
+        text,
+      },
+    });
+  }
+
+  /**
+   * Notify the language server that a document changed
+   */
+  sendDidChange(uri: string, text: string): void {
+    if (!this.connection) return;
+    this.documentVersion++;
+    this.connection.sendNotification('textDocument/didChange', {
+      textDocument: {
+        uri,
+        version: this.documentVersion,
+      },
+      contentChanges: [{ text }],
+    });
+  }
+
+  /**
+   * Notify the language server that a document was closed
+   */
+  sendDidClose(uri: string): void {
+    if (!this.connection) return;
+    this.connection.sendNotification('textDocument/didClose', {
+      textDocument: { uri },
+    });
+  }
+
+  /**
+   * Stop the client and clean up resources
+   */
+  async stop(): Promise<void> {
+    this._isConnected = false;
+
+    // Dispose Monaco providers
+    for (const d of this.disposables) {
+      d.dispose();
+    }
+    this.disposables = [];
+
+    // Close connection
+    if (this.connection) {
+      this.connection.dispose();
+      this.connection = null;
     }
 
-    // It's a Location
-    return {
-      uri: this.monacoInstance.Uri.parse(location.uri),
-      range: {
-        startLineNumber: location.range.start.line + 1,
-        startColumn: location.range.start.character + 1,
-        endLineNumber: location.range.end.line + 1,
-        endColumn: location.range.end.character + 1,
-      },
-    };
+    // Close WebSocket
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      this.socket.close();
+      this.socket = null;
+    }
   }
+}
+
+// ---- Conversion utilities: LSP → Monaco ----
+
+function toMonacoSeverity(severity: DiagnosticSeverity | undefined): monaco.MarkerSeverity {
+  // Monaco MarkerSeverity values: Hint=1, Info=2, Warning=4, Error=8
+  switch (severity) {
+    case DiagnosticSeverity.Error: return 8;
+    case DiagnosticSeverity.Warning: return 4;
+    case DiagnosticSeverity.Information: return 2;
+    case DiagnosticSeverity.Hint: return 1;
+    default: return 2;
+  }
+}
+
+function toMonacoMarker(diagnostic: Diagnostic): monaco.editor.IMarkerData {
+  return {
+    severity: toMonacoSeverity(diagnostic.severity),
+    message: diagnostic.message,
+    startLineNumber: diagnostic.range.start.line + 1,
+    startColumn: diagnostic.range.start.character + 1,
+    endLineNumber: diagnostic.range.end.line + 1,
+    endColumn: diagnostic.range.end.character + 1,
+    source: diagnostic.source,
+    code: typeof diagnostic.code === 'number' ? String(diagnostic.code) : diagnostic.code,
+  };
+}
+
+function toMonacoCompletionItemKind(
+  kind: LspCompletionItemKind | undefined,
+  monacoInstance: typeof monaco
+): monaco.languages.CompletionItemKind {
+  const mk = monacoInstance.languages.CompletionItemKind;
+  switch (kind) {
+    case LspCompletionItemKind.Text: return mk.Text;
+    case LspCompletionItemKind.Method: return mk.Method;
+    case LspCompletionItemKind.Function: return mk.Function;
+    case LspCompletionItemKind.Constructor: return mk.Constructor;
+    case LspCompletionItemKind.Field: return mk.Field;
+    case LspCompletionItemKind.Variable: return mk.Variable;
+    case LspCompletionItemKind.Class: return mk.Class;
+    case LspCompletionItemKind.Interface: return mk.Interface;
+    case LspCompletionItemKind.Module: return mk.Module;
+    case LspCompletionItemKind.Property: return mk.Property;
+    case LspCompletionItemKind.Unit: return mk.Unit;
+    case LspCompletionItemKind.Value: return mk.Value;
+    case LspCompletionItemKind.Enum: return mk.Enum;
+    case LspCompletionItemKind.Keyword: return mk.Keyword;
+    case LspCompletionItemKind.Snippet: return mk.Snippet;
+    case LspCompletionItemKind.Color: return mk.Color;
+    case LspCompletionItemKind.File: return mk.File;
+    case LspCompletionItemKind.Reference: return mk.Reference;
+    case LspCompletionItemKind.Folder: return mk.Folder;
+    case LspCompletionItemKind.EnumMember: return mk.EnumMember;
+    case LspCompletionItemKind.Constant: return mk.Constant;
+    case LspCompletionItemKind.Struct: return mk.Struct;
+    case LspCompletionItemKind.Event: return mk.Event;
+    case LspCompletionItemKind.Operator: return mk.Operator;
+    case LspCompletionItemKind.TypeParameter: return mk.TypeParameter;
+    default: return mk.Text;
+  }
+}
+
+function toMonacoCompletionItem(
+  item: LspCompletionItem,
+  range: monaco.IRange,
+  monacoInstance: typeof monaco
+): monaco.languages.CompletionItem {
+  const documentation = item.documentation
+    ? typeof item.documentation === 'string'
+      ? item.documentation
+      : { value: (item.documentation as MarkupContent).value }
+    : undefined;
+
+  return {
+    label: item.label,
+    kind: toMonacoCompletionItemKind(item.kind, monacoInstance),
+    detail: item.detail,
+    documentation,
+    insertText: item.insertText || item.label,
+    range,
+    sortText: item.sortText,
+    filterText: item.filterText,
+  };
 }

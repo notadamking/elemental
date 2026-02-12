@@ -259,9 +259,26 @@ export function FileEditorPage() {
     return tabs.find(t => t.id === activeTabId) || null;
   }, [tabs, activeTabId]);
 
+  // Capture current editor content into tab state.
+  // Called synchronously before tab switches so content is preserved.
+  // Uses refs to avoid stale closure issues.
+  const captureEditorContent = useCallback(() => {
+    const currentTabId = activeTabIdRef.current;
+    if (!currentTabId || !editorRef.current) return;
+    const model = editorRef.current.getModel();
+    if (!model) return;
+    const content = model.getValue();
+    setTabs(prev => {
+      const tab = prev.find(t => t.id === currentTabId);
+      if (!tab || tab.content === content) return prev;
+      return prev.map(t => t.id === currentTabId ? { ...t, content } : t);
+    });
+  }, []);
+
   // Update tab when document content loads (for documents mode)
   useEffect(() => {
     if (fileSource === 'documents' && selectedDocument && selectedId) {
+      captureEditorContent();
       const newTab: EditorTab = {
         id: selectedId,
         name: selectedDocument.title || 'Untitled',
@@ -298,7 +315,7 @@ export function FileEditorPage() {
 
       setActiveTabId(selectedId);
     }
-  }, [fileSource, selectedDocument, selectedId]);
+  }, [fileSource, selectedDocument, selectedId, captureEditorContent]);
 
   // Handle file selection from tree
   const handleSelectFile = useCallback(
@@ -307,6 +324,11 @@ export function FileEditorPage() {
 
       setSelectedId(node.id);
       setFileError(null);
+
+      // Capture current editor content before switching tabs
+      if (node.id !== activeTabIdRef.current) {
+        captureEditorContent();
+      }
 
       // Check if file is already open (use ref for latest state, not stale closure)
       const existingTab = tabsRef.current.find(t => t.id === node.id);
@@ -385,7 +407,7 @@ export function FileEditorPage() {
       }
       // For documents mode, the useEffect above handles loading
     },
-    [fileSource, readFileByPath]
+    [fileSource, readFileByPath, captureEditorContent]
   );
 
   // Handle double-click to pin tab (make it non-preview)
@@ -399,6 +421,9 @@ export function FileEditorPage() {
   // Handle search result selection - open file and navigate to line
   const handleSearchResultSelect = useCallback(
     async (path: string, line: number, column: number) => {
+      // Capture current editor content before switching tabs
+      captureEditorContent();
+
       // Check if this file is already open
       const existingTab = tabs.find(t => t.path === path);
       if (existingTab) {
@@ -462,17 +487,20 @@ export function FileEditorPage() {
         setIsLoadingFile(false);
       }
     },
-    [tabs, readFileByPath]
+    [tabs, readFileByPath, captureEditorContent]
   );
 
-  // Handle tab selection
+  // Handle tab selection — capture current content before switching
   const handleTabSelect = useCallback((tabId: string) => {
+    if (tabId !== activeTabId) {
+      captureEditorContent();
+    }
     setActiveTabId(tabId);
     const tab = tabs.find(t => t.id === tabId);
     if (tab) {
       setSelectedId(tabId);
     }
-  }, [tabs]);
+  }, [tabs, activeTabId, captureEditorContent]);
 
   // Handle tab close
   const handleTabClose = useCallback((tabId: string) => {
@@ -502,23 +530,20 @@ export function FileEditorPage() {
     setTabs(newTabs);
   }, []);
 
-  // Handle editor content change - mark tab as dirty
-  const handleEditorChange = useCallback((value: string | undefined) => {
-    if (!activeTabId || value === undefined) return;
+  // Handle editor content change — lightweight notification from Monaco's onDidChangeModelContent.
+  // No value is passed (avoids O(n) editor.getValue() per keystroke).
+  // Content is read on demand from editorRef when saving or switching tabs.
+  const handleEditorChange = useCallback(() => {
+    if (!activeTabId) return;
 
-    setTabs(prevTabs =>
-      prevTabs.map(tab => {
-        if (tab.id !== activeTabId) return tab;
-        // Check if content actually changed
-        if (tab.content === value) return tab;
-        return {
-          ...tab,
-          content: value,
-          isDirty: true,
-          isPreview: false, // Pin the tab when edited
-        };
-      })
-    );
+    // Only update state once to mark the tab as dirty and pinned
+    setTabs(prevTabs => {
+      const tab = prevTabs.find(t => t.id === activeTabId);
+      if (!tab || (tab.isDirty && !tab.isPreview)) return prevTabs;
+      return prevTabs.map(t =>
+        t.id === activeTabId ? { ...t, isDirty: true, isPreview: false } : t
+      );
+    });
   }, [activeTabId]);
 
   // Save the current file
@@ -539,6 +564,11 @@ export function FileEditorPage() {
     setIsSaving(true);
     setSaveMessage(null);
 
+    // Read content from the live editor model (active tab) or fall back to tab state
+    const content = (targetTabId === activeTabId && editorRef.current)
+      ? editorRef.current.getValue()
+      : tab.content;
+
     try {
       // Create a minimal entry object for the writeFile API
       const entry = {
@@ -547,12 +577,12 @@ export function FileEditorPage() {
         type: 'file' as const,
         path: tab.path,
       };
-      await writeFile(entry, tab.content);
+      await writeFile(entry, content);
 
-      // Mark tab as clean
+      // Sync content to tab state and mark as clean
       setTabs(prevTabs =>
         prevTabs.map(t =>
-          t.id === targetTabId ? { ...t, isDirty: false } : t
+          t.id === targetTabId ? { ...t, content, isDirty: false } : t
         )
       );
 

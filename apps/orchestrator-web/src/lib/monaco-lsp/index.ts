@@ -28,16 +28,16 @@ export {
   disconnectAllLsp,
   getLspConnectionState,
   getConnectedLanguages,
+  getActiveClient,
   clearLspStatusCache,
   subscribeToConnectionState,
-  getActiveClient,
   type LspServerStatus,
   type LspStatusResponse,
   type ConnectionStateChangeCallback,
 } from './lsp-client';
 
 // Lightweight LSP client (for direct usage)
-export { LightweightLspClient, type LightweightLspClientOptions } from './lightweight-client';
+export { LightweightLspClient, type LightweightClientOptions } from './lightweight-client';
 
 // React hook for LSP management
 export { useLsp, type LspState } from './use-lsp';
