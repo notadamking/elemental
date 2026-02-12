@@ -33,9 +33,11 @@ import {
   Search,
   Save,
   CheckCircle,
+  Settings,
 } from 'lucide-react';
 import { EditorFileTree, type FileTreeNodeData, type FileSource } from '../../components/editor/EditorFileTree';
 import { EditorSearchPanel, type EditorSearchPanelRef } from '../../components/editor/EditorSearchPanel';
+import { EditorSettingsPanel } from '../../components/editor/EditorSettingsPanel';
 import { EditorTabBar, type EditorTab } from '../../components/editor/EditorTabBar';
 import { LspMonacoEditor } from '../../components/editor/LspMonacoEditor';
 import { useAllDocuments } from '../../api/hooks/useAllElements';
@@ -51,7 +53,7 @@ import {
 // ============================================================================
 
 /** Active sidebar panel */
-type SidebarPanel = 'files' | 'search';
+type SidebarPanel = 'files' | 'search' | 'settings';
 
 // ============================================================================
 // Hook to fetch document content
@@ -161,38 +163,52 @@ interface ActivityBarProps {
 }
 
 function ActivityBar({ activePanel, onPanelChange }: ActivityBarProps) {
-  const items: { id: SidebarPanel; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
+  const topItems: { id: SidebarPanel; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
     { id: 'files', icon: Files, label: 'Explorer' },
     { id: 'search', icon: Search, label: 'Search' },
   ];
 
+  const bottomItems: { id: SidebarPanel; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
+    { id: 'settings', icon: Settings, label: 'Settings' },
+  ];
+
+  const renderItem = (item: { id: SidebarPanel; icon: React.ComponentType<{ className?: string }>; label: string }) => {
+    const Icon = item.icon;
+    const isActive = activePanel === item.id;
+    return (
+      <button
+        key={item.id}
+        onClick={() => onPanelChange(item.id)}
+        className={`
+          w-10 h-10 flex items-center justify-center rounded-md transition-colors
+          ${isActive
+            ? 'bg-[var(--color-surface)] text-[var(--color-text)] shadow-sm'
+            : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)]'
+          }
+        `}
+        title={item.label}
+        data-testid={`activity-bar-${item.id}`}
+        aria-pressed={isActive}
+      >
+        <Icon className="w-5 h-5" />
+      </button>
+    );
+  };
+
   return (
     <div
-      className="w-12 flex-shrink-0 bg-[var(--color-surface-hover)] border-r border-[var(--color-border)] flex flex-col items-center py-2 gap-1"
+      className="w-12 flex-shrink-0 bg-[var(--color-surface-hover)] border-r border-[var(--color-border)] flex flex-col justify-between items-center py-2"
       data-testid="editor-activity-bar"
     >
-      {items.map((item) => {
-        const Icon = item.icon;
-        const isActive = activePanel === item.id;
-        return (
-          <button
-            key={item.id}
-            onClick={() => onPanelChange(item.id)}
-            className={`
-              w-10 h-10 flex items-center justify-center rounded-md transition-colors
-              ${isActive
-                ? 'bg-[var(--color-surface)] text-[var(--color-text)] shadow-sm'
-                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)]'
-              }
-            `}
-            title={item.label}
-            data-testid={`activity-bar-${item.id}`}
-            aria-pressed={isActive}
-          >
-            <Icon className="w-5 h-5" />
-          </button>
-        );
-      })}
+      {/* Top items: Explorer, Search */}
+      <div className="flex flex-col items-center gap-1">
+        {topItems.map(renderItem)}
+      </div>
+
+      {/* Bottom items: Settings */}
+      <div className="flex flex-col items-center gap-1">
+        {bottomItems.map(renderItem)}
+      </div>
     </div>
   );
 }
@@ -211,6 +227,7 @@ export function FileEditorPage() {
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<SidebarPanel>('files');
+  const [editorTheme, setEditorTheme] = useState(() => localStorage.getItem('editor.theme') || 'elemental-dark');
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const searchPanelRef = useRef<EditorSearchPanelRef>(null);
 
@@ -579,6 +596,12 @@ export function FileEditorPage() {
     }
   }, []);
 
+  // Handle theme change
+  const handleThemeChange = useCallback((theme: string) => {
+    setEditorTheme(theme);
+    localStorage.setItem('editor.theme', theme);
+  }, []);
+
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -790,6 +813,21 @@ export function FileEditorPage() {
               />
             </>
           )}
+
+          {/* Settings Panel */}
+          {activePanel === 'settings' && (
+            <>
+              <div className="px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface-hover)]">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+                  Settings
+                </h2>
+              </div>
+              <EditorSettingsPanel
+                theme={editorTheme}
+                onThemeChange={handleThemeChange}
+              />
+            </>
+          )}
         </div>
 
         {/* Editor panel */}
@@ -891,6 +929,7 @@ export function FileEditorPage() {
               <LspMonacoEditor
                 value={activeTab.content}
                 language={activeTab.language}
+                theme={editorTheme}
                 readOnly={activeTab.source === 'documents'}
                 onChange={handleEditorChange}
                 onMount={handleEditorDidMount}
