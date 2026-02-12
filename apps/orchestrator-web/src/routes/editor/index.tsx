@@ -221,6 +221,9 @@ export function FileEditorPage() {
   // Tab state - array of open tabs and active tab ID
   const [tabs, setTabs] = useState<EditorTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  // Ref to track current activeTabId for use in setTabs callbacks
+  const activeTabIdRef = useRef<string | null>(null);
+  activeTabIdRef.current = activeTabId;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [fileSource, setFileSource] = useState<FileSource>('workspace');
@@ -273,7 +276,7 @@ export function FileEditorPage() {
         content: selectedDocument.content || '',
         language: getLanguageFromDocument(selectedDocument),
         source: 'documents',
-        isPreview: true,
+        isPreview: false,
         isDirty: false,
       };
 
@@ -287,11 +290,12 @@ export function FileEditorPage() {
           return updated;
         }
 
-        // Find preview tab to replace
-        const previewIndex = prevTabs.findIndex(t => t.isPreview && !t.isDirty);
-        if (previewIndex !== -1) {
+        // Replace the active tab if it's not dirty
+        const currentActiveId = activeTabIdRef.current;
+        const activeIndex = prevTabs.findIndex(t => t.id === currentActiveId);
+        if (activeIndex !== -1 && !prevTabs[activeIndex].isDirty) {
           const updated = [...prevTabs];
-          updated[previewIndex] = newTab;
+          updated[activeIndex] = newTab;
           return updated;
         }
 
@@ -336,7 +340,7 @@ export function FileEditorPage() {
             content: result.content,
             language: result.language || 'plaintext',
             source: 'workspace',
-            isPreview: !pinTab,
+            isPreview: false,
             isDirty: false,
           };
 
@@ -346,11 +350,12 @@ export function FileEditorPage() {
               return [...prevTabs, newTab];
             }
 
-            // Find preview tab to replace (only if it's not dirty)
-            const previewIndex = prevTabs.findIndex(t => t.isPreview && !t.isDirty);
-            if (previewIndex !== -1) {
+            // Replace the active tab if it's not dirty
+            const currentActiveId = activeTabIdRef.current;
+            const activeIndex = prevTabs.findIndex(t => t.id === currentActiveId);
+            if (activeIndex !== -1 && !prevTabs[activeIndex].isDirty) {
               const updated = [...prevTabs];
-              updated[previewIndex] = newTab;
+              updated[activeIndex] = newTab;
               return updated;
             }
 
@@ -427,16 +432,17 @@ export function FileEditorPage() {
             content: result.content,
             language: result.language || 'plaintext',
             source: 'workspace',
-            isPreview: true,
+            isPreview: false,
             isDirty: false,
           };
 
           setTabs(prevTabs => {
-            // Find preview tab to replace
-            const previewIndex = prevTabs.findIndex(t => t.isPreview && !t.isDirty);
-            if (previewIndex !== -1) {
+            // Replace the active tab if it's not dirty
+            const currentActiveId = activeTabIdRef.current;
+            const activeIndex = prevTabs.findIndex(t => t.id === currentActiveId);
+            if (activeIndex !== -1 && !prevTabs[activeIndex].isDirty) {
               const updated = [...prevTabs];
-              updated[previewIndex] = newTab;
+              updated[activeIndex] = newTab;
               return updated;
             }
             return [...prevTabs, newTab];

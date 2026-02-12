@@ -204,13 +204,12 @@ function TabItem({ tab, isActive, onSelect, onClose, isDragging = false }: TabIt
       onClick={onSelect}
       className={`
         group flex items-center gap-1.5 px-3 py-1.5 min-w-0 max-w-48 cursor-pointer
-        border-r border-[var(--color-border)] transition-colors
+        border-r border-r-[var(--color-border)] transition-colors
         ${isActive
           ? 'bg-[var(--color-surface)] border-t-2 border-t-[var(--color-primary)]'
-          : 'bg-[var(--color-surface-hover)] border-t-2 border-t-transparent hover:bg-[var(--color-surface)]'
+          : 'bg-[var(--color-surface-hover)] border-t-2 border-t-[var(--color-border)] hover:bg-[var(--color-surface)]'
         }
         ${isDragging ? 'opacity-50' : ''}
-        ${tab.isPreview ? 'italic' : ''}
       `}
       data-testid={`editor-tab-${tab.id}`}
     >
@@ -240,7 +239,7 @@ function TabItem({ tab, isActive, onSelect, onClose, isDragging = false }: TabIt
         onClick={onClose}
         className={`
           ml-1 p-0.5 rounded flex-shrink-0 transition-colors
-          ${tab.isDirty
+          ${(tab.isDirty || isActive)
             ? 'opacity-100'
             : 'opacity-0 group-hover:opacity-100'
           }
