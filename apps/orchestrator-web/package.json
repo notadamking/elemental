@@ -15,6 +15,13 @@
     "test:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@codingame/monaco-vscode-api": "10.0.0",
+    "@codingame/monaco-vscode-configuration-service-override": "10.0.0",
+    "@codingame/monaco-vscode-languages-service-override": "10.0.0",
+    "@codingame/monaco-vscode-model-service-override": "10.0.0",
+    "@codingame/monaco-vscode-textmate-service-override": "10.0.0",
+    "@codingame/monaco-vscode-theme-defaults-default-extension": "10.0.0",
+    "@codingame/monaco-vscode-theme-service-override": "10.0.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
