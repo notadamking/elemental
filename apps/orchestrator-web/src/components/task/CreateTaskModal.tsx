@@ -12,7 +12,7 @@ import { X, Loader2, Plus, ChevronLeft } from 'lucide-react';
 import { useCreateTask } from '../../api/hooks/useTasks';
 import { useAgents, useOperators, type Operator } from '../../api/hooks/useAgents';
 import { useCurrentUser } from '../../contexts';
-import { TagInput } from '../ui/TagInput';
+import { TagInput } from '@elemental/ui';
 import type { Priority, Complexity, TaskTypeValue, Agent } from '../../api/types';
 
 interface CreateTaskModalProps {

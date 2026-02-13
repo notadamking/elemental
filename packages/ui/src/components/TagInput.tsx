@@ -61,20 +61,20 @@ export function TagInput({
 
   return (
     <div
-      className={`flex flex-wrap items-center gap-1.5 p-2 border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent bg-white min-h-[42px] ${className}`}
+      className={`flex flex-wrap items-center gap-1.5 p-2 border border-[var(--color-border)] rounded-md focus-within:ring-2 focus-within:ring-[var(--color-primary)] focus-within:border-transparent bg-[var(--color-input-bg)] min-h-[42px] ${className}`}
       data-testid={testId}
     >
       {tags.map((tag) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-1 px-2 py-0.5 text-sm bg-gray-100 text-gray-700 rounded"
+          className="inline-flex items-center gap-1 px-2 py-0.5 text-sm bg-[var(--color-surface-elevated)] text-[var(--color-text)] rounded"
           data-testid={`tag-${tag}`}
         >
           {tag}
           <button
             type="button"
             onClick={() => removeTag(tag)}
-            className="p-0.5 hover:bg-gray-200 rounded text-gray-500 hover:text-gray-700"
+            className="p-0.5 hover:bg-[var(--color-surface-hover)] rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text)]"
             aria-label={`Remove tag ${tag}`}
             data-testid={`tag-remove-${tag}`}
           >
@@ -89,7 +89,7 @@ export function TagInput({
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}
         placeholder={tags.length === 0 ? placeholder : ''}
-        className="flex-1 min-w-[100px] outline-none text-sm bg-transparent"
+        className="flex-1 min-w-[100px] outline-none text-sm bg-transparent text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)]"
         data-testid={`${testId}-input`}
       />
     </div>

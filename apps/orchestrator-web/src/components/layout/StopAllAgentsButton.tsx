@@ -7,7 +7,7 @@
 
 import { StopCircle, Loader2 } from 'lucide-react';
 import { useSessions, useStopAllAgents } from '../../api/hooks';
-import { Tooltip } from '../ui/Tooltip';
+import { Tooltip } from '@elemental/ui';
 
 export function StopAllAgentsButton() {
   const stopAllAgents = useStopAllAgents();

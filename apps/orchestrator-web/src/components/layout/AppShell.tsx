@@ -10,7 +10,7 @@ import { MobileDrawer, UserSelector } from '@elemental/ui';
 import { DirectorPanel } from './DirectorPanel';
 import { DaemonToggle } from './DaemonToggle';
 import { StopAllAgentsButton } from './StopAllAgentsButton';
-import { ThemeToggle } from '../ui/ThemeToggle';
+import { ThemeToggle } from '@elemental/ui';
 import { NotificationCenter } from '../notification';
 import { CommandPalette, useCommandPalette, QuickFileOpen, useQuickFileOpen, FileContentSearch, useFileContentSearchShortcut } from '../command';
 import { useQuery } from '@tanstack/react-query';

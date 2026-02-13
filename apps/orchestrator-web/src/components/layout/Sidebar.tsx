@@ -24,8 +24,7 @@ import {
   GitMerge,
   type LucideIcon,
 } from 'lucide-react';
-import { useShortcutVersion } from '@elemental/ui';
-import { Tooltip } from '../ui/Tooltip';
+import { useShortcutVersion, Tooltip } from '@elemental/ui';
 import { getCurrentBinding, formatKeyBinding } from '../../lib/keyboard';
 
 interface NavItem {

@@ -16,7 +16,7 @@ import {
   CheckCheck,
   Play,
 } from "lucide-react";
-import { Tooltip } from "../ui/Tooltip";
+import { Tooltip } from "@elemental/ui";
 import {
   useAgentInbox,
   useMarkAllInboxRead,

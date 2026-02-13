@@ -9,7 +9,7 @@ import { Play, Square, RefreshCw, Terminal, MoreVertical, Clock, GitBranch, Penc
 import type { Agent, WorkerMetadata, StewardMetadata, SessionStatus } from '../../api/types';
 import { AgentStatusBadge } from './AgentStatusBadge';
 import { AgentRoleBadge } from './AgentRoleBadge';
-import { Tooltip } from '../ui/Tooltip';
+import { Tooltip } from '@elemental/ui';
 import { useAgentInboxCount } from '../../api/hooks/useAgentInbox';
 import { AgentInboxDrawer } from './AgentInboxDrawer';
 import { ChangeProviderDialog } from './ChangeProviderDialog';

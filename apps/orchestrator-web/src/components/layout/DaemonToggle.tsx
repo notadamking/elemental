@@ -7,7 +7,7 @@
 
 import { Play, Square, Loader2, AlertCircle } from 'lucide-react';
 import { useDaemonStatus, useStartDaemon, useStopDaemon } from '../../api/hooks';
-import { Tooltip } from '../ui/Tooltip';
+import { Tooltip } from '@elemental/ui';
 
 export function DaemonToggle() {
   const { data: status, isLoading, isError } = useDaemonStatus();

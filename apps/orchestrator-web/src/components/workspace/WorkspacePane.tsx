@@ -11,7 +11,7 @@ import type { WorkspacePane as WorkspacePaneType, PaneStatus } from './types';
 import { XTerminal, type XTerminalHandle } from '../terminal/XTerminal';
 import { StreamViewer } from './StreamViewer';
 import { TerminalInput } from './TerminalInput';
-import { Tooltip } from '../ui/Tooltip';
+import { Tooltip } from '@elemental/ui';
 import { SessionHistoryModal } from './SessionHistoryModal';
 import { useAgentStatus, useStartAgentSession, useStopAgentSession, useInterruptAgentSession, useResumeAgentSession } from '../../api/hooks/useAgents';
 

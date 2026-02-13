@@ -20,7 +20,7 @@ import {
   Maximize2,
   Minimize2,
 } from 'lucide-react';
-import { Tooltip } from '../ui/Tooltip';
+import { Tooltip } from '@elemental/ui';
 import { XTerminal, type TerminalStatus, type XTerminalHandle } from '../terminal';
 import { useDirector, useStartAgentSession, useStopAgentSession, useResumeAgentSession } from '../../api/hooks/useAgents';
 import { useAgentInboxCount } from '../../api/hooks/useAgentInbox';

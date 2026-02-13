@@ -7,7 +7,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { Loader2, Download, Trash2, AlertTriangle, Package } from 'lucide-react';
-import { Tooltip } from '../ui/Tooltip';
+import { Tooltip } from '@elemental/ui';
 import type { OpenVSXExtensionSummary } from '../../lib/openvsx/client';
 import type { InstalledExtension } from '../../lib/extensions';
 
