@@ -4,7 +4,7 @@
  * Provides forms for creating:
  * - Director (strategic agent)
  * - Worker (ephemeral or persistent)
- * - Steward (merge, health, reminder, ops)
+ * - Steward (merge, health, reminder, ops, docs)
  *
  * TB-O22: Steward Configuration UI
  */
@@ -81,6 +81,10 @@ const stewardFocusOptions: Record<StewardFocus, { label: string; description: st
     label: 'Ops Steward',
     description: 'Runs scheduled maintenance tasks and garbage collection.',
   },
+  docs: {
+    label: 'Documentation Steward',
+    description: 'Reviews, updates, and maintains workspace documents.',
+  },
 };
 
 const workerModeOptions: Record<WorkerMode, { label: string; description: string }> = {
@@ -105,6 +109,7 @@ const workerModeOptions: Record<WorkerMode, { label: string; description: string
  * - Health stewards: "h-steward-1", "h-steward-2", etc.
  * - Reminder stewards: "r-steward-1", "r-steward-2", etc.
  * - Ops stewards: "o-steward-1", "o-steward-2", etc.
+ * - Doc stewards: "d-steward-1", "d-steward-2", etc.
  */
 function generateAgentName(
   role: AgentRole,
