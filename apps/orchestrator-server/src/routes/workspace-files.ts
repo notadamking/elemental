@@ -5,8 +5,8 @@
  * Replaces browser's File System Access API for cross-browser compatibility.
  */
 
-import { resolve, relative, join, normalize } from 'node:path';
-import { readdir, readFile, writeFile, stat, mkdir } from 'node:fs/promises';
+import { resolve, relative, join, normalize, dirname } from 'node:path';
+import { readdir, readFile, writeFile, stat, mkdir, unlink, rename as fsRename, rm } from 'node:fs/promises';
 import { Hono } from 'hono';
 import { PROJECT_ROOT } from '../config.js';
 
@@ -473,6 +473,104 @@ export function createWorkspaceFilesRoutes() {
       });
     } catch (error) {
       console.error('[orchestrator] Failed to write file:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  // DELETE /api/workspace/file - Deletes a file or directory
+  app.delete('/api/workspace/file', async (c) => {
+    try {
+      const path = c.req.query('path');
+
+      if (!path) {
+        return c.json({ error: { code: 'MISSING_PATH', message: 'path query parameter is required' } }, 400);
+      }
+
+      // Validate path
+      const validatedPath = validatePath(path, workspaceRoot);
+      if (!validatedPath) {
+        return c.json({ error: { code: 'INVALID_PATH', message: 'Path is outside workspace' } }, 400);
+      }
+
+      // Check if path exists and get stats
+      let pathStat;
+      try {
+        pathStat = await stat(validatedPath);
+      } catch {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Path not found' } }, 404);
+      }
+
+      // Delete based on type
+      if (pathStat.isDirectory()) {
+        await rm(validatedPath, { recursive: true, force: true });
+      } else {
+        await unlink(validatedPath);
+      }
+
+      return c.json({
+        success: true,
+        path: relative(workspaceRoot, validatedPath),
+      });
+    } catch (error) {
+      console.error('[orchestrator] Failed to delete file:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  // POST /api/workspace/rename - Renames or moves a file or directory
+  app.post('/api/workspace/rename', async (c) => {
+    try {
+      const body = await c.req.json() as { oldPath?: string; newPath?: string };
+
+      if (!body.oldPath) {
+        return c.json({ error: { code: 'MISSING_OLD_PATH', message: 'oldPath is required' } }, 400);
+      }
+
+      if (!body.newPath) {
+        return c.json({ error: { code: 'MISSING_NEW_PATH', message: 'newPath is required' } }, 400);
+      }
+
+      // Validate old path
+      const validatedOldPath = validatePath(body.oldPath, workspaceRoot);
+      if (!validatedOldPath) {
+        return c.json({ error: { code: 'INVALID_PATH', message: 'oldPath is outside workspace' } }, 400);
+      }
+
+      // Validate new path
+      const validatedNewPath = validatePath(body.newPath, workspaceRoot);
+      if (!validatedNewPath) {
+        return c.json({ error: { code: 'INVALID_PATH', message: 'newPath is outside workspace' } }, 400);
+      }
+
+      // Check if source exists
+      try {
+        await stat(validatedOldPath);
+      } catch {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Source path not found' } }, 404);
+      }
+
+      // Check if destination already exists
+      try {
+        await stat(validatedNewPath);
+        return c.json({ error: { code: 'CONFLICT', message: 'Destination path already exists' } }, 409);
+      } catch {
+        // Destination does not exist, which is what we want
+      }
+
+      // Create parent directory if it doesn't exist
+      const parentDir = dirname(validatedNewPath);
+      await mkdir(parentDir, { recursive: true });
+
+      // Perform the rename
+      await fsRename(validatedOldPath, validatedNewPath);
+
+      return c.json({
+        success: true,
+        oldPath: relative(workspaceRoot, validatedOldPath),
+        newPath: relative(workspaceRoot, validatedNewPath),
+      });
+    } catch (error) {
+      console.error('[orchestrator] Failed to rename file:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
     }
   });
