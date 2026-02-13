@@ -452,7 +452,7 @@ function InlineRenameInput({ node, onSubmit, onCancel }: InlineRenameInputProps)
 /**
  * Custom node renderer for file tree items
  */
-function FileNode({ node, style }: NodeRendererProps<FileTreeNodeData>) {
+function FileNode({ node, style, dragHandle }: NodeRendererProps<FileTreeNodeData>) {
   const ctx = useContext(FileTreeContextMenuContext);
   const isFolder = node.data.nodeType === 'folder';
   const isExpanded = node.isOpen;
@@ -476,6 +476,7 @@ function FileNode({ node, style }: NodeRendererProps<FileTreeNodeData>) {
 
   const nodeContent = (
     <div
+      ref={dragHandle}
       data-testid={`file-tree-item-${node.id}`}
       style={style}
       className={`pr-2 ${isDragging ? 'opacity-50' : ''}`}
