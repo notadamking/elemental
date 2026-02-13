@@ -13,10 +13,11 @@ import { Clock, Code, Calendar } from 'lucide-react';
 // Types
 // ============================================================================
 
-type Frequency = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom';
+type Frequency = 'minutely' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom';
 
 interface BuilderState {
   frequency: Frequency;
+  interval: number; // 1 = every, 2 = every other, 4 = every 4th, etc.
   minute: number;
   hour: number;
   dayOfWeek: number; // 0 = Sunday, 1 = Monday, etc.
@@ -47,12 +48,20 @@ const DAYS_OF_WEEK = [
 ];
 
 const FREQUENCY_OPTIONS: { value: Frequency; label: string; description: string }[] = [
-  { value: 'hourly', label: 'Every hour', description: 'Runs once every hour' },
-  { value: 'daily', label: 'Every day', description: 'Runs once every day' },
-  { value: 'weekly', label: 'Every week', description: 'Runs once every week' },
-  { value: 'monthly', label: 'Every month', description: 'Runs once every month' },
+  { value: 'minutely', label: 'Minutes', description: 'Runs every N minutes' },
+  { value: 'hourly', label: 'Hourly', description: 'Runs every N hours' },
+  { value: 'daily', label: 'Daily', description: 'Runs every N days' },
+  { value: 'weekly', label: 'Weekly', description: 'Runs once every week' },
+  { value: 'monthly', label: 'Monthly', description: 'Runs once every month' },
   { value: 'custom', label: 'Custom', description: 'Write a cron expression directly' },
 ];
+
+/** Common interval options for each frequency */
+const INTERVAL_OPTIONS: Record<string, number[]> = {
+  minutely: [1, 2, 3, 5, 10, 15, 20, 30],
+  hourly: [1, 2, 3, 4, 6, 8, 12],
+  daily: [1, 2, 3, 5, 7, 10, 14, 30],
+};
 
 // ============================================================================
 // Cron Utilities
@@ -72,13 +81,23 @@ export function isValidCronExpression(schedule: string): boolean {
 
 /**
  * Generates a cron expression from builder state.
+ * Supports step values via the interval field (e.g., interval=4 with hourly generates a step cron).
  */
 function builderToCron(state: BuilderState): string {
+  const interval = state.interval ?? 1;
   switch (state.frequency) {
+    case 'minutely':
+      return interval > 1
+        ? `*/${interval} * * * *`
+        : '* * * * *';
     case 'hourly':
-      return `${state.minute} * * * *`;
+      return interval > 1
+        ? `${state.minute} */${interval} * * *`
+        : `${state.minute} * * * *`;
     case 'daily':
-      return `${state.minute} ${state.hour} * * *`;
+      return interval > 1
+        ? `${state.minute} ${state.hour} */${interval} * *`
+        : `${state.minute} ${state.hour} * * *`;
     case 'weekly':
       return `${state.minute} ${state.hour} * * ${state.dayOfWeek}`;
     case 'monthly':
@@ -90,7 +109,8 @@ function builderToCron(state: BuilderState): string {
 
 /**
  * Attempts to parse a cron expression back into builder state.
- * Returns null if the expression doesn't match a simple builder pattern.
+ * Returns null if the expression doesn't match a builder pattern.
+ * Supports step values (star-slash-N) in minute, hour, and day fields.
  */
 function cronToBuilder(cron: string): BuilderState | null {
   const parts = cron.trim().split(/\s+/);
@@ -101,26 +121,48 @@ function cronToBuilder(cron: string): BuilderState | null {
   // Check if parts are simple numbers or wildcards
   const isSimpleNum = (p: string) => /^\d+$/.test(p);
   const isWild = (p: string) => p === '*';
+  const isStep = (p: string) => /^\*\/\d+$/.test(p);
   const toNum = (p: string) => parseInt(p, 10);
+  const getStep = (p: string) => toNum(p.split('/')[1]);
+
+  // Minutely with step: */N * * * *
+  if (isStep(minutePart) && isWild(hourPart) && isWild(dayPart) && isWild(monthPart) && isWild(weekdayPart)) {
+    return { frequency: 'minutely', interval: getStep(minutePart), minute: 0, hour: 0, dayOfWeek: 1, dayOfMonth: 1 };
+  }
+
+  // Every minute: * * * * *
+  if (isWild(minutePart) && isWild(hourPart) && isWild(dayPart) && isWild(monthPart) && isWild(weekdayPart)) {
+    return { frequency: 'minutely', interval: 1, minute: 0, hour: 0, dayOfWeek: 1, dayOfMonth: 1 };
+  }
+
+  // Hourly with step: N */N * * *
+  if (isSimpleNum(minutePart) && isStep(hourPart) && isWild(dayPart) && isWild(monthPart) && isWild(weekdayPart)) {
+    return { frequency: 'hourly', interval: getStep(hourPart), minute: toNum(minutePart), hour: 0, dayOfWeek: 1, dayOfMonth: 1 };
+  }
 
   // Hourly: N * * * *
   if (isSimpleNum(minutePart) && isWild(hourPart) && isWild(dayPart) && isWild(monthPart) && isWild(weekdayPart)) {
-    return { frequency: 'hourly', minute: toNum(minutePart), hour: 0, dayOfWeek: 1, dayOfMonth: 1 };
+    return { frequency: 'hourly', interval: 1, minute: toNum(minutePart), hour: 0, dayOfWeek: 1, dayOfMonth: 1 };
+  }
+
+  // Daily with step: N N */N * *
+  if (isSimpleNum(minutePart) && isSimpleNum(hourPart) && isStep(dayPart) && isWild(monthPart) && isWild(weekdayPart)) {
+    return { frequency: 'daily', interval: getStep(dayPart), minute: toNum(minutePart), hour: toNum(hourPart), dayOfWeek: 1, dayOfMonth: 1 };
   }
 
   // Daily: N N * * *
   if (isSimpleNum(minutePart) && isSimpleNum(hourPart) && isWild(dayPart) && isWild(monthPart) && isWild(weekdayPart)) {
-    return { frequency: 'daily', minute: toNum(minutePart), hour: toNum(hourPart), dayOfWeek: 1, dayOfMonth: 1 };
+    return { frequency: 'daily', interval: 1, minute: toNum(minutePart), hour: toNum(hourPart), dayOfWeek: 1, dayOfMonth: 1 };
   }
 
   // Weekly: N N * * N
   if (isSimpleNum(minutePart) && isSimpleNum(hourPart) && isWild(dayPart) && isWild(monthPart) && isSimpleNum(weekdayPart)) {
-    return { frequency: 'weekly', minute: toNum(minutePart), hour: toNum(hourPart), dayOfWeek: toNum(weekdayPart), dayOfMonth: 1 };
+    return { frequency: 'weekly', interval: 1, minute: toNum(minutePart), hour: toNum(hourPart), dayOfWeek: toNum(weekdayPart), dayOfMonth: 1 };
   }
 
   // Monthly: N N N * *
   if (isSimpleNum(minutePart) && isSimpleNum(hourPart) && isSimpleNum(dayPart) && isWild(monthPart) && isWild(weekdayPart)) {
-    return { frequency: 'monthly', minute: toNum(minutePart), hour: toNum(hourPart), dayOfWeek: 1, dayOfMonth: toNum(dayPart) };
+    return { frequency: 'monthly', interval: 1, minute: toNum(minutePart), hour: toNum(hourPart), dayOfWeek: 1, dayOfMonth: toNum(dayPart) };
   }
 
   return null;
@@ -172,12 +214,26 @@ export function describeCron(cron: string): string {
     return 'Every minute';
   }
 
+  // Every N hours at minute M: M */N * * *
+  if (isSimpleNum(minutePart) && isStep(hourPart) && isWild(dayPart) && isWild(monthPart) && isWild(weekdayPart)) {
+    const step = getStep(hourPart);
+    const m = toNum(minutePart);
+    const hourDesc = `Every ${step} hour${step === 1 ? '' : 's'}`;
+    return m === 0 ? hourDesc : `${hourDesc} at minute ${m}`;
+  }
+
   // Every hour at minute N
   if (isSimpleNum(minutePart) && isWild(hourPart) && isWild(dayPart) && isWild(monthPart) && isWild(weekdayPart)) {
     const m = toNum(minutePart);
     return m === 0
       ? 'Every hour, on the hour'
       : `Every hour at minute ${m}`;
+  }
+
+  // Every N days at specific time: M H */N * *
+  if (isSimpleNum(minutePart) && isSimpleNum(hourPart) && isStep(dayPart) && isWild(monthPart) && isWild(weekdayPart)) {
+    const step = getStep(dayPart);
+    return `Every ${step} day${step === 1 ? '' : 's'} at ${formatTime(toNum(hourPart), toNum(minutePart))}`;
   }
 
   // Every day at specific time
@@ -205,6 +261,7 @@ export function describeCron(cron: string): string {
 
 const defaultBuilderState: BuilderState = {
   frequency: 'hourly',
+  interval: 1,
   minute: 0,
   hour: 9,
   dayOfWeek: 1, // Monday
@@ -364,7 +421,7 @@ export function CronScheduleBuilder({
                 key={option.value}
                 type="button"
                 onClick={() => {
-                  handleBuilderChange({ frequency: option.value });
+                  handleBuilderChange({ frequency: option.value, interval: 1 });
                 }}
                 className={`
                   px-2.5 py-1 text-xs rounded-full border transition-all
@@ -382,10 +439,51 @@ export function CronScheduleBuilder({
 
           {/* Conditional inputs based on frequency */}
           <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-secondary)]">
-            {/* Hourly: at minute */}
+            {/* Minutely: every [N] minutes */}
+            {builder.frequency === 'minutely' && (
+              <>
+                <span>Every</span>
+                <select
+                  value={builder.interval}
+                  onChange={e => handleBuilderChange({ interval: parseInt(e.target.value, 10) })}
+                  className="
+                    px-2 py-1 text-xs
+                    bg-[var(--color-bg)]
+                    border border-[var(--color-border)]
+                    rounded
+                    focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]/30
+                  "
+                  data-testid={`${testIdPrefix}-interval`}
+                >
+                  {INTERVAL_OPTIONS.minutely.map(n => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+                <span>minute{builder.interval === 1 ? '' : 's'}</span>
+              </>
+            )}
+
+            {/* Hourly: every [N] hours at minute [M] */}
             {builder.frequency === 'hourly' && (
               <>
-                <span>at minute</span>
+                <span>Every</span>
+                <select
+                  value={builder.interval}
+                  onChange={e => handleBuilderChange({ interval: parseInt(e.target.value, 10) })}
+                  className="
+                    px-2 py-1 text-xs
+                    bg-[var(--color-bg)]
+                    border border-[var(--color-border)]
+                    rounded
+                    focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]/30
+                  "
+                  data-testid={`${testIdPrefix}-interval`}
+                >
+                  {INTERVAL_OPTIONS.hourly.map(n => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+                <span>hour{builder.interval === 1 ? '' : 's'} at minute</span>
                 <select
                   value={builder.minute}
                   onChange={e => handleBuilderChange({ minute: parseInt(e.target.value, 10) })}
@@ -405,10 +503,27 @@ export function CronScheduleBuilder({
               </>
             )}
 
-            {/* Daily: at HH:MM */}
+            {/* Daily: every [N] days at HH:MM */}
             {builder.frequency === 'daily' && (
               <>
-                <span>at</span>
+                <span>Every</span>
+                <select
+                  value={builder.interval}
+                  onChange={e => handleBuilderChange({ interval: parseInt(e.target.value, 10) })}
+                  className="
+                    px-2 py-1 text-xs
+                    bg-[var(--color-bg)]
+                    border border-[var(--color-border)]
+                    rounded
+                    focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]/30
+                  "
+                  data-testid={`${testIdPrefix}-interval`}
+                >
+                  {INTERVAL_OPTIONS.daily.map(n => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+                <span>day{builder.interval === 1 ? '' : 's'} at</span>
                 <select
                   value={builder.hour}
                   onChange={e => handleBuilderChange({ hour: parseInt(e.target.value, 10) })}
