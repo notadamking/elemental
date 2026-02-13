@@ -253,7 +253,7 @@ function FileTreeContextMenu({ node, children }: FileTreeContextMenuProps) {
 
   const { clipboard, onOpen, onCopy, onCut, onPaste, onCopyPath, onCopyRelativePath, onRename, onDelete } = ctx;
   const isFolder = node.nodeType === 'folder';
-  const canPaste = clipboard !== null && isFolder;
+  const canPaste = clipboard !== null;
 
   return (
     <ContextMenu.Root>
@@ -302,7 +302,18 @@ function FileTreeContextMenu({ node, children }: FileTreeContextMenuProps) {
                 : 'text-[var(--color-text-muted)] opacity-50 cursor-not-allowed'
             }`}
             disabled={!canPaste}
-            onSelect={() => canPaste && onPaste(node)}
+            onSelect={() => {
+              if (!canPaste) return;
+              if (isFolder) {
+                onPaste(node);
+              } else {
+                // For files, paste into the parent directory
+                const parentPath = node.path.lastIndexOf('/') > 0
+                  ? node.path.slice(0, node.path.lastIndexOf('/'))
+                  : '';
+                onPaste({ ...node, path: parentPath, nodeType: 'folder' });
+              }
+            }}
             data-testid="context-menu-paste"
           >
             <span>Paste</span>
@@ -368,22 +379,28 @@ interface InlineRenameInputProps {
 function InlineRenameInput({ node, onSubmit, onCancel }: InlineRenameInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(node.name);
+  const settledRef = useRef(false);
 
   useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-      // Select filename without extension for files
-      if (node.nodeType === 'file') {
-        const lastDot = node.name.lastIndexOf('.');
-        if (lastDot > 0) {
-          inputRef.current.setSelectionRange(0, lastDot);
+    // Delay focus slightly to avoid Radix context menu focus restoration conflict
+    const timer = setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        if (node.nodeType === 'file') {
+          const lastDot = node.name.lastIndexOf('.');
+          if (lastDot > 0) {
+            inputRef.current.setSelectionRange(0, lastDot);
+          } else {
+            inputRef.current.select();
+          }
         } else {
           inputRef.current.select();
         }
-      } else {
-        inputRef.current.select();
+        settledRef.current = true;
       }
-    }
+    }, 50);  // 50ms delay lets the Radix menu finish its focus cleanup
+
+    return () => clearTimeout(timer);
   }, [node.name, node.nodeType]);
 
   const handleSubmit = () => {
@@ -393,6 +410,12 @@ function InlineRenameInput({ node, onSubmit, onCancel }: InlineRenameInputProps)
     } else {
       onCancel();
     }
+  };
+
+  const handleBlur = () => {
+    // Ignore blur events before the input is settled (Radix focus restoration)
+    if (!settledRef.current) return;
+    handleSubmit();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -411,7 +434,7 @@ function InlineRenameInput({ node, onSubmit, onCancel }: InlineRenameInputProps)
       type="text"
       value={value}
       onChange={(e) => setValue(e.target.value)}
-      onBlur={handleSubmit}
+      onBlur={handleBlur}
       onKeyDown={handleKeyDown}
       className="flex-1 bg-[var(--color-bg)] border border-[var(--color-primary)] rounded px-1 py-0 text-sm text-[var(--color-text)] outline-none"
       data-testid="inline-rename-input"
@@ -629,6 +652,8 @@ interface EditorFileTreeProps {
   onRenameFile?: (oldPath: string, newPath: string) => Promise<void>;
   /** Callback when a file is pasted */
   onPasteFile?: (sourcePath: string, destFolder: string, operation: 'copy' | 'cut') => Promise<void>;
+  /** Absolute path to the workspace root (for Copy Path feature) */
+  workspaceRoot?: string | null;
   /** Optional class name */
   className?: string;
 }
@@ -643,6 +668,7 @@ export function EditorFileTree({
   onDeleteFile,
   onRenameFile,
   onPasteFile,
+  workspaceRoot,
   className = '',
 }: EditorFileTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -752,9 +778,9 @@ export function EditorFileTree({
   );
 
   const handleCopyPath = useCallback((node: FileTreeNodeData) => {
-    const absolutePath = `/${node.path}`;
-    navigator.clipboard.writeText(absolutePath);
-  }, []);
+    const fullPath = workspaceRoot ? `${workspaceRoot}/${node.path}` : `/${node.path}`;
+    navigator.clipboard.writeText(fullPath);
+  }, [workspaceRoot]);
 
   const handleCopyRelativePath = useCallback((node: FileTreeNodeData) => {
     navigator.clipboard.writeText(node.path);

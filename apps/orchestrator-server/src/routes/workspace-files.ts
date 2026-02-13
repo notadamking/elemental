@@ -381,7 +381,7 @@ export function createWorkspaceFilesRoutes() {
 
       const entries = await readDirectoryTree(validatedRoot, workspaceRoot, 0, depth);
 
-      return c.json({ entries });
+      return c.json({ entries, root: workspaceRoot });
     } catch (error) {
       console.error('[orchestrator] Failed to read workspace tree:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);

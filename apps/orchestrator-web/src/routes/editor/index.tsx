@@ -266,6 +266,7 @@ export function FileEditorPage() {
   const {
     isOpen: isWorkspaceOpen,
     workspaceName,
+    workspaceRoot,
     entries: workspaceEntries,
     isLoading: workspaceLoading,
     error: workspaceError,
@@ -510,18 +511,38 @@ export function FileEditorPage() {
   const handlePasteFile = useCallback(async (sourcePath: string, destFolder: string, operation: 'copy' | 'cut') => {
     try {
       const fileName = sourcePath.split('/').pop() || 'file';
-      const destPath = destFolder ? `${destFolder}/${fileName}` : fileName;
 
       if (operation === 'copy') {
-        // Read source file content, then write to destination
+        // Generate a non-conflicting name for copies
+        // Split filename and extension
+        const lastDot = fileName.lastIndexOf('.');
+        const baseName = lastDot > 0 ? fileName.slice(0, lastDot) : fileName;
+        const ext = lastDot > 0 ? fileName.slice(lastDot) : '';
+
+        // Try the base name first, then append (1), (2), etc.
+        let destPath = destFolder ? `${destFolder}/${fileName}` : fileName;
+        let copyNum = 0;
+
+        // Check if destination already exists by trying to read it
+        // Keep incrementing until we find a name that doesn't exist
+        while (true) {
+          const exists = await readFileByPath(destPath);
+          if (!exists) break;
+          copyNum++;
+          const newName = `${baseName} (${copyNum})${ext}`;
+          destPath = destFolder ? `${destFolder}/${newName}` : newName;
+          if (copyNum > 99) break; // Safety valve
+        }
+
         const content = await readFileByPath(sourcePath);
         if (content) {
-          await writeFile({ id: destPath, name: fileName, type: 'file', path: destPath }, content.content);
+          const destName = destPath.split('/').pop() || fileName;
+          await writeFile({ id: destPath, name: destName, type: 'file', path: destPath }, content.content);
         }
       } else {
         // Cut = rename/move
+        const destPath = destFolder ? `${destFolder}/${fileName}` : fileName;
         await renameFile(sourcePath, destPath);
-        // Update tabs same as rename
         setTabs(prevTabs => prevTabs.map(t => {
           if (t.path === sourcePath) {
             return { ...t, id: destPath, path: destPath };
@@ -922,6 +943,7 @@ export function FileEditorPage() {
                     onDeleteFile={fileSource === 'workspace' ? handleDeleteFile : undefined}
                     onRenameFile={fileSource === 'workspace' ? handleRenameFile : undefined}
                     onPasteFile={fileSource === 'workspace' ? handlePasteFile : undefined}
+                    workspaceRoot={workspaceRoot}
                   />
                 )}
               </div>

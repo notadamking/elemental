@@ -106,6 +106,8 @@ export interface UseServerWorkspaceReturn {
   isOpen: boolean;
   /** Workspace name (derived from root dir name in tree response) */
   workspaceName: string | null;
+  /** Absolute path to the workspace root directory on the server */
+  workspaceRoot: string | null;
   /** File tree entries */
   entries: FileEntry[];
   /** Loading state */
@@ -145,6 +147,7 @@ interface ServerFileEntry {
 
 interface TreeResponse {
   entries: ServerFileEntry[];
+  root?: string;
   error?: { code: string; message: string };
 }
 
@@ -234,7 +237,7 @@ export function useServerWorkspace(): UseServerWorkspaceReturn {
     refetch,
   } = useQuery({
     queryKey: WORKSPACE_TREE_QUERY_KEY,
-    queryFn: async (): Promise<FileEntry[]> => {
+    queryFn: async (): Promise<{ entries: FileEntry[]; root: string | null }> => {
       const response = await fetch('/api/workspace/tree');
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: { message: 'Failed to fetch workspace tree' } }));
@@ -244,7 +247,10 @@ export function useServerWorkspace(): UseServerWorkspaceReturn {
       if (data.error) {
         throw new Error(data.error.message);
       }
-      return data.entries.map(convertServerEntry);
+      return {
+        entries: data.entries.map(convertServerEntry),
+        root: data.root ?? null,
+      };
     },
     staleTime: TREE_STALE_TIME,
     retry: 2,
@@ -252,7 +258,8 @@ export function useServerWorkspace(): UseServerWorkspaceReturn {
   });
 
   // Compute derived state
-  const entries = treeData ?? [];
+  const entries = treeData?.entries ?? [];
+  const workspaceRoot = treeData?.root ?? null;
   const isOpen = entries.length > 0;
   const workspaceName = deriveWorkspaceName(entries);
 
@@ -462,6 +469,7 @@ export function useServerWorkspace(): UseServerWorkspaceReturn {
     isSupported: true,
     isOpen,
     workspaceName,
+    workspaceRoot,
     entries,
     isLoading,
     error,
