@@ -245,7 +245,7 @@ Each line is a complete, self-contained JSON object.
 ```typescript
 import { createSyncService } from '@elemental/sdk';
 
-const syncService = createSyncService(storage, config);
+const syncService = createSyncService(storage);
 
 // Incremental (dirty only)
 await syncService.export();

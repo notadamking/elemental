@@ -142,7 +142,7 @@ Calculates effective priority based on dependency graph.
 ```typescript
 import { createPriorityService } from '@elemental/sdk';
 
-const priorityService = createPriorityService(storage, depService);
+const priorityService = createPriorityService(storage);
 ```
 
 ### Methods
@@ -266,7 +266,7 @@ Manages JSONL export/import.
 ```typescript
 import { createSyncService } from '@elemental/sdk';
 
-const syncService = createSyncService(storage, config);
+const syncService = createSyncService(storage);
 ```
 
 ### Export
@@ -407,7 +407,7 @@ import { createBlockedCacheService } from '@elemental/sdk/services/blocked-cache
 // Create services
 const depService = createDependencyService(storage);
 const blockedCache = createBlockedCacheService(storage);
-const priorityService = createPriorityService(storage, depService);
+const priorityService = createPriorityService(storage);
 const inboxService = createInboxService(storage);
 const idLengthCache = createIdLengthCache(storage);
 

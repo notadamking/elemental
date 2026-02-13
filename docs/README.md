@@ -43,7 +43,7 @@
 | Understand agent roles | [explanation/agent-roles.md](explanation/agent-roles.md) | `packages/orchestrator-sdk/src/types/agent.ts` |
 | Understand orchestration architecture | [ORCHESTRATION_PLAN.md](ORCHESTRATION_PLAN.md) | - |
 | Understand sync/merge | [explanation/sync-and-merge.md](explanation/sync-and-merge.md) | `packages/sdk/src/sync/` |
-| Debug issues | [GOTCHAS.md](GOTCHAS.md) | - |
+| Debug issues | [gotchas.md](gotchas.md) | - |
 
 ## Architecture Overview
 
@@ -196,7 +196,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 
 ## Critical Gotchas
 
-See [GOTCHAS.md](GOTCHAS.md) for full list.
+See [gotchas.md](gotchas.md) for full list.
 
 **Top 5:**
 1. Task `blocked` status is **computed** from dependencies, never set directly
@@ -216,6 +216,6 @@ See [GOTCHAS.md](GOTCHAS.md) for full list.
 | Add a new API method | `reference/elemental-api.md` or `reference/orchestrator-api.md` |
 | Add a CLI command | `reference/cli.md` |
 | Add platform feature | `reference/platform.md` |
-| Discover a gotcha | `GOTCHAS.md` |
+| Discover a gotcha | `gotchas.md` |
 
 **File paths are the source of truth.** If a file path in docs doesn't exist, the doc is wrong.

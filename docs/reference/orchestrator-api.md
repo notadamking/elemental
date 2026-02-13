@@ -98,8 +98,8 @@ const channelId = await registry.getAgentChannelId(agentId);
 // Channel name utilities
 import { generateAgentChannelName, parseAgentChannelName } from '@elemental/orchestrator-sdk';
 
-generateAgentChannelName(agentId);  // 'agent-el-abc123'
-parseAgentChannelName('agent-el-abc123');  // 'el-abc123' or null
+generateAgentChannelName('Worker-1');  // 'agent-Worker-1'
+parseAgentChannelName('agent-Worker-1');  // 'Worker-1' or null
 ```
 
 ---
