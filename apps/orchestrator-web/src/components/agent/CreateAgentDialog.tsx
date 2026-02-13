@@ -23,6 +23,7 @@ import {
   Loader2,
   ChevronDown,
 } from 'lucide-react';
+import { CronScheduleBuilder } from './CronScheduleBuilder';
 import type {
   AgentRole,
   WorkerMode,
@@ -598,22 +599,12 @@ export function CreateAgentDialog({
                           <div className="flex-1 space-y-1">
                             <div className="flex items-center gap-2">
                               <Clock className="w-4 h-4 text-[var(--color-text-secondary)]" />
-                              <span className="text-xs font-medium text-[var(--color-text-secondary)]">Cron</span>
+                              <span className="text-xs font-medium text-[var(--color-text-secondary)]">Cron Schedule</span>
                             </div>
-                            <input
-                              type="text"
+                            <CronScheduleBuilder
                               value={trigger.schedule}
-                              onChange={e => updateTrigger(index, { ...trigger, schedule: e.target.value })}
-                              placeholder="0 * * * * (every hour)"
-                              className="
-                                w-full px-2 py-1
-                                text-xs font-mono
-                                bg-[var(--color-bg)]
-                                border border-[var(--color-border)]
-                                rounded
-                                focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]/30
-                              "
-                              data-testid={`trigger-${index}-schedule`}
+                              onChange={schedule => updateTrigger(index, { ...trigger, schedule })}
+                              testIdPrefix={`trigger-${index}-schedule`}
                             />
                           </div>
                         ) : (
