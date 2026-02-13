@@ -967,47 +967,47 @@ describe('MergeStewardService', () => {
         expect(mergeTreeCmd!.cmd).toContain('origin/main');
       });
 
-      it('should sync local branch AFTER worktree removal', async () => {
+      it('should NOT sync local branch in attemptMerge (syncLocal: false)', async () => {
+        // attemptMerge passes syncLocal: false to mergeBranch — sync is handled
+        // separately in processTask after all bookkeeping is complete.
         const result = await service.attemptMerge('task-001' as ElementId);
 
         expect(result.success).toBe(true);
 
-        // Find indices of key operations
+        // Worktree removal should still happen
         const worktreeRemoveIdx = execCalls.findIndex(c => c.cmd.includes('worktree remove'));
-        const fetchOriginIdx = execCalls.findIndex(
-          (c, i) => i > worktreeRemoveIdx && c.cmd === 'git fetch origin'
-        );
-        const symbolicRefIdx = execCalls.findIndex(
-          (c, i) => i > worktreeRemoveIdx && c.cmd.includes('symbolic-ref')
-        );
-
-        // Worktree removal must come before fetch and sync operations
         expect(worktreeRemoveIdx).toBeGreaterThan(-1);
-        expect(fetchOriginIdx).toBeGreaterThan(worktreeRemoveIdx);
-        expect(symbolicRefIdx).toBeGreaterThan(worktreeRemoveIdx);
+
+        // No sync commands (fetch origin, symbolic-ref) should appear after worktree removal
+        const postWorktreeCmds = execCalls.slice(worktreeRemoveIdx + 1);
+        const fetchOrigin = postWorktreeCmds.find(c => c.cmd === 'git fetch origin');
+        const symbolicRef = postWorktreeCmds.find(c => c.cmd.includes('symbolic-ref'));
+
+        expect(fetchOrigin).toBeUndefined();
+        expect(symbolicRef).toBeUndefined();
       });
 
-      it('should use safe fetch-based sync instead of checkout dance', async () => {
+      it('should not produce any sync or checkout commands after worktree removal', async () => {
+        // attemptMerge uses syncLocal: false — local branch sync is deferred to
+        // processTask which calls syncLocalBranch() directly after bookkeeping.
+        // This means no checkout dance, no fetch-based sync, nothing after cleanup.
         const result = await service.attemptMerge('task-001' as ElementId);
 
         expect(result.success).toBe(true);
 
-        // After worktree removal, expect: fetch origin, symbolic-ref, fetch origin main:main
-        // (since mock branch is agent/worker/some-branch ≠ main, takes the non-target-branch path)
         const worktreeRemoveIdx = execCalls.findIndex(c => c.cmd.includes('worktree remove'));
         const postWorktreeCmds = execCalls.slice(worktreeRemoveIdx + 1);
 
+        // No sync-related commands after worktree removal
         const fetchOrigin = postWorktreeCmds.find(c => c.cmd === 'git fetch origin');
         const symbolicRef = postWorktreeCmds.find(c => c.cmd.includes('symbolic-ref'));
         const fetchRefUpdate = postWorktreeCmds.find(c => c.cmd.includes('fetch origin main:main'));
-
-        expect(fetchOrigin).toBeDefined();
-        expect(symbolicRef).toBeDefined();
-        expect(fetchRefUpdate).toBeDefined();
-
-        // Should NOT use the old checkout dance
         const checkoutTarget = postWorktreeCmds.find(c => c.cmd.includes('git checkout main'));
         const mergeRemote = postWorktreeCmds.find(c => c.cmd.includes('git merge origin/main'));
+
+        expect(fetchOrigin).toBeUndefined();
+        expect(symbolicRef).toBeUndefined();
+        expect(fetchRefUpdate).toBeUndefined();
         expect(checkoutTarget).toBeUndefined();
         expect(mergeRemote).toBeUndefined();
       });
