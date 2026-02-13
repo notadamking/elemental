@@ -252,6 +252,7 @@ export function FileEditorPage() {
   const [createPopup, setCreatePopup] = useState<{ type: 'file' | 'folder' } | null>(null);
   const [createPopupValue, setCreatePopupValue] = useState('');
   const [createPopupError, setCreatePopupError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const createPopupInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize Monaco before rendering the editor
@@ -933,10 +934,11 @@ export function FileEditorPage() {
     setCreatePopup(null);
     setCreatePopupValue('');
     setCreatePopupError(null);
+    setIsCreating(false);
   }, []);
 
   const handleCreateSubmit = useCallback(async () => {
-    if (!createPopup) return;
+    if (!createPopup || isCreating) return;
 
     const trimmedPath = createPopupValue.trim();
     if (!trimmedPath) {
@@ -949,6 +951,9 @@ export function FileEditorPage() {
       setCreatePopupError('Invalid path format');
       return;
     }
+
+    setIsCreating(true);
+    setCreatePopupError(null);
 
     try {
       if (createPopup.type === 'file') {
@@ -975,9 +980,10 @@ export function FileEditorPage() {
       }
       handleCloseCreatePopup();
     } catch (err) {
+      setIsCreating(false);
       setCreatePopupError(err instanceof Error ? err.message : 'Failed to create');
     }
-  }, [createPopup, createPopupValue, writeFile, createFolder, refreshTree, handleSelectFile, handleCloseCreatePopup]);
+  }, [createPopup, createPopupValue, isCreating, writeFile, createFolder, refreshTree, handleSelectFile, handleCloseCreatePopup]);
 
   const handleCollapseAll = useCallback(() => {
     fileTreeRef.current?.closeAll();
@@ -1352,7 +1358,7 @@ export function FileEditorPage() {
 
       {/* New File / New Folder popup dialog */}
       {createPopup && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={handleCloseCreatePopup}>
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={isCreating ? undefined : handleCloseCreatePopup}>
           <div
             className="bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg shadow-xl w-full max-w-sm p-4"
             onClick={(e) => e.stopPropagation()}
@@ -1378,11 +1384,12 @@ export function FileEditorPage() {
                   handleCreateSubmit();
                 } else if (e.key === 'Escape') {
                   e.preventDefault();
-                  handleCloseCreatePopup();
+                  if (!isCreating) handleCloseCreatePopup();
                 }
               }}
               placeholder={createPopup.type === 'file' ? 'e.g. src/utils/helpers.ts' : 'e.g. src/components/ui'}
-              className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded px-3 py-1.5 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] transition-colors"
+              className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded px-3 py-1.5 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] transition-colors disabled:opacity-50"
+              disabled={isCreating}
               data-testid="create-popup-input"
             />
             {createPopupError && (
@@ -1393,17 +1400,20 @@ export function FileEditorPage() {
             <div className="flex justify-end gap-2 mt-3">
               <button
                 onClick={handleCloseCreatePopup}
-                className="px-3 py-1.5 text-xs font-medium text-[var(--color-text)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] rounded transition-colors"
+                className="px-3 py-1.5 text-xs font-medium text-[var(--color-text)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] rounded transition-colors disabled:opacity-50"
+                disabled={isCreating}
                 data-testid="create-popup-cancel"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateSubmit}
-                className="px-3 py-1.5 text-xs font-medium text-white bg-[var(--color-primary)] hover:opacity-90 rounded transition-colors"
+                className="px-3 py-1.5 text-xs font-medium text-white bg-[var(--color-primary)] hover:opacity-90 rounded transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                disabled={isCreating}
                 data-testid="create-popup-submit"
               >
-                Create
+                {isCreating && <Loader2 className="w-3 h-3 animate-spin" />}
+                {isCreating ? 'Creating…' : 'Create'}
               </button>
             </div>
           </div>
