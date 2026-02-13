@@ -4,7 +4,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import type { Task } from '../../components/entity/types';
+import type { Task } from '../../components/entity';
 import type { StatsResponse, HealthResponse, ElementalEvent, Entity } from './types';
 
 /**

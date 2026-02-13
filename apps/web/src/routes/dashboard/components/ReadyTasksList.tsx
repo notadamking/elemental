@@ -5,7 +5,7 @@
 
 import { Link } from '@tanstack/react-router';
 import { ArrowRight } from 'lucide-react';
-import { TaskCard } from '../../../components/entity/TaskCard';
+import { TaskCard } from '../../../components/entity';
 import { useReadyTasks } from '../hooks';
 
 export function ReadyTasksList() {

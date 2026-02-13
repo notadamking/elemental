@@ -56,6 +56,7 @@ export { EntityCard, type EntityCardProps } from './EntityCard';
 export { PlanCard, type PlanCardProps } from './PlanCard';
 export { WorkflowCard, type WorkflowCardProps } from './WorkflowCard';
 export { TeamCard, type TeamCardProps } from './TeamCard';
+export { MobileEntityCard, type MobileEntityCardProps } from './MobileEntityCard';
 
 // Badge components
 export {

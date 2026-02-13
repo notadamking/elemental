@@ -28,6 +28,8 @@ export {
   type TaskTypeBadgeProps,
   MergeStatusBadge,
   type MergeStatusBadgeProps,
+  MobileEntityCard,
+  type MobileEntityCardProps,
 } from '@elemental/ui/domain';
 
 // Re-export types from @elemental/ui

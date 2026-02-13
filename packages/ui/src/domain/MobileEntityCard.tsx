@@ -6,28 +6,41 @@
  *
  * Features:
  * - Minimum 44px touch target
- * - Type icon and badge
+ * - Type icon and badge using entity type config
  * - Name and ID display
  * - Active/inactive status
  * - Search highlighting support
+ *
+ * This component receives all data via props and makes no API calls.
  */
 
 import { useMemo } from 'react';
-import { Bot, User, Server } from 'lucide-react';
-import type { Entity } from './types';
+import { Bot, User, Server, ChevronRight } from 'lucide-react';
+import type { Entity, EntityType } from './types';
+import { getEntityTypeConfig } from './types';
 
-interface MobileEntityCardProps {
+export interface MobileEntityCardProps {
   entity: Entity;
   isSelected: boolean;
   onClick: () => void;
   searchQuery?: string;
 }
 
-const ENTITY_TYPE_STYLES: Record<string, { bg: string; text: string; icon: typeof Bot }> = {
-  agent: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-300', icon: Bot },
-  human: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', icon: User },
-  system: { bg: 'bg-gray-100 dark:bg-gray-800/50', text: 'text-gray-700 dark:text-gray-300', icon: Server },
-};
+/**
+ * Get the icon component for an entity type
+ */
+function getEntityTypeIcon(entityType: EntityType | string): typeof Bot {
+  switch (entityType) {
+    case 'agent':
+      return Bot;
+    case 'human':
+      return User;
+    case 'system':
+      return Server;
+    default:
+      return Server;
+  }
+}
 
 /**
  * Fuzzy search function that matches query characters in sequence within the name.
@@ -93,8 +106,8 @@ export function MobileEntityCard({
   onClick,
   searchQuery,
 }: MobileEntityCardProps) {
-  const styles = ENTITY_TYPE_STYLES[entity.entityType] || ENTITY_TYPE_STYLES.system;
-  const Icon = styles.icon;
+  const config = getEntityTypeConfig(entity.entityType);
+  const Icon = getEntityTypeIcon(entity.entityType);
   const isActive = entity.active !== false;
 
   // Compute highlighted name based on search query
@@ -121,9 +134,9 @@ export function MobileEntityCard({
     >
       {/* Icon */}
       <div
-        className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${styles.bg}`}
+        className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${config.bgColor}`}
       >
-        <Icon className={`w-5 h-5 ${styles.text}`} />
+        <Icon className={`w-5 h-5 ${config.textColor}`} />
       </div>
 
       {/* Content */}
@@ -151,7 +164,7 @@ export function MobileEntityCard({
         {/* Type and tags row */}
         <div className="flex items-center gap-1.5 flex-wrap">
           {/* Entity type badge */}
-          <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${styles.bg} ${styles.text}`}>
+          <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${config.bgColor} ${config.textColor}`}>
             {entity.entityType}
           </span>
 
@@ -174,9 +187,7 @@ export function MobileEntityCard({
 
       {/* Chevron indicator */}
       <div className="flex-shrink-0 self-center text-[var(--color-text-tertiary)]">
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
+        <ChevronRight className="w-5 h-5" />
       </div>
     </div>
   );

@@ -15,7 +15,7 @@ import {
   Bar,
   CartesianGrid,
 } from 'recharts';
-import type { Task } from '../entity/types';
+import type { Task } from '../entity';
 import { useIsMobile, useTouchDevice } from '../../hooks';
 
 // Types for chart data

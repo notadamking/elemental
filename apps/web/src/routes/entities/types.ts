@@ -3,7 +3,7 @@
  * Page-specific types that extend or complement the base entity types
  */
 
-import type { Entity as BaseEntity } from '../../components/entity/types';
+import type { Entity as BaseEntity } from '../../components/entity';
 
 // Re-export the base Entity type
 export type Entity = BaseEntity & {
