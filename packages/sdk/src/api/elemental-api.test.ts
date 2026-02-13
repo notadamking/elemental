@@ -2153,6 +2153,140 @@ describe('Message Inbox Integration', () => {
       expect(mentionDeps.length).toBe(0);
     });
   });
+
+  describe('suppressInbox metadata flag', () => {
+    it('does not create inbox item for direct channel messages with suppressInbox: true', async () => {
+      // Create two entities (simulates operator and agent)
+      const operator = await createTestEntityForInbox('operator-suppress');
+      const agent = await createTestEntityForInbox('agent-suppress');
+      const operatorId = operator.id as unknown as EntityId;
+      const agentId = agent.id as unknown as EntityId;
+
+      // Create a direct channel between operator and agent
+      const channel = await createDirectChannel({
+        entityA: operatorId,
+        entityB: agentId,
+        createdBy: operatorId,
+      });
+      const createdChannel = await api.create(toCreateInput(channel));
+
+      // Create a message with suppressInbox metadata (like dispatch notifications)
+      const contentDoc = await createContentDoc('Task assigned: Some Task', agentId);
+      const message = await createMessage({
+        channelId: createdChannel.id as any,
+        sender: agentId,
+        contentRef: contentDoc.id as any,
+        metadata: { type: 'task-assignment', suppressInbox: true },
+      });
+      await api.create(toCreateInput(message));
+
+      // Operator should NOT have an inbox item (suppressed)
+      const operatorInbox = inboxService.getInbox(operatorId);
+      expect(operatorInbox.length).toBe(0);
+
+      // Agent should also NOT have an inbox item (they are the sender)
+      const agentInbox = inboxService.getInbox(agentId);
+      expect(agentInbox.length).toBe(0);
+    });
+
+    it('does not create inbox items for @mentions with suppressInbox: true', async () => {
+      // Create entities
+      const sender = await createTestEntityForInbox('sender-suppress');
+      const receiver = await createTestEntityForInbox('receiver-suppress');
+      const mentioned = await createTestEntityForInbox('mentioned-suppress');
+      const senderId = sender.id as unknown as EntityId;
+      const receiverId = receiver.id as unknown as EntityId;
+      const mentionedId = mentioned.id as unknown as EntityId;
+
+      // Create a direct channel
+      const channel = await createDirectChannel({
+        entityA: senderId,
+        entityB: receiverId,
+        createdBy: senderId,
+      });
+      const createdChannel = await api.create(toCreateInput(channel));
+
+      // Create a message that @mentions someone, with suppressInbox
+      const contentDoc = await createContentDoc('Hey @mentioned-suppress check this', senderId);
+      const message = await createMessage({
+        channelId: createdChannel.id as any,
+        sender: senderId,
+        contentRef: contentDoc.id as any,
+        metadata: { suppressInbox: true },
+      });
+      await api.create(toCreateInput(message));
+
+      // Neither receiver nor mentioned should have inbox items
+      const receiverInbox = inboxService.getInbox(receiverId);
+      expect(receiverInbox.length).toBe(0);
+
+      const mentionedInbox = inboxService.getInbox(mentionedId);
+      expect(mentionedInbox.length).toBe(0);
+    });
+
+    it('still creates inbox items when suppressInbox is not set', async () => {
+      // Create two entities
+      const alice = await createTestEntityForInbox('alice-no-suppress');
+      const bob = await createTestEntityForInbox('bob-no-suppress');
+      const aliceId = alice.id as unknown as EntityId;
+      const bobId = bob.id as unknown as EntityId;
+
+      // Create a direct channel
+      const channel = await createDirectChannel({
+        entityA: aliceId,
+        entityB: bobId,
+        createdBy: aliceId,
+      });
+      const createdChannel = await api.create(toCreateInput(channel));
+
+      // Create a message WITHOUT suppressInbox
+      const contentDoc = await createContentDoc('Normal message', aliceId);
+      const message = await createMessage({
+        channelId: createdChannel.id as any,
+        sender: aliceId,
+        contentRef: contentDoc.id as any,
+      });
+      await api.create(toCreateInput(message));
+
+      // Bob should have an inbox item (normal behavior)
+      const bobInbox = inboxService.getInbox(bobId);
+      expect(bobInbox.length).toBe(1);
+      expect(bobInbox[0].sourceType).toBe(InboxSourceType.DIRECT);
+    });
+
+    it('still creates mentions dependencies even with suppressInbox: true', async () => {
+      // Create entities
+      const sender = await createTestEntityForInbox('sender-dep-suppress');
+      const receiver = await createTestEntityForInbox('receiver-dep-suppress');
+      const mentioned = await createTestEntityForInbox('mentioned-dep-suppress');
+      const senderId = sender.id as unknown as EntityId;
+      const receiverId = receiver.id as unknown as EntityId;
+
+      // Create a direct channel
+      const channel = await createDirectChannel({
+        entityA: senderId,
+        entityB: receiverId,
+        createdBy: senderId,
+      });
+      const createdChannel = await api.create(toCreateInput(channel));
+
+      // Create a message with @mention and suppressInbox
+      const contentDoc = await createContentDoc('@mentioned-dep-suppress check this', senderId);
+      const message = await createMessage({
+        channelId: createdChannel.id as any,
+        sender: senderId,
+        contentRef: contentDoc.id as any,
+        metadata: { suppressInbox: true },
+      });
+      const createdMessage = await api.create(toCreateInput(message));
+
+      // Mentions dependency should still be created (not inbox-related)
+      const deps = await api.getDependencies(createdMessage.id);
+      const mentionDeps = deps.filter(d => d.type === 'mentions');
+      expect(mentionDeps.length).toBe(1);
+      expect(mentionDeps[0].blockerId).toBe(mentioned.id);
+    });
+  });
 });
 
 // ============================================================================
