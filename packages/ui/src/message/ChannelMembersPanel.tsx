@@ -8,8 +8,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, UserPlus, UserMinus, Users, Crown, LogOut, Loader2, AlertCircle, Trash2, AlertTriangle } from 'lucide-react';
-import { useDeleteChannel } from '../../api/hooks/useMessages';
-import { EntityLink } from '../entity/EntityLink';
+import { useDeleteChannel } from './useDeleteChannel';
+import { EntityLink } from './EntityLink';
 
 // ============================================================================
 // Types
@@ -254,7 +254,6 @@ function MemberRow({
             <EntityLink
               entityRef={member.id}
               className="text-sm font-medium truncate"
-              showPreview={false}
               data-testid={`member-link-${member.id}`}
             >
               {member.name}

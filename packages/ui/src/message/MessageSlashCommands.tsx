@@ -344,7 +344,7 @@ function createSuggestionConfig(embedCallbacks?: MessageEmbedCallbacks): Partial
     char: '/',
     startOfLine: false, // Allow / anywhere but we'll filter in shouldShow
 
-    items: ({ query }) => {
+    items: ({ query }: { query: string }) => {
       const allCommands = getMessageSlashCommands(embedCallbacks);
       return fuzzySearch(query, allCommands);
     },
@@ -414,7 +414,7 @@ function createSuggestionConfig(embedCallbacks?: MessageEmbedCallbacks): Partial
       };
     },
 
-    command: ({ editor, range, props }) => {
+    command: ({ editor, range, props }: { editor: any; range: any; props: MessageSlashCommandItem }) => {
       props.action({ editor, range });
     },
   };

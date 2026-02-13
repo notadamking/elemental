@@ -41,3 +41,6 @@ export * from './settings';
 
 // Documents Module (also available via '@elemental/ui/documents')
 export * from './documents';
+
+// Message Module (also available via '@elemental/ui/message')
+export * from './message';

@@ -14,7 +14,7 @@ import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIsMobile } from '../../hooks/useBreakpoint';
-import { CreateChannelModal } from '../../components/message/CreateChannelModal';
+import { CreateChannelModal } from '@elemental/ui';
 import { useAllChannels } from '../../api/hooks/useAllElements';
 import { createChannelFilter } from '../../hooks/usePaginatedData';
 import { useCurrentUser } from '../../contexts';

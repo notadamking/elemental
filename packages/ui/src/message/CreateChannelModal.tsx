@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Loader2, Plus, Hash, Users } from 'lucide-react';
-import { TagInput } from '@elemental/ui';
-import { ResponsiveModal } from '../shared/ResponsiveModal';
-import { useCurrentUser } from '../../contexts';
+import { TagInput } from '../components/TagInput';
+import { ResponsiveModal } from '../layout/ResponsiveModal';
+import { useCurrentUser } from '../contexts';
 
 interface Entity {
   id: string;

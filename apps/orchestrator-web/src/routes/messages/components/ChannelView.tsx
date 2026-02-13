@@ -14,7 +14,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { VirtualizedChatList } from '../../../components/shared/VirtualizedChatList';
-import { ChannelMembersPanel } from '../../../components/message/ChannelMembersPanel';
+import { ChannelMembersPanel } from '@elemental/ui';
 import { groupMessagesByDay, type MessageWithDayGroup } from '../../../lib';
 import { useChannel, useChannelMessages, useDeleteChannel } from '../../../api/hooks/useMessages';
 import { useCurrentUser } from '../../../contexts';

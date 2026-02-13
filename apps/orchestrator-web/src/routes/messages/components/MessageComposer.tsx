@@ -16,12 +16,12 @@ import { toast } from 'sonner';
 import {
   MessageRichComposer,
   type MessageRichComposerRef,
-} from '../../../components/message/MessageRichComposer';
-import { MessageImageAttachment } from '../../../components/message/MessageImageAttachment';
+} from '@elemental/ui';
+import { MessageImageAttachment } from '@elemental/ui';
 import { TaskPickerModal } from '../../../components/editor/TaskPickerModal';
 import { DocumentPickerModal } from '../../../components/editor/DocumentPickerModal';
 import { EmojiPickerModal } from '../../../components/editor/EmojiPickerModal';
-import type { MessageEmbedCallbacks } from '../../../components/message/MessageSlashCommands';
+import type { MessageEmbedCallbacks } from '@elemental/ui';
 import { useCurrentUser } from '../../../contexts';
 import { useSendMessage, useDocuments, useEntities } from '../../../api/hooks/useMessages';
 import type { Channel, AttachedDocument, ImageAttachment } from '../types';

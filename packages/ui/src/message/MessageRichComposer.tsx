@@ -25,7 +25,7 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import { MessageSlashCommands, type MessageEmbedCallbacks } from './MessageSlashCommands';
 import { HashAutocomplete, createElementFetcher } from './HashAutocomplete';
-import { MentionAutocomplete, MentionNode, type MentionEntity } from '../editor/MentionAutocomplete';
+import { MentionAutocomplete, MentionNode, type MentionEntity } from './MentionAutocomplete';
 import {
   useCallback,
   useEffect,
@@ -37,7 +37,7 @@ import {
 import {
   prepareContentForEditor,
   prepareContentForStorage,
-} from '../../lib/markdown';
+} from './markdown';
 import {
   Bold,
   Italic,
@@ -187,7 +187,7 @@ export const MessageRichComposer = forwardRef<
     ],
     content: getInitialContent(),
     editable: !disabled,
-    onUpdate: ({ editor }) => {
+    onUpdate: ({ editor }: { editor: any }) => {
       // Convert HTML to Markdown for storage
       const html = editor.getHTML();
       const markdown = prepareContentForStorage(html, 'markdown');
@@ -200,7 +200,7 @@ export const MessageRichComposer = forwardRef<
         'data-testid': 'message-input',
         style: `max-height: ${maxHeight - 40}px; overflow-y: auto;`,
       },
-      handleKeyDown: (_view, event) => {
+      handleKeyDown: (_view: any, event: KeyboardEvent) => {
         // Enter to send, Shift+Enter for newline
         if (event.key === 'Enter' && !event.shiftKey && !event.metaKey && !event.ctrlKey) {
           // Don't send if content is in a list or code block (allow natural enter behavior)
@@ -226,7 +226,7 @@ export const MessageRichComposer = forwardRef<
         return false;
       },
       // Handle paste for image support (TB102)
-      handlePaste: (_view, event) => {
+      handlePaste: (_view: any, event: ClipboardEvent) => {
         const items = event.clipboardData?.items;
         if (!items || !onImagePaste) return false;
 

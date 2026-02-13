@@ -8,7 +8,7 @@ import { VirtualizedChatList } from '../../../components/shared/VirtualizedChatL
 import {
   MessageRichComposer,
   type MessageRichComposerRef,
-} from '../../../components/message/MessageRichComposer';
+} from '@elemental/ui';
 import { useCurrentUser } from '../../../contexts';
 import { useThreadReplies, useSendMessage, useEntities } from '../../../api/hooks/useMessages';
 import { MessageBubble } from './MessageBubble';

@@ -37,3 +37,7 @@ export type {
   BreadcrumbItem,
   ConnectionStatusProps,
 } from './Header';
+
+// ResponsiveModal - Adaptive modal for desktop and mobile
+export { ResponsiveModal } from './ResponsiveModal';
+export type { ResponsiveModalProps } from './ResponsiveModal';

@@ -10,7 +10,7 @@
  */
 
 import { Link } from '@tanstack/react-router';
-import { MessageEmbedCard } from '../components/message/MessageEmbedCard';
+import { MessageEmbedCard } from '@elemental/ui';
 
 // ============================================================================
 // Regex Patterns

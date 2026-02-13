@@ -249,7 +249,7 @@ function createHashSuggestionConfig(
     startOfLine: false,
     allowSpaces: false,
 
-    items: async ({ query }) => {
+    items: async ({ query }: { query: string }) => {
       currentQuery = query;
 
       // Cancel previous fetch if exists
@@ -350,7 +350,7 @@ function createHashSuggestionConfig(
       };
     },
 
-    command: ({ editor, range, props }) => {
+    command: ({ editor, range, props }: { editor: any; range: any; props: HashAutocompleteItem }) => {
       // Insert the embed reference
       const embedText = `![[${props.type}:${props.id}]]`;
 
