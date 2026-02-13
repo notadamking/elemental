@@ -437,10 +437,13 @@ export function useDeleteMergeRequestMutation() {
  */
 export function getAvailableMergeStatuses(): { value: MergeStatus; label: string }[] {
   return [
-    { value: 'pending', label: 'Pending Review' },
+    { value: 'pending', label: 'Pending Merge' },
+    { value: 'testing', label: 'Testing' },
+    { value: 'merging', label: 'Merging' },
     { value: 'merged', label: 'Merged' },
-    { value: 'conflict', label: 'Has Conflicts' },
-    { value: 'failed', label: 'Failed' },
-    { value: 'not_applicable', label: 'Dismissed' },
+    { value: 'conflict', label: 'Conflict' },
+    { value: 'test_failed', label: 'Tests Failed' },
+    { value: 'failed', label: 'Merge Failed' },
+    { value: 'not_applicable', label: 'No Merge Needed' },
   ];
 }

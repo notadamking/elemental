@@ -18,6 +18,9 @@ import {
   Trash2,
   Loader2,
   ChevronRight,
+  FlaskConical,
+  GitMerge,
+  CircleX,
 } from 'lucide-react';
 import type { Task, MergeStatus } from '../../api/types';
 import {
@@ -39,6 +42,7 @@ export function MergeRequestManageDropdown({
   const [showStatusSubmenu, setShowStatusSubmenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const updateStatusMutation = useUpdateMergeStatusMutation();
   const deleteMutation = useDeleteMergeRequestMutation();
@@ -74,6 +78,24 @@ export function MergeRequestManageDropdown({
     return () => document.removeEventListener('keydown', handleEscape);
   }, []);
 
+  // Clean up close timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleSubmenuMouseEnter = () => {
+    clearTimeout(closeTimeoutRef.current);
+    setShowStatusSubmenu(true);
+  };
+
+  const handleSubmenuMouseLeave = () => {
+    closeTimeoutRef.current = setTimeout(() => setShowStatusSubmenu(false), 150);
+  };
+
   const handleStatusChange = async (newStatus: MergeStatus) => {
     try {
       await updateStatusMutation.mutateAsync({
@@ -105,10 +127,16 @@ export function MergeRequestManageDropdown({
     switch (status) {
       case 'pending':
         return <Clock className="w-4 h-4 text-amber-500" />;
+      case 'testing':
+        return <FlaskConical className="w-4 h-4 text-blue-500" />;
+      case 'merging':
+        return <GitMerge className="w-4 h-4 text-blue-600" />;
       case 'merged':
         return <CheckCircle2 className="w-4 h-4 text-green-500" />;
       case 'conflict':
         return <AlertTriangle className="w-4 h-4 text-red-500" />;
+      case 'test_failed':
+        return <CircleX className="w-4 h-4 text-orange-500" />;
       case 'failed':
         return <XCircle className="w-4 h-4 text-red-500" />;
       case 'not_applicable':
@@ -145,8 +173,8 @@ export function MergeRequestManageDropdown({
             {/* Change Status */}
             <div
               className="relative"
-              onMouseEnter={() => setShowStatusSubmenu(true)}
-              onMouseLeave={() => setShowStatusSubmenu(false)}
+              onMouseEnter={handleSubmenuMouseEnter}
+              onMouseLeave={handleSubmenuMouseLeave}
             >
               <button
                 className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors"
@@ -163,8 +191,10 @@ export function MergeRequestManageDropdown({
               {/* Status Submenu */}
               {showStatusSubmenu && (
                 <div
-                  className="absolute left-full top-0 ml-1 w-44 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg py-1"
+                  className="absolute left-full top-0 ml-1 w-48 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg py-1"
                   data-testid="status-submenu"
+                  onMouseEnter={handleSubmenuMouseEnter}
+                  onMouseLeave={handleSubmenuMouseLeave}
                 >
                   {statuses.map((status) => (
                     <button
