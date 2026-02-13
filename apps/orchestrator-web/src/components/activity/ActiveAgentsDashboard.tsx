@@ -26,7 +26,7 @@ const ROLE_ORDER: Record<string, number> = { director: 0, worker: 1, steward: 2 
 export function ActiveAgentsDashboard({ onOpenTerminal, onOpenDirectorPanel, onStopAgent }: ActiveAgentsDashboardProps) {
   const { allAgents } = useAgentsByRole();
   const { data: sessionsData } = useSessions({ status: 'running' });
-  const { inProgress } = useTasksByStatus();
+  const { inProgress, awaitingMerge } = useTasksByStatus();
   const runningSessions = sessionsData?.sessions ?? [];
 
   // Build running session info for seeding initial output state
@@ -52,14 +52,21 @@ export function ActiveAgentsDashboard({ onOpenTerminal, onOpenDirectorPanel, onS
     return m;
   }, [allAgents]);
 
-  // Build task lookup by assignee
+  // Build task lookup by assignee — include both in_progress tasks (for workers)
+  // and awaitingMerge tasks (for merge stewards). in_progress tasks take priority
+  // so workers always see their active task rather than a previously completed one.
   const taskByAssignee = useMemo(() => {
     const m = new Map<string, Task>();
+    // Add awaitingMerge tasks first (lower priority)
+    for (const t of awaitingMerge) {
+      if (t.assignee) m.set(t.assignee, t);
+    }
+    // Add in_progress tasks second so they overwrite any awaitingMerge entries
     for (const t of inProgress) {
       if (t.assignee) m.set(t.assignee, t);
     }
     return m;
-  }, [inProgress]);
+  }, [inProgress, awaitingMerge]);
 
   // Join data and sort
   const activeAgents = useMemo(() => {
