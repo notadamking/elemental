@@ -53,8 +53,12 @@ export interface EditorTab {
   source: FileSource | 'extension';
   /** Whether this is a preview tab (will be replaced when opening another file) */
   isPreview: boolean;
-  /** Whether the file has unsaved changes */
+  /** Whether the file was ever edited - controls tab replacement logic only */
   isDirty: boolean;
+  /** Whether the current content differs from the last saved state - controls UI indicators */
+  hasUnsavedChanges: boolean;
+  /** Monaco alternative version ID at the time of last save/load */
+  savedVersionId: number;
   /** Extension ID in "namespace.name" format (only when source === 'extension') */
   extensionId?: string;
 }
@@ -217,7 +221,7 @@ function TabItem({ tab, isActive, onSelect, onClose, isDragging = false }: TabIt
       data-testid={`editor-tab-${tab.id}`}
     >
       {/* Dirty indicator */}
-      {tab.isDirty ? (
+      {tab.hasUnsavedChanges ? (
         <span
           className="w-2 h-2 rounded-full bg-[var(--color-text-secondary)] flex-shrink-0"
           data-testid={`editor-tab-dirty-${tab.id}`}
@@ -242,7 +246,7 @@ function TabItem({ tab, isActive, onSelect, onClose, isDragging = false }: TabIt
         onClick={onClose}
         className={`
           ml-1 p-0.5 rounded flex-shrink-0 transition-colors
-          ${(tab.isDirty || isActive)
+          ${(tab.hasUnsavedChanges || isActive)
             ? 'opacity-100'
             : 'opacity-0 group-hover:opacity-100'
           }
@@ -343,7 +347,7 @@ export function EditorTabBar({
   const handleTabClose = useCallback((e: React.MouseEvent, tab: EditorTab) => {
     e.stopPropagation();
 
-    if (tab.isDirty) {
+    if (tab.hasUnsavedChanges) {
       setConfirmDialog({
         isOpen: true,
         tabId: tab.id,

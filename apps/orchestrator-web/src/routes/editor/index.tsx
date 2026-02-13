@@ -323,6 +323,8 @@ export function FileEditorPage() {
         source: 'documents',
         isPreview: false,
         isDirty: false,
+        hasUnsavedChanges: false,
+        savedVersionId: 0, // Will be updated when editor mounts
       };
 
       setTabs(prevTabs => {
@@ -399,6 +401,8 @@ export function FileEditorPage() {
             source: 'workspace',
             isPreview: !pinTab,
             isDirty: false,
+            hasUnsavedChanges: false,
+            savedVersionId: 0, // Will be updated when editor mounts
           };
 
           setTabs(prevTabs => {
@@ -597,6 +601,8 @@ export function FileEditorPage() {
           source: 'workspace',
           isPreview: true,
           isDirty: false,
+          hasUnsavedChanges: false,
+          savedVersionId: 0, // Will be updated when editor mounts
         };
 
         setTabs(prevTabs => {
@@ -669,18 +675,24 @@ export function FileEditorPage() {
     setTabs(newTabs);
   }, []);
 
-  // Handle editor content change — lightweight notification from Monaco's onDidChangeModelContent.
-  // No value is passed (avoids O(n) editor.getValue() per keystroke).
+  // Handle editor content change — receives the current version ID from Monaco's onDidChangeModelContent.
+  // Uses version ID to compute hasUnsavedChanges (comparing against savedVersionId).
   // Content is read on demand from editorRef when saving or switching tabs.
-  const handleEditorChange = useCallback(() => {
+  const handleEditorChange = useCallback((versionId?: number) => {
     if (!activeTabId) return;
 
-    // Only update state once to mark the tab as dirty and pinned
     setTabs(prevTabs => {
       const tab = prevTabs.find(t => t.id === activeTabId);
-      if (!tab || (tab.isDirty && !tab.isPreview)) return prevTabs;
+      if (!tab) return prevTabs;
+
+      const hasUnsavedChanges = versionId !== undefined ? versionId !== tab.savedVersionId : true;
+      const needsUpdate = !tab.isDirty || tab.isPreview || tab.hasUnsavedChanges !== hasUnsavedChanges;
+      if (!needsUpdate) return prevTabs;
+
       return prevTabs.map(t =>
-        t.id === activeTabId ? { ...t, isDirty: true, isPreview: false } : t
+        t.id === activeTabId
+          ? { ...t, isDirty: true, isPreview: false, hasUnsavedChanges }
+          : t
       );
     });
   }, [activeTabId]);
@@ -691,7 +703,7 @@ export function FileEditorPage() {
     if (!targetTabId) return;
 
     const tab = tabs.find(t => t.id === targetTabId);
-    if (!tab || !tab.isDirty) return;
+    if (!tab || !tab.hasUnsavedChanges) return;
 
     // Only workspace files can be saved (not documents - they use the API)
     if (tab.source !== 'workspace') {
@@ -718,10 +730,17 @@ export function FileEditorPage() {
       };
       await writeFile(entry, content);
 
-      // Sync content to tab state and mark as clean
+      // Get current version ID from editor after save
+      const currentVersionId = (targetTabId === activeTabId && editorRef.current)
+        ? editorRef.current.getModel()?.getAlternativeVersionId() ?? 0
+        : tab.savedVersionId;
+
+      // Sync content to tab state and mark as clean with updated savedVersionId
       setTabs(prevTabs =>
         prevTabs.map(t =>
-          t.id === targetTabId ? { ...t, content, isDirty: false } : t
+          t.id === targetTabId
+            ? { ...t, content, isDirty: false, hasUnsavedChanges: false, savedVersionId: currentVersionId }
+            : t
         )
       );
 
@@ -783,6 +802,8 @@ export function FileEditorPage() {
       source: 'extension',
       isPreview: false,
       isDirty: false,
+      hasUnsavedChanges: false,
+      savedVersionId: 0,
       extensionId: `${ext.namespace}.${ext.name}`,
     };
 
@@ -846,6 +867,20 @@ export function FileEditorPage() {
   // Handle Monaco editor mount - store reference for navigation
   const handleEditorDidMount = useCallback((editor: monaco.editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
+  }, []);
+
+  // Handle editor ready - capture initial savedVersionId for the active tab
+  const handleEditorReady = useCallback((versionId: number) => {
+    const currentTabId = activeTabIdRef.current;
+    if (!currentTabId) return;
+
+    setTabs(prevTabs =>
+      prevTabs.map(t =>
+        t.id === currentTabId && t.savedVersionId === 0
+          ? { ...t, savedVersionId: versionId }
+          : t
+      )
+    );
   }, []);
 
   // Get language info for display
@@ -1104,16 +1139,16 @@ export function FileEditorPage() {
                     {activeTab.source === 'workspace' && (
                       <button
                         onClick={() => handleSaveFile()}
-                        disabled={!activeTab.isDirty || isSaving}
+                        disabled={!activeTab.hasUnsavedChanges || isSaving}
                         className={`
                           flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded transition-colors
-                          ${activeTab.isDirty
+                          ${activeTab.hasUnsavedChanges
                             ? 'text-[var(--color-primary)] hover:bg-[var(--color-surface)] cursor-pointer'
                             : 'text-[var(--color-text-muted)] cursor-not-allowed'
                           }
                           disabled:opacity-50
                         `}
-                        title={activeTab.isDirty ? 'Save (Cmd+S)' : 'No unsaved changes'}
+                        title={activeTab.hasUnsavedChanges ? 'Save (Cmd+S)' : 'No unsaved changes'}
                         data-testid="save-button"
                       >
                         {isSaving ? (
@@ -1139,6 +1174,7 @@ export function FileEditorPage() {
                   readOnly={activeTab.source === 'documents'}
                   onChange={handleEditorChange}
                   onMount={handleEditorDidMount}
+                  onReady={handleEditorReady}
                   onLspStateChange={setLspState}
                   filePath={activeTab.source === 'workspace' ? activeTab.path : undefined}
                   className="flex-1"

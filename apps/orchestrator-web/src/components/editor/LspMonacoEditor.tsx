@@ -64,10 +64,12 @@ interface LspMonacoEditorProps {
   language: string;
   /** Whether the editor is read-only */
   readOnly?: boolean;
-  /** Callback when content changes (lightweight notification, no value) */
-  onChange?: () => void;
-  /** Callback when editor mounts */
+  /** Callback when content changes. Passes the current model's alternative version ID for tracking unsaved changes. */
+  onChange?: (versionId?: number) => void;
+  /** Callback when editor mounts. Passes the initial version ID for savedVersionId tracking. */
   onMount?: (editor: monaco.editor.IStandaloneCodeEditor, monacoInstance: typeof monaco) => void;
+  /** Callback when the editor model is ready. Passes the initial version ID for savedVersionId tracking. */
+  onReady?: (versionId: number) => void;
   /** Custom theme name */
   theme?: string;
   /** Additional CSS class for container */
@@ -177,6 +179,7 @@ function LspMonacoEditorComponent({
   readOnly = false,
   onChange,
   onMount,
+  onReady,
   theme = 'elemental-dark',
   className = '',
   filePath,
@@ -246,8 +249,9 @@ function LspMonacoEditorComponent({
 
     // Set up content change listener
     const contentDisposable = editor.onDidChangeModelContent(() => {
-      // Lightweight dirty notification to parent (no value extraction)
-      onChange?.();
+      // Pass the current version ID for hasUnsavedChanges tracking
+      const versionId = editor.getModel()?.getAlternativeVersionId();
+      onChange?.(versionId);
 
       // Debounce LSP didChange — only read model value when the timer fires
       if (didOpenSentRef.current) {
@@ -281,6 +285,12 @@ function LspMonacoEditorComponent({
     // Call onMount callback
     if (onMount) {
       onMount(editor, monaco);
+    }
+
+    // Call onReady with initial version ID for savedVersionId tracking
+    const initialVersionId = model.getAlternativeVersionId();
+    if (onReady) {
+      onReady(initialVersionId);
     }
 
     // Cleanup on unmount
@@ -333,7 +343,12 @@ function LspMonacoEditorComponent({
     prevFilePathRef.current = filePath;
     prevLanguageRef.current = language;
     prevValuePropRef.current = value;
-  }, [filePath, language, value, error]);
+
+    // Call onReady with the new model's version ID for savedVersionId tracking on tab switch
+    if (onReady) {
+      onReady(newModel.getAlternativeVersionId());
+    }
+  }, [filePath, language, value, error, onReady]);
 
   // NOTE: Semantic validation is disabled globally in monaco-init.ts.
   // This ensures the settings are in place BEFORE any editor models are created,
