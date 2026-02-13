@@ -575,6 +575,34 @@ export function createWorkspaceFilesRoutes() {
     }
   });
 
+  // POST /api/workspace/mkdir - Creates a directory (with intermediate directories)
+  app.post('/api/workspace/mkdir', async (c) => {
+    try {
+      const body = await c.req.json() as { path?: string };
+
+      if (!body.path) {
+        return c.json({ error: { code: 'MISSING_PATH', message: 'path is required' } }, 400);
+      }
+
+      // Validate path
+      const validatedPath = validatePath(body.path, workspaceRoot);
+      if (!validatedPath) {
+        return c.json({ error: { code: 'INVALID_PATH', message: 'Path is outside workspace' } }, 400);
+      }
+
+      // Create directory (and any intermediate directories)
+      await mkdir(validatedPath, { recursive: true });
+
+      return c.json({
+        success: true,
+        path: relative(workspaceRoot, validatedPath),
+      });
+    } catch (error) {
+      console.error('[orchestrator] Failed to create directory:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
   // POST /api/workspace/search - Searches file contents
   app.post('/api/workspace/search', async (c) => {
     try {

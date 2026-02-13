@@ -85,6 +85,16 @@ export interface FileDeleteResult {
 }
 
 /**
+ * Result of creating a folder on the server.
+ */
+export interface FolderCreateResult {
+  /** Whether the creation was successful */
+  success: boolean;
+  /** The folder path that was created */
+  path: string;
+}
+
+/**
  * Result of renaming a file on the server.
  */
 export interface FileRenameResult {
@@ -130,6 +140,8 @@ export interface UseServerWorkspaceReturn {
   deleteFile: (path: string) => Promise<FileDeleteResult>;
   /** Rename a file */
   renameFile: (oldPath: string, newPath: string) => Promise<FileRenameResult>;
+  /** Create a folder (with intermediate directories) */
+  createFolder: (path: string) => Promise<FolderCreateResult>;
 }
 
 // ============================================================================
@@ -177,6 +189,12 @@ interface RenameResponse {
   success: boolean;
   oldPath: string;
   newPath: string;
+  error?: { code: string; message: string };
+}
+
+interface MkdirResponse {
+  success: boolean;
+  path: string;
   error?: { code: string; message: string };
 }
 
@@ -465,6 +483,37 @@ export function useServerWorkspace(): UseServerWorkspaceReturn {
     };
   }, [queryClient]);
 
+  /**
+   * Create a folder (with intermediate directories).
+   */
+  const createFolder = useCallback(async (path: string): Promise<FolderCreateResult> => {
+    const response = await fetch('/api/workspace/mkdir', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ path }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: { message: 'Failed to create folder' } }));
+      throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json() as MkdirResponse;
+    if (data.error) {
+      throw new Error(data.error.message);
+    }
+
+    // Invalidate the workspace tree query to refresh the file tree
+    await queryClient.invalidateQueries({ queryKey: WORKSPACE_TREE_QUERY_KEY });
+
+    return {
+      success: data.success,
+      path: data.path,
+    };
+  }, [queryClient]);
+
   return {
     isSupported: true,
     isOpen,
@@ -481,6 +530,7 @@ export function useServerWorkspace(): UseServerWorkspaceReturn {
     writeFile,
     deleteFile,
     renameFile,
+    createFolder,
   };
 }
 

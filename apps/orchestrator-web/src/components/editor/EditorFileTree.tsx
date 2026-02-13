@@ -14,6 +14,8 @@ import {
   useEffect,
   createContext,
   useContext,
+  forwardRef,
+  useImperativeHandle,
 } from 'react';
 import { Tree, NodeRendererProps, NodeApi } from 'react-arborist';
 import * as ContextMenu from '@radix-ui/react-context-menu';
@@ -633,6 +635,14 @@ function getParentPath(path: string): string {
 // Main Component
 // ============================================================================
 
+/**
+ * Imperative handle exposed by EditorFileTree via forwardRef.
+ */
+export interface EditorFileTreeHandle {
+  /** Collapse all expanded folders in the tree */
+  closeAll: () => void;
+}
+
 interface EditorFileTreeProps {
   /** Workspace file entries (for workspace mode) */
   workspaceEntries?: FileEntry[];
@@ -658,7 +668,7 @@ interface EditorFileTreeProps {
   className?: string;
 }
 
-export function EditorFileTree({
+export const EditorFileTree = forwardRef<EditorFileTreeHandle, EditorFileTreeProps>(function EditorFileTree({
   workspaceEntries = [],
   documents = [],
   source,
@@ -670,10 +680,15 @@ export function EditorFileTree({
   onPasteFile,
   workspaceRoot,
   className = '',
-}: EditorFileTreeProps) {
+}: EditorFileTreeProps, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<any>(null);
   const [treeHeight, setTreeHeight] = useState(400);
+
+  // Expose imperative handle for parent to call closeAll
+  useImperativeHandle(ref, () => ({
+    closeAll: () => treeRef.current?.closeAll(),
+  }));
 
   // Context menu state
   const [clipboard, setClipboard] = useState<ClipboardState | null>(null);
@@ -911,4 +926,4 @@ export function EditorFileTree({
       </div>
     </FileTreeContextMenuContext.Provider>
   );
-}
+});

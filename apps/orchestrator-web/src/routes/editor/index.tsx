@@ -33,8 +33,11 @@ import {
   CheckCircle,
   Settings,
   Puzzle,
+  FilePlus,
+  FolderPlus,
+  FoldVertical,
 } from 'lucide-react';
-import { EditorFileTree, type FileTreeNodeData, type FileSource } from '../../components/editor/EditorFileTree';
+import { EditorFileTree, type FileTreeNodeData, type FileSource, type EditorFileTreeHandle } from '../../components/editor/EditorFileTree';
 import { EditorSearchPanel, type EditorSearchPanelRef } from '../../components/editor/EditorSearchPanel';
 import { EditorSettingsPanel } from '../../components/editor/EditorSettingsPanel';
 import { EditorExtensionsPanel } from '../../components/editor/EditorExtensionsPanel';
@@ -242,6 +245,15 @@ export function FileEditorPage() {
   const contentCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lspState, setLspState] = useState<LspState>('idle');
 
+  // File tree ref for imperative actions (e.g., collapse all)
+  const fileTreeRef = useRef<EditorFileTreeHandle>(null);
+
+  // New File / New Folder popup state
+  const [createPopup, setCreatePopup] = useState<{ type: 'file' | 'folder' } | null>(null);
+  const [createPopupValue, setCreatePopupValue] = useState('');
+  const [createPopupError, setCreatePopupError] = useState<string | null>(null);
+  const createPopupInputRef = useRef<HTMLInputElement>(null);
+
   // Initialize Monaco before rendering the editor
   useEffect(() => {
     let mounted = true;
@@ -286,6 +298,7 @@ export function FileEditorPage() {
     readFileByPath,
     writeFile,
     refreshTree,
+    createFolder,
   } = useWorkspace();
 
   // Save state
@@ -906,6 +919,70 @@ export function FileEditorPage() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [activeTabId, handleTabClose, handleSaveFile]);
 
+  // --- New File / New Folder / Collapse All handlers ---
+
+  const handleOpenCreatePopup = useCallback((type: 'file' | 'folder') => {
+    setCreatePopup({ type });
+    setCreatePopupValue('');
+    setCreatePopupError(null);
+    // Focus the input after render
+    setTimeout(() => createPopupInputRef.current?.focus(), 50);
+  }, []);
+
+  const handleCloseCreatePopup = useCallback(() => {
+    setCreatePopup(null);
+    setCreatePopupValue('');
+    setCreatePopupError(null);
+  }, []);
+
+  const handleCreateSubmit = useCallback(async () => {
+    if (!createPopup) return;
+
+    const trimmedPath = createPopupValue.trim();
+    if (!trimmedPath) {
+      setCreatePopupError('Please enter a name');
+      return;
+    }
+
+    // Basic validation: no leading/trailing slashes, no double slashes
+    if (trimmedPath.startsWith('/') || trimmedPath.endsWith('/') || trimmedPath.includes('//')) {
+      setCreatePopupError('Invalid path format');
+      return;
+    }
+
+    try {
+      if (createPopup.type === 'file') {
+        // Extract filename from path
+        const parts = trimmedPath.split('/');
+        const filename = parts[parts.length - 1];
+        // Create file with empty content using writeFile (server creates parent dirs)
+        await writeFile(
+          { id: trimmedPath, name: filename, type: 'file', path: trimmedPath },
+          ''
+        );
+        await refreshTree();
+        // Open the newly created file in the editor
+        handleSelectFile({
+          id: trimmedPath,
+          name: filename,
+          nodeType: 'file',
+          path: trimmedPath,
+        });
+      } else {
+        // Create folder using dedicated mkdir endpoint
+        await createFolder(trimmedPath);
+        await refreshTree();
+      }
+      handleCloseCreatePopup();
+    } catch (err) {
+      setCreatePopupError(err instanceof Error ? err.message : 'Failed to create');
+    }
+  }, [createPopup, createPopupValue, writeFile, createFolder, refreshTree, handleSelectFile, handleCloseCreatePopup]);
+
+  const handleCollapseAll = useCallback(() => {
+    fileTreeRef.current?.closeAll();
+  }, []);
+
   // Determine loading state
   const isTreeLoading = fileSource === 'workspace' ? workspaceLoading : documentsLoading;
   const isContentLoading = fileSource === 'documents' ? docContentLoading : isLoadingFile;
@@ -1006,6 +1083,27 @@ export function FileEditorPage() {
                     >
                       <RefreshCw className={`w-3 h-3 ${workspaceLoading ? 'animate-spin' : ''}`} />
                     </button>
+                    <button
+                      onClick={() => handleOpenCreatePopup('file')}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] rounded transition-colors"
+                      title="New File"
+                    >
+                      <FilePlus className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => handleOpenCreatePopup('folder')}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] rounded transition-colors"
+                      title="New Folder"
+                    >
+                      <FolderPlus className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={handleCollapseAll}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] rounded transition-colors"
+                      title="Collapse All"
+                    >
+                      <FoldVertical className="w-3 h-3" />
+                    </button>
                     <span className="flex-1 text-xs text-[var(--color-text-muted)] truncate ml-1">
                       {workspaceName || 'Workspace'}
                     </span>
@@ -1034,6 +1132,7 @@ export function FileEditorPage() {
                   </div>
                 ) : (
                   <EditorFileTree
+                    ref={fileTreeRef}
                     workspaceEntries={workspaceEntries}
                     documents={documents}
                     source={fileSource}
@@ -1249,6 +1348,66 @@ export function FileEditorPage() {
           ) : null}
         </div>
       </div>
+
+      {/* New File / New Folder popup dialog */}
+      {createPopup && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={handleCloseCreatePopup}>
+          <div
+            className="bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg shadow-xl w-full max-w-sm p-4"
+            onClick={(e) => e.stopPropagation()}
+            data-testid="create-popup-dialog"
+          >
+            <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">
+              {createPopup.type === 'file' ? 'New File' : 'New Folder'}
+            </h3>
+            <label className="block text-xs text-[var(--color-text-secondary)] mb-1">
+              {createPopup.type === 'file' ? 'Enter file name:' : 'Enter folder name:'}
+            </label>
+            <input
+              ref={createPopupInputRef}
+              type="text"
+              value={createPopupValue}
+              onChange={(e) => {
+                setCreatePopupValue(e.target.value);
+                setCreatePopupError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleCreateSubmit();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  handleCloseCreatePopup();
+                }
+              }}
+              placeholder={createPopup.type === 'file' ? 'e.g. src/utils/helpers.ts' : 'e.g. src/components/ui'}
+              className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded px-3 py-1.5 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] transition-colors"
+              data-testid="create-popup-input"
+            />
+            {createPopupError && (
+              <p className="text-xs text-[var(--color-danger)] mt-1" data-testid="create-popup-error">
+                {createPopupError}
+              </p>
+            )}
+            <div className="flex justify-end gap-2 mt-3">
+              <button
+                onClick={handleCloseCreatePopup}
+                className="px-3 py-1.5 text-xs font-medium text-[var(--color-text)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] rounded transition-colors"
+                data-testid="create-popup-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateSubmit}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-[var(--color-primary)] hover:opacity-90 rounded transition-colors"
+                data-testid="create-popup-submit"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
