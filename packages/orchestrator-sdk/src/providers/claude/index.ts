@@ -9,7 +9,7 @@
 
 import { query as sdkQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { ModelInfo as SDKModelInfo } from '@anthropic-ai/claude-agent-sdk';
-import type { AgentProvider, HeadlessProvider, InteractiveProvider, ModelInfo } from '../types.js';
+import { ProviderError, type AgentProvider, type HeadlessProvider, type InteractiveProvider, type ModelInfo } from '../types.js';
 import { ClaudeHeadlessProvider } from './headless.js';
 import { ClaudeInteractiveProvider } from './interactive.js';
 
@@ -42,14 +42,23 @@ export class ClaudeAgentProvider implements AgentProvider {
     // Create a temporary query instance to access supportedModels().
     // We use a minimal prompt and immediately close the query to avoid
     // actually running a session - we just need the query object's methods.
-    const queryInstance = sdkQuery({
-      prompt: '',
-      options: {
-        // Use bypassPermissions to avoid permission prompts
-        permissionMode: 'bypassPermissions',
-        allowDangerouslySkipPermissions: true,
-      },
-    });
+    let queryInstance;
+    try {
+      queryInstance = sdkQuery({
+        prompt: '',
+        options: {
+          // Use bypassPermissions to avoid permission prompts
+          permissionMode: 'bypassPermissions',
+          allowDangerouslySkipPermissions: true,
+        },
+      });
+    } catch (error) {
+      // SDK query creation failed (e.g., missing executable, spawn error)
+      throw new ProviderError(
+        `Failed to initialize Claude SDK query: ${error instanceof Error ? error.message : String(error)}`,
+        'claude'
+      );
+    }
 
     try {
       const sdkModels: SDKModelInfo[] = await queryInstance.supportedModels();
@@ -70,6 +79,12 @@ export class ClaudeAgentProvider implements AgentProvider {
           ...(index === 0 ? { isDefault: true } : {}),
         };
       });
+    } catch (error) {
+      // SDK query failed (e.g., auth error, process crash, "Query closed before response")
+      throw new ProviderError(
+        `Failed to list models from Claude SDK: ${error instanceof Error ? error.message : String(error)}`,
+        'claude'
+      );
     } finally {
       // Always close the query to clean up resources
       queryInstance.close();

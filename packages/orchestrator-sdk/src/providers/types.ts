@@ -179,3 +179,21 @@ export interface AgentProvider {
   /** List available models for this provider */
   listModels(): Promise<ModelInfo[]>;
 }
+
+// ============================================================================
+// Provider Errors
+// ============================================================================
+
+/**
+ * Error thrown when a provider operation fails (e.g., SDK crash, auth failure).
+ * Route handlers can catch this to return 503 instead of 500.
+ */
+export class ProviderError extends Error {
+  readonly providerName: string;
+
+  constructor(message: string, providerName: string) {
+    super(message);
+    this.name = 'ProviderError';
+    this.providerName = providerName;
+  }
+}

@@ -22,6 +22,9 @@ export type {
   ModelInfo,
 } from './types.js';
 
+// Errors
+export { ProviderError } from './types.js';
+
 // Registry
 export {
   AgentProviderRegistry,

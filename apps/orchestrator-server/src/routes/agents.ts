@@ -6,7 +6,7 @@
 
 import { Hono } from 'hono';
 import type { EntityId } from '@elemental/core';
-import { getProviderRegistry } from '@elemental/orchestrator-sdk/providers';
+import { getProviderRegistry, ProviderError } from '@elemental/orchestrator-sdk/providers';
 import type { Services } from '../services.js';
 import { formatSessionRecord } from '../formatters.js';
 
@@ -429,6 +429,20 @@ export function createAgentRoutes(services: Services) {
       const models = await provider.listModels();
       return c.json({ models });
     } catch (error) {
+      // ProviderError indicates the provider SDK failed (auth, process crash, etc.)
+      // — treat as 503 (service unavailable) rather than 500 (internal server error)
+      if (error instanceof ProviderError) {
+        console.warn('[orchestrator] Provider error listing models:', error.message);
+        return c.json(
+          {
+            error: {
+              code: 'PROVIDER_UNAVAILABLE',
+              message: error.message,
+            },
+          },
+          503
+        );
+      }
       console.error('[orchestrator] Failed to list provider models:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
     }

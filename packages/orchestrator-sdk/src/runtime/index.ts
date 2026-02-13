@@ -143,4 +143,6 @@ export {
   OpenCodeAgentProvider,
   OpenCodeHeadlessProvider,
   OpenCodeInteractiveProvider,
+  // Errors
+  ProviderError,
 } from '../providers/index.js';
