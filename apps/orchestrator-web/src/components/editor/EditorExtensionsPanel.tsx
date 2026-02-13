@@ -16,7 +16,8 @@ import {
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
-import { useExtensionManager } from '../../lib/extensions';
+import { VirtualizedList } from '../shared/VirtualizedList';
+import { useExtensionManager, type InstalledExtension } from '../../lib/extensions';
 import {
   searchExtensions,
   getExtensionMetadata,
@@ -52,6 +53,14 @@ interface CompatibilityInfo {
   reasons: string[];
   checkedAt: number;
 }
+
+/** Item types for the virtualized list */
+type ListItem =
+  | { type: 'installed-header' }
+  | { type: 'installed-card'; ext: InstalledExtension }
+  | { type: 'search-card'; ext: OpenVSXExtensionSummary; extId: string; compatibility: CompatibilityInfo | undefined }
+  | { type: 'empty-state'; variant: 'no-results' | 'browse' | 'find-more' }
+  | { type: 'error'; message: string };
 
 // ============================================================================
 // Constants
@@ -336,6 +345,65 @@ export function EditorExtensionsPanel({ className = '' }: EditorExtensionsPanelP
     );
   }, [searchState.results, isExtensionInstalled]);
 
+  // Build flat list of items for virtualization
+  const listItems = useMemo((): ListItem[] => {
+    const items: ListItem[] = [];
+
+    // Error state
+    if (searchState.error) {
+      items.push({ type: 'error', message: searchState.error });
+    }
+
+    // Installed section header (if there are installed extensions)
+    if (showInstalled) {
+      items.push({ type: 'installed-header' });
+
+      // Installed extension cards (if expanded)
+      if (installedExpanded) {
+        for (const ext of installed) {
+          items.push({ type: 'installed-card', ext });
+        }
+      }
+    }
+
+    // Search results
+    if (showResults) {
+      for (const ext of filteredResults) {
+        const extId = `${ext.namespace}.${ext.name}`;
+        const compatibility = getCompatibilityInfo(ext.namespace, ext.name);
+        items.push({ type: 'search-card', ext, extId, compatibility });
+      }
+    }
+
+    // No results
+    if (showNoResults) {
+      items.push({ type: 'empty-state', variant: 'no-results' });
+    }
+
+    // Empty state - no search and no installed
+    if (!hasQuery && !showInstalled && !searchState.isSearching) {
+      items.push({ type: 'empty-state', variant: 'browse' });
+    }
+
+    // Empty state - no search but has installed (and collapsed)
+    if (!hasQuery && showInstalled && !installedExpanded && !searchState.isSearching) {
+      items.push({ type: 'empty-state', variant: 'find-more' });
+    }
+
+    return items;
+  }, [
+    searchState.error,
+    showInstalled,
+    installedExpanded,
+    installed,
+    showResults,
+    filteredResults,
+    getCompatibilityInfo,
+    showNoResults,
+    hasQuery,
+    searchState.isSearching,
+  ]);
+
   // Cleanup debounce timer on unmount
   useEffect(() => {
     return () => {
@@ -408,123 +476,155 @@ export function EditorExtensionsPanel({ className = '' }: EditorExtensionsPanelP
         )}
       </div>
 
-      {/* Content area */}
-      <div className="flex-1 overflow-y-auto" data-testid="extensions-content">
-        {/* Installed extensions section */}
-        {showInstalled && (
-          <div className="border-b border-[var(--color-border)]">
-            {/* Section header */}
-            <button
-              onClick={() => setInstalledExpanded(!installedExpanded)}
-              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[var(--color-surface-hover)] transition-colors"
-              data-testid="extensions-installed-header"
-            >
-              {installedExpanded ? (
-                <ChevronDown className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
-              ) : (
-                <ChevronRight className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
-              )}
-              <span className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
-                Installed
-              </span>
-              <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
-                {installed.length}
-              </span>
-            </button>
+      {/* Virtualized content area */}
+      <div className="flex-1 overflow-hidden" data-testid="extensions-content">
+        <VirtualizedList<ListItem>
+          items={listItems}
+          getItemKey={(item, index) => {
+            switch (item.type) {
+              case 'installed-header':
+                return 'installed-header';
+              case 'installed-card':
+                return `installed-${item.ext.id}`;
+              case 'search-card':
+                return `search-${item.extId}`;
+              case 'empty-state':
+                return `empty-${item.variant}`;
+              case 'error':
+                return 'error';
+              default:
+                return index;
+            }
+          }}
+          estimateSize={80}
+          overscan={5}
+          height="100%"
+          renderItem={(item) => {
+            switch (item.type) {
+              case 'installed-header':
+                return (
+                  <div className="border-b border-[var(--color-border)]">
+                    <button
+                      onClick={() => setInstalledExpanded(!installedExpanded)}
+                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[var(--color-surface-hover)] transition-colors"
+                      data-testid="extensions-installed-header"
+                    >
+                      {installedExpanded ? (
+                        <ChevronDown className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+                      ) : (
+                        <ChevronRight className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+                      )}
+                      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+                        Installed
+                      </span>
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
+                        {installed.length}
+                      </span>
+                    </button>
+                  </div>
+                );
 
-            {/* Installed extensions list */}
-            {installedExpanded && (
-              <div data-testid="extensions-installed-list">
-                {installed.map((ext) => (
-                  <ExtensionCard
-                    key={ext.id}
-                    extension={{
-                      url: '',
-                      name: ext.manifest.name,
-                      namespace: ext.manifest.publisher,
-                      version: ext.version,
-                      displayName: ext.manifest.displayName,
-                      description: ext.manifest.description,
-                      files: {},
-                    }}
-                    isInstalled={true}
-                    installedInfo={ext}
-                    isInstalling={false}
-                    isUninstalling={uninstallingIds.has(ext.id)}
-                    onInstall={handleInstall}
-                    onUninstall={handleUninstall}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+              case 'installed-card':
+                return (
+                  <div data-testid="extensions-installed-list">
+                    <ExtensionCard
+                      extension={{
+                        url: '',
+                        name: item.ext.manifest.name,
+                        namespace: item.ext.manifest.publisher,
+                        version: item.ext.version,
+                        displayName: item.ext.manifest.displayName,
+                        description: item.ext.manifest.description,
+                        files: {},
+                      }}
+                      isInstalled={true}
+                      installedInfo={item.ext}
+                      isInstalling={false}
+                      isUninstalling={uninstallingIds.has(item.ext.id)}
+                      onInstall={handleInstall}
+                      onUninstall={handleUninstall}
+                    />
+                  </div>
+                );
 
-        {/* Search error */}
-        {searchState.error && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-[var(--color-danger)]/10 text-[var(--color-danger)] text-xs">
-            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>{searchState.error}</span>
-          </div>
-        )}
+              case 'search-card':
+                return (
+                  <div data-testid="extensions-search-results">
+                    <ExtensionCard
+                      extension={item.ext}
+                      isInstalled={false}
+                      isInstalling={installing.has(item.extId)}
+                      isUninstalling={false}
+                      isIncompatible={item.compatibility?.isCompatible === false}
+                      incompatibilityReasons={item.compatibility?.reasons}
+                      onInstall={handleInstall}
+                      onUninstall={handleUninstall}
+                    />
+                  </div>
+                );
 
-        {/* Search results */}
-        {showResults && (
-          <div data-testid="extensions-search-results">
-            {filteredResults.map((ext) => {
-              const extId = `${ext.namespace}.${ext.name}`;
-              const compatibility = getCompatibilityInfo(ext.namespace, ext.name);
-              return (
-                <ExtensionCard
-                  key={extId}
-                  extension={ext}
-                  isInstalled={false}
-                  isInstalling={installing.has(extId)}
-                  isUninstalling={false}
-                  isIncompatible={compatibility?.isCompatible === false}
-                  incompatibilityReasons={compatibility?.reasons}
-                  onInstall={handleInstall}
-                  onUninstall={handleUninstall}
-                />
-              );
-            })}
-          </div>
-        )}
+              case 'empty-state':
+                if (item.variant === 'no-results') {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-8 text-center px-3">
+                      <X className="w-8 h-8 text-[var(--color-text-muted)] mb-3" />
+                      <h4 className="text-sm font-medium text-[var(--color-text)] mb-1">No Results</h4>
+                      <p className="text-xs text-[var(--color-text-secondary)]">
+                        No extensions found for "{searchState.query}"
+                      </p>
+                    </div>
+                  );
+                }
+                if (item.variant === 'browse') {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-8 text-center px-3">
+                      <Package className="w-8 h-8 text-[var(--color-text-muted)] mb-3" />
+                      <h4 className="text-sm font-medium text-[var(--color-text)] mb-1">
+                        Browse Extensions
+                      </h4>
+                      <p className="text-xs text-[var(--color-text-secondary)]">
+                        Search for themes, languages, and snippets
+                      </p>
+                    </div>
+                  );
+                }
+                if (item.variant === 'find-more') {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-8 text-center px-3">
+                      <Search className="w-8 h-8 text-[var(--color-text-muted)] mb-3" />
+                      <h4 className="text-sm font-medium text-[var(--color-text)] mb-1">Find More</h4>
+                      <p className="text-xs text-[var(--color-text-secondary)]">
+                        Search for more extensions above
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
 
-        {/* No results */}
-        {showNoResults && (
-          <div className="flex flex-col items-center justify-center py-8 text-center px-3">
-            <X className="w-8 h-8 text-[var(--color-text-muted)] mb-3" />
-            <h4 className="text-sm font-medium text-[var(--color-text)] mb-1">No Results</h4>
-            <p className="text-xs text-[var(--color-text-secondary)]">
-              No extensions found for "{searchState.query}"
-            </p>
-          </div>
-        )}
+              case 'error':
+                return (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-[var(--color-danger)]/10 text-[var(--color-danger)] text-xs">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>{item.message}</span>
+                  </div>
+                );
 
-        {/* Empty state - no search and no installed */}
-        {!hasQuery && !showInstalled && !searchState.isSearching && (
-          <div className="flex flex-col items-center justify-center py-8 text-center px-3">
-            <Package className="w-8 h-8 text-[var(--color-text-muted)] mb-3" />
-            <h4 className="text-sm font-medium text-[var(--color-text)] mb-1">
-              Browse Extensions
-            </h4>
-            <p className="text-xs text-[var(--color-text-secondary)]">
-              Search for themes, languages, and snippets
-            </p>
-          </div>
-        )}
-
-        {/* Empty state - no search but has installed */}
-        {!hasQuery && showInstalled && !installedExpanded && !searchState.isSearching && (
-          <div className="flex flex-col items-center justify-center py-8 text-center px-3">
-            <Search className="w-8 h-8 text-[var(--color-text-muted)] mb-3" />
-            <h4 className="text-sm font-medium text-[var(--color-text)] mb-1">Find More</h4>
-            <p className="text-xs text-[var(--color-text-secondary)]">
-              Search for more extensions above
-            </p>
-          </div>
-        )}
+              default:
+                return null;
+            }
+          }}
+          renderEmpty={() => (
+            <div className="flex flex-col items-center justify-center py-8 text-center px-3">
+              <Package className="w-8 h-8 text-[var(--color-text-muted)] mb-3" />
+              <h4 className="text-sm font-medium text-[var(--color-text)] mb-1">
+                Browse Extensions
+              </h4>
+              <p className="text-xs text-[var(--color-text-secondary)]">
+                Search for themes, languages, and snippets
+              </p>
+            </div>
+          )}
+        />
       </div>
     </div>
   );

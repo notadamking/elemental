@@ -103,6 +103,7 @@ export function ExtensionCard({
             src={iconUrl}
             alt={`${displayName} icon`}
             className="w-full h-full object-cover"
+            loading="lazy"
             onError={(e) => {
               // Fallback to default icon on error
               (e.target as HTMLImageElement).style.display = 'none';
