@@ -71,20 +71,20 @@ export function TaskRow({
         </td>
       )}
       {/* Title */}
-      <td className="px-4 py-3">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium text-[var(--color-text)] truncate max-w-[300px]" title={task.title}>
+      <td className="px-4 py-3 overflow-hidden">
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <span className="text-sm font-medium text-[var(--color-text)] truncate" title={task.title}>
             {highlightedTitle ?? task.title}
           </span>
-          <span className="text-xs text-[var(--color-text-tertiary)] font-mono">
+          <span className="text-xs text-[var(--color-text-tertiary)] font-mono truncate">
             {task.id}
           </span>
         </div>
       </td>
 
       {/* Status */}
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-1.5">
+      <td className="px-4 py-3 overflow-hidden">
+        <div className="flex items-center gap-1.5 min-w-0">
           <TaskStatusBadge
             status={task.status}
             mergeStatus={orchestratorMeta?.mergeStatus}
@@ -120,11 +120,11 @@ export function TaskRow({
       </td>
 
       {/* Assignee */}
-      <td className="px-4 py-3">
+      <td className="px-4 py-3 overflow-hidden">
         {task.assignee ? (
-          <div className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-            <User className="w-4 h-4" />
-            <span className="truncate max-w-[120px]">{assigneeName || task.assignee}</span>
+          <div className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)] min-w-0">
+            <User className="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">{assigneeName || task.assignee}</span>
           </div>
         ) : (
           <span className="text-sm text-[var(--color-text-tertiary)]">Unassigned</span>
@@ -132,11 +132,11 @@ export function TaskRow({
       </td>
 
       {/* Branch */}
-      <td className="px-4 py-3">
+      <td className="px-4 py-3 overflow-hidden">
         {orchestratorMeta?.branch ? (
-          <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
+          <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] min-w-0">
             <GitBranch className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="truncate max-w-[150px] font-mono" title={orchestratorMeta.branch}>
+            <span className="truncate font-mono" title={orchestratorMeta.branch}>
               {orchestratorMeta.branch.split('/').pop()}
             </span>
           </div>
