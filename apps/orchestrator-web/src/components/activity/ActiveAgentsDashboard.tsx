@@ -127,19 +127,30 @@ export function ActiveAgentsDashboard({ onOpenTerminal, onOpenDirectorPanel, onS
       data-testid="active-agents-dashboard"
     >
       {activeAgents.map(({ agent, session, task }) => {
-        // SSE-based real-time output takes priority
+        // Choose the freshest output between SSE real-time data and polling data.
+        // SSE entries can become stale (e.g. after the 100-event cap is hit),
+        // so we compare timestamps to always display the most recent data.
         const sseOutput = outputByAgent.get(agent.id);
-        // Fall back to persisted session message when SSE hasn't provided data
-        let effectiveOutput = sseOutput;
-        if (!effectiveOutput) {
-          const persisted = latestBySession[session.id];
-          if (persisted?.content) {
-            effectiveOutput = {
-              content: persisted.content,
-              timestamp: persisted.timestamp,
-              eventType: persisted.type as AgentOutput['eventType'],
-            };
-          }
+        const persisted = latestBySession[session.id];
+        let effectiveOutput: AgentOutput | undefined;
+
+        if (sseOutput && persisted?.content) {
+          // Both sources have data — use whichever is more recent
+          effectiveOutput = new Date(sseOutput.timestamp) >= new Date(persisted.timestamp)
+            ? sseOutput
+            : {
+                content: persisted.content,
+                timestamp: persisted.timestamp,
+                eventType: persisted.type as AgentOutput['eventType'],
+              };
+        } else if (sseOutput) {
+          effectiveOutput = sseOutput;
+        } else if (persisted?.content) {
+          effectiveOutput = {
+            content: persisted.content,
+            timestamp: persisted.timestamp,
+            eventType: persisted.type as AgentOutput['eventType'],
+          };
         }
 
         return (
