@@ -31,7 +31,7 @@ export function ViewToggle({ view, onViewChange }: ViewToggleProps) {
         title="List view (V L)"
       >
         <List className="w-4 h-4" />
-        <span className="pl-2 hidden sm:inline">List</span>
+        <span className="pl-2 hidden @sm:inline">List</span>
       </button>
       <button
         onClick={() => onViewChange('kanban')}
@@ -45,7 +45,7 @@ export function ViewToggle({ view, onViewChange }: ViewToggleProps) {
         title="Kanban view (V K)"
       >
         <LayoutGrid className="w-4 h-4" />
-        <span className="pl-2 hidden sm:inline">Kanban</span>
+        <span className="pl-2 hidden @sm:inline">Kanban</span>
       </button>
     </div>
   );

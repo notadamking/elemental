@@ -610,7 +610,13 @@ export function TasksPage() {
         />
       )}
 
-      {/* Task Detail Panel - Slide-over */}
+      {/* Task Detail Panel - Slide-over
+        * The parent <main> has @container (container-type: inline-size) which
+        * establishes layout containment. This makes fixed-position descendants
+        * relative to <main> rather than the viewport, preventing the slide-over
+        * from overlapping the director panel. The max-width is also clamped to
+        * 100% of the container to handle very narrow content areas gracefully.
+        */}
       {selectedTaskId && (
         <div className="fixed inset-0 z-40" data-testid="task-detail-overlay">
           {/* Backdrop */}
@@ -618,8 +624,8 @@ export function TasksPage() {
             className="absolute inset-0 bg-black/30"
             onClick={handleCloseDetail}
           />
-          {/* Panel */}
-          <div className="absolute right-0 top-0 h-full w-full max-w-lg bg-[var(--color-surface)] shadow-xl border-l border-[var(--color-border)] animate-slide-in-right">
+          {/* Panel - max-w clamped to container width to prevent overflow */}
+          <div className="absolute right-0 top-0 h-full w-full max-w-[min(32rem,100%)] bg-[var(--color-surface)] shadow-xl border-l border-[var(--color-border)] animate-slide-in-right">
             <TaskDetailPanel taskId={selectedTaskId} onClose={handleCloseDetail} onNavigateToTask={handleSelectTask} />
           </div>
         </div>
@@ -647,7 +653,7 @@ export function TasksPage() {
               placeholder="Search tasks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-3 py-2 text-sm border border-[var(--color-border)] rounded-md bg-[var(--color-input-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent w-48 md:w-64"
+              className="pl-9 pr-3 py-2 text-sm border border-[var(--color-border)] rounded-md bg-[var(--color-input-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent w-48 @md:w-64"
               data-testid="tasks-search"
             />
           </div>
@@ -680,8 +686,8 @@ export function TasksPage() {
             data-testid="tasks-create"
           >
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Create Task</span>
-            <kbd className="hidden sm:inline ml-1 text-xs bg-[var(--color-primary-700)]/50 text-white px-1 py-0.5 rounded">
+            <span className="hidden @sm:inline">Create Task</span>
+            <kbd className="hidden @sm:inline ml-1 text-xs bg-[var(--color-primary-700)]/50 text-white px-1 py-0.5 rounded">
               {formatKeyBinding(getCurrentBinding('action.createTask'))}
             </kbd>
           </button>
