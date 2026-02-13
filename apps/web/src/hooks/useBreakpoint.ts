@@ -141,34 +141,12 @@ export function useWindowSize(): { width: number; height: number } {
   return size;
 }
 
-/**
- * Hook to check if the current device is mobile (xs or sm)
- *
- * @returns true if viewport is mobile-sized
- *
- * @example
- * const isMobile = useIsMobile();
- * if (isMobile) {
- *   // Show mobile-optimized UI
- * }
- */
-export function useIsMobile(): boolean {
-  const breakpoint = useBreakpoint();
-  return breakpoint === 'xs' || breakpoint === 'sm';
-}
-
-/**
- * Hook to check if the current device is tablet (md or lg)
- *
- * @returns true if viewport is tablet-sized
- *
- * @example
- * const isTablet = useIsTablet();
- */
-export function useIsTablet(): boolean {
-  const breakpoint = useBreakpoint();
-  return breakpoint === 'md' || breakpoint === 'lg';
-}
+// useIsMobile and useIsTablet are re-exported from @elemental/ui
+// to ensure consistent breakpoint behavior across the platform.
+// @elemental/ui uses standard Tailwind breakpoints:
+//   - useIsMobile: width < 768px (md breakpoint)
+//   - useIsTablet: 768px <= width < 1024px (md to lg)
+export { useIsMobile, useIsTablet } from '@elemental/ui';
 
 /**
  * Hook to check if the current device is desktop (xl or 2xl)
