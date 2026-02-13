@@ -40,6 +40,7 @@ import {
 } from '@elemental/shared-routes';
 import { notifyClientsOfNewSession } from './websocket.js';
 import { attachSessionEventSaver } from './routes/sessions.js';
+import { notifySSEClientsOfNewSession } from './routes/events.js';
 import { startServer } from './server.js';
 import { shouldDaemonAutoStart, saveDaemonState } from './daemon-state.js';
 import { createLspManager } from './services/lsp-manager.js';
@@ -141,6 +142,14 @@ async function main() {
 
       // Notify WebSocket clients of the resumed session
       notifyClientsOfNewSession(directorId, session, events);
+
+      // Notify SSE stream clients of the resumed session
+      notifySSEClientsOfNewSession({
+        sessionId: session.id,
+        agentId: directorId,
+        agentRole: session.agentRole || 'director',
+        events,
+      });
 
       console.log(`[orchestrator] Director session auto-resumed successfully (session: ${session.id})`);
     } catch (error) {

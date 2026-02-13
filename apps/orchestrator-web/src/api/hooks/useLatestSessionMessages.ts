@@ -57,8 +57,8 @@ export function useLatestSessionMessages(sessionIds: string[]) {
     queryKey,
     queryFn: () => fetchLatestMessages(sortedIds),
     enabled: sortedIds.length > 0,
-    refetchInterval: 5000, // Poll every 5 seconds
-    staleTime: 3000, // Consider data fresh for 3 seconds
+    refetchInterval: 2000, // Poll every 2 seconds for responsive status updates
+    staleTime: 1000, // Consider data fresh for 1 second
   });
 
   return {

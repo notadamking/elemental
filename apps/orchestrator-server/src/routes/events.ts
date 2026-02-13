@@ -6,12 +6,37 @@
 
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
+import { EventEmitter } from 'node:events';
 import type { EntityId, ElementId } from '@elemental/core';
 import { createTimestamp } from '@elemental/core';
 import type { SpawnedSessionEvent } from '@elemental/orchestrator-sdk';
 import { trackListeners } from '@elemental/orchestrator-sdk';
 import type { Services } from '../services.js';
 import { generateActivitySummary } from '../formatters.js';
+
+/**
+ * Global event bus for notifying SSE clients about new sessions.
+ * When a new session starts, SSE streams need to dynamically subscribe
+ * to that session's events. This bus bridges the gap between session
+ * creation (in session routes) and SSE stream handlers (in event routes).
+ */
+const sseSessionBus = new EventEmitter();
+sseSessionBus.setMaxListeners(100); // Support many concurrent SSE clients
+
+interface NewSessionInfo {
+  sessionId: string;
+  agentId: EntityId | string;
+  agentRole: string;
+  events: EventEmitter;
+}
+
+/**
+ * Notify all SSE stream clients that a new session has started.
+ * Call this from session start/resume endpoints after the session is created.
+ */
+export function notifySSEClientsOfNewSession(info: NewSessionInfo): void {
+  sseSessionBus.emit('new-session', info);
+}
 
 export function createEventRoutes(services: Services) {
   const { api, sessionManager, spawnerService, dispatchDaemon } = services;
@@ -127,32 +152,63 @@ export function createEventRoutes(services: Services) {
       });
 
       const sessionCleanups: (() => void)[] = [];
-      const sessions = sessionManager.listSessions({ status: ['starting', 'running'] });
+      // Track which sessions we've already subscribed to (avoid duplicate listeners)
+      const subscribedSessions = new Set<string>();
 
-      for (const session of sessions) {
-        const events = spawnerService.getEventEmitter(session.id);
-        if (events) {
-          const onEvent = async (event: SpawnedSessionEvent) => {
-            if (category === 'agents' || category === 'sessions' || category === 'all') {
+      /**
+       * Subscribe to a session's events and forward them to the SSE stream.
+       * Used both for sessions that exist at connection time and for new sessions
+       * that start while the SSE connection is open.
+       */
+      const subscribeToSession = (
+        sessionId: string,
+        agentId: EntityId | string,
+        agentRole: string,
+        sessionEvents: import('events').EventEmitter
+      ) => {
+        if (subscribedSessions.has(sessionId)) return;
+        subscribedSessions.add(sessionId);
+
+        const onEvent = async (event: SpawnedSessionEvent) => {
+          if (category === 'agents' || category === 'sessions' || category === 'all') {
+            try {
               await stream.writeSSE({
                 id: String(++eventId),
                 event: 'session_event',
                 data: JSON.stringify({
                   type: event.type,
-                  sessionId: session.id,
-                  agentId: session.agentId,
-                  agentRole: session.agentRole,
+                  sessionId,
+                  agentId,
+                  agentRole,
                   content: event.message,
                   timestamp: createTimestamp(),
                   // Include tool info for tool events so UI can display activity
                   ...(event.tool && { tool: event.tool.name }),
                 }),
               });
+            } catch {
+              // Stream closed — cleanup will happen via onAbort
             }
-          };
-          sessionCleanups.push(trackListeners(events, { 'event': onEvent }));
+          }
+        };
+        sessionCleanups.push(trackListeners(sessionEvents, { 'event': onEvent }));
+      };
+
+      // Subscribe to all currently running sessions
+      const sessions = sessionManager.listSessions({ status: ['starting', 'running'] });
+
+      for (const session of sessions) {
+        const events = spawnerService.getEventEmitter(session.id);
+        if (events) {
+          subscribeToSession(session.id, session.agentId, session.agentRole, events);
         }
       }
+
+      // Listen for new sessions that start while this SSE connection is open
+      const onNewSession = (info: NewSessionInfo) => {
+        subscribeToSession(info.sessionId, info.agentId, info.agentRole, info.events);
+      };
+      sseSessionBus.on('new-session', onNewSession);
 
       // Forward daemon warnings/errors to SSE clients as toast notifications
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -186,6 +242,7 @@ export function createEventRoutes(services: Services) {
 
       stream.onAbort(() => {
         clearInterval(heartbeatInterval);
+        sseSessionBus.off('new-session', onNewSession);
         for (const cleanup of sessionCleanups) {
           cleanup();
         }

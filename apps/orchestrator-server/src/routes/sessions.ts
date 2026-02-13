@@ -12,6 +12,7 @@ import type { SessionFilter, SpawnedSessionEvent, AgentRole, WorkerMetadata } fr
 import { loadRolePrompt, getAgentMetadata, generateSessionBranchName, generateSessionWorktreePath, trackListeners } from '@elemental/orchestrator-sdk';
 import type { Services } from '../services.js';
 import { formatSessionRecord } from '../formatters.js';
+import { notifySSEClientsOfNewSession } from './events.js';
 
 type NotifyClientsCallback = (
   agentId: EntityId,
@@ -377,6 +378,14 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
 
       notifyClientsOfNewSession(agentId, session, events);
 
+      // Notify SSE stream clients so they dynamically subscribe to this session's events
+      notifySSEClientsOfNewSession({
+        sessionId: session.id,
+        agentId,
+        agentRole: agentRole || 'worker',
+        events,
+      });
+
       return c.json(
         {
           success: true,
@@ -562,6 +571,14 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
       }
 
       notifyClientsOfNewSession(agentId, session, events);
+
+      // Notify SSE stream clients so they dynamically subscribe to this session's events
+      notifySSEClientsOfNewSession({
+        sessionId: session.id,
+        agentId,
+        agentRole: session.agentRole || 'worker',
+        events,
+      });
 
       return c.json({ success: true, session: formatSessionRecord(session), uwpCheck }, 201);
     } catch (error) {

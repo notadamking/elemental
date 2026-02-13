@@ -43,6 +43,7 @@ import {
   trackListeners,
 } from '@elemental/orchestrator-sdk';
 import { attachSessionEventSaver } from './routes/sessions.js';
+import { notifySSEClientsOfNewSession } from './routes/events.js';
 import { DB_PATH, PROJECT_ROOT, getClaudePath } from './config.js';
 
 export interface Services {
@@ -151,6 +152,14 @@ export async function initializeServices(): Promise<Services> {
     const onSessionStarted: OnSessionStartedCallback = (session, events, agentId, initialPrompt) => {
       // Attach event saver to capture all agent events
       attachSessionEventSaver(events, session.id, agentId, sessionMessageService);
+
+      // Notify SSE stream clients so they dynamically subscribe to this session's events
+      notifySSEClientsOfNewSession({
+        sessionId: session.id,
+        agentId: agentId as EntityId,
+        agentRole: session.agentRole || 'worker',
+        events,
+      });
 
       // Store initial prompt for SSE clients
       sessionInitialPrompts.set(session.id, initialPrompt);
