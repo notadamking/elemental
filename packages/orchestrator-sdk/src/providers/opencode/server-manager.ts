@@ -167,18 +167,28 @@ class OpenCodeServerManager {
         return [];
       }
 
-      const models: Array<{ id: string; displayName: string; description?: string }> = [];
+      const models: Array<{ id: string; displayName: string; description?: string; isDefault?: boolean }> = [];
+
+      // The `default` map contains role -> "providerID/modelID" entries for default models
+      const defaults = response.data.default ?? {};
+      const defaultModelIds = new Set(Object.values(defaults));
 
       for (const provider of response.data.providers) {
         if (!provider.models) continue;
 
-        for (const [modelKey, model] of Object.entries(provider.models)) {
+        // Handle models as either a Record or an Array
+        const entries: Array<[string, OpencodeModel]> = Array.isArray(provider.models)
+          ? (provider.models as OpencodeModel[]).map((m) => [m.id, m] as [string, OpencodeModel])
+          : Object.entries(provider.models);
+
+        for (const [modelKey, model] of entries) {
           // Format ID as providerID/modelID
           const id = `${provider.id}/${modelKey}`;
           models.push({
             id,
             displayName: model.name || modelKey,
             description: undefined, // OpenCode SDK doesn't provide model descriptions
+            ...(defaultModelIds.has(id) ? { isDefault: true } : {}),
           });
         }
       }

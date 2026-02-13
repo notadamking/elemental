@@ -266,7 +266,7 @@ export function createAgentRoutes(services: Services) {
   app.patch('/api/agents/:id', async (c) => {
     try {
       const agentId = c.req.param('id') as EntityId;
-      const body = (await c.req.json()) as { name?: string; provider?: string; model?: string };
+      const body = (await c.req.json()) as { name?: string; provider?: string; model?: string | null };
 
       const agent = await agentRegistry.getAgent(agentId);
       if (!agent) {
@@ -281,8 +281,8 @@ export function createAgentRoutes(services: Services) {
         return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Provider must be a non-empty string' } }, 400);
       }
 
-      if (body.model !== undefined && (typeof body.model !== 'string' || body.model.trim().length === 0)) {
-        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Model must be a non-empty string' } }, 400);
+      if (body.model !== undefined && body.model !== null && (typeof body.model !== 'string' || body.model.trim().length === 0)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Model must be a non-empty string or null' } }, 400);
       }
 
       // Update name if provided
@@ -296,9 +296,11 @@ export function createAgentRoutes(services: Services) {
         updatedAgent = await agentRegistry.updateAgentMetadata(agentId, { provider: body.provider.trim() });
       }
 
-      // Update model in agent metadata if provided
+      // Update model in agent metadata if provided (null clears the override)
       if (body.model !== undefined) {
-        updatedAgent = await agentRegistry.updateAgentMetadata(agentId, { model: body.model.trim() });
+        updatedAgent = await agentRegistry.updateAgentMetadata(agentId, {
+          model: body.model === null ? undefined : body.model.trim(),
+        });
       }
 
       return c.json({ agent: updatedAgent });

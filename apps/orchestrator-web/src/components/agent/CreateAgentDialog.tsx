@@ -737,7 +737,14 @@ export function CreateAgentDialog({
                           "
                           data-testid="agent-model"
                         >
-                          <option value="">(Default)</option>
+                          {(() => {
+                            const defaultModel = models.find(m => m.isDefault);
+                            return (
+                              <option value="">
+                                {defaultModel ? `Default (${defaultModel.displayName})` : '(Default)'}
+                              </option>
+                            );
+                          })()}
                           {models.map(m => (
                             <option key={m.id} value={m.id}>
                               {m.displayName}

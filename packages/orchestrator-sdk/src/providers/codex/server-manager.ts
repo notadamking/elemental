@@ -29,7 +29,7 @@ export interface CodexModelInfo {
 /** Typed facade over the JSON-RPC client for Codex app-server operations */
 export interface CodexClient {
   model: {
-    list(params?: { limit?: number }): Promise<{ models: CodexModelInfo[] }>;
+    list(params?: { limit?: number }): Promise<{ models?: CodexModelInfo[]; data?: CodexModelInfo[] }>;
   };
   thread: {
     start(params: {
@@ -202,7 +202,7 @@ class CodexServerManager {
 
     const client: CodexClient = {
       model: {
-        list: (params) => rpcClient.request('model/list', params ?? {}) as Promise<{ models: CodexModelInfo[] }>,
+        list: (params) => rpcClient.request('model/list', params ?? {}) as Promise<{ models?: CodexModelInfo[]; data?: CodexModelInfo[] }>,
       },
       thread: {
         start: (params) => rpcClient.request('thread/start', params) as Promise<{ thread: { id: string } }>,

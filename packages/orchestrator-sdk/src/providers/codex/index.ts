@@ -50,11 +50,14 @@ export class CodexAgentProvider implements AgentProvider {
     const client = await serverManager.acquire();
     try {
       const response = await client.model.list({ limit: 50 });
-      // Map Codex model info to our ModelInfo type
-      return (response.models ?? []).map((model) => ({
+      // Handle both { models: [...] } and { data: [...] } response formats
+      const rawModels = response.models ?? (response as { data?: typeof response.models }).data ?? [];
+      // Map Codex model info to our ModelInfo type; mark the first model as default
+      return rawModels.map((model, index) => ({
         id: model.id,
         displayName: model.name ?? model.id,
         description: model.description,
+        ...(index === 0 ? { isDefault: true } : {}),
       }));
     } finally {
       serverManager.release();

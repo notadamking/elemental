@@ -151,6 +151,8 @@ export interface ModelInfo {
   readonly displayName: string;
   /** Optional description of the model's capabilities */
   readonly description?: string;
+  /** Whether this is the provider's default model */
+  readonly isDefault?: boolean;
 }
 
 // ============================================================================

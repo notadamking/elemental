@@ -55,10 +55,12 @@ export class ClaudeAgentProvider implements AgentProvider {
       const sdkModels: SDKModelInfo[] = await queryInstance.supportedModels();
 
       // Map SDK ModelInfo (value, displayName, description) to our ModelInfo (id, displayName, description?)
-      return sdkModels.map((model) => ({
+      // The SDK returns models in default-first order, so mark the first one as default
+      return sdkModels.map((model, index) => ({
         id: model.value,
         displayName: model.displayName,
         description: model.description,
+        ...(index === 0 ? { isDefault: true } : {}),
       }));
     } finally {
       // Always close the query to clean up resources

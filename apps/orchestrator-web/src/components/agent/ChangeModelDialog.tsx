@@ -66,6 +66,7 @@ export function ChangeModelDialog({
   };
 
   const models = modelsData?.models ?? [];
+  const defaultModel = models.find(m => m.isDefault);
   const normalizedCurrent = currentModel ?? '';
   const hasChanged = model !== normalizedCurrent;
 
@@ -159,7 +160,9 @@ export function ChangeModelDialog({
                   "
                   data-testid="change-model-select"
                 >
-                  <option value="">(Default)</option>
+                  <option value="">
+                    {defaultModel ? `Default (${defaultModel.displayName})` : '(Default)'}
+                  </option>
                   {models.map(m => (
                     <option key={m.id} value={m.id}>
                       {m.displayName}

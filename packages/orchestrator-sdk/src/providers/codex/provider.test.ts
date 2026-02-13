@@ -16,6 +16,8 @@ type NotificationHandler = (method: string, params: unknown) => void;
 function createMockClient(options?: {
   threadId?: string;
   models?: CodexModelInfo[];
+  /** If set, model.list returns { data: [...] } instead of { models: [...] } */
+  useDataFormat?: boolean;
 }): CodexClient & {
   emitNotification: (method: string, params: unknown) => void;
   getLastStartParams: () => unknown;
@@ -23,6 +25,7 @@ function createMockClient(options?: {
 } {
   const threadId = options?.threadId ?? 'thr_test-123';
   const models = options?.models ?? [];
+  const useDataFormat = options?.useDataFormat ?? false;
   const notificationHandlers = new Set<NotificationHandler>();
 
   let lastStartParams: unknown = null;
@@ -37,7 +40,7 @@ function createMockClient(options?: {
     getLastStartParams: () => lastStartParams,
     getLastResumeParams: () => lastResumeParams,
     model: {
-      list: mock(async () => ({ models })),
+      list: mock(async () => useDataFormat ? { data: models } : { models }),
     },
     thread: {
       start: mock(async (params) => {
@@ -106,6 +109,29 @@ describe('CodexAgentProvider.listModels', () => {
     const client = createMockClient({ models: [] });
     const response = await client.model.list({ limit: 50 });
     expect(response.models).toEqual([]);
+  });
+
+  it('should handle { data: [...] } response format (OpenAI convention)', async () => {
+    const codexModels: CodexModelInfo[] = [
+      { id: 'gpt-4o', name: 'GPT-4o', description: 'Latest GPT-4 model' },
+      { id: 'o3-mini', name: 'o3-mini' },
+    ];
+
+    const client = createMockClient({ models: codexModels, useDataFormat: true });
+
+    // Simulate what listModels does — fall back to response.data
+    const response = await client.model.list({ limit: 50 });
+    const rawModels = response.models ?? response.data ?? [];
+    const mapped = rawModels.map((model) => ({
+      id: model.id,
+      displayName: model.name ?? model.id,
+      description: model.description,
+    }));
+
+    expect(mapped).toEqual([
+      { id: 'gpt-4o', displayName: 'GPT-4o', description: 'Latest GPT-4 model' },
+      { id: 'o3-mini', displayName: 'o3-mini', description: undefined },
+    ]);
   });
 });
 

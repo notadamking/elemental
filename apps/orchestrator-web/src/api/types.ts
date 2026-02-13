@@ -217,6 +217,7 @@ export interface ModelInfo {
   id: string;
   displayName: string;
   description?: string;
+  isDefault?: boolean;
 }
 
 export interface ProviderModelsResponse {
