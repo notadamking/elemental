@@ -11,3 +11,4 @@ export * from './useMergeRequests';
 export * from './useDaemon';
 export * from './useSessions';
 export * from './usePools';
+export * from './useLatestSessionMessages';

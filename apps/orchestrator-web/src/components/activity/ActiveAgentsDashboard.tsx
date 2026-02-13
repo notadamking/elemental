@@ -8,9 +8,11 @@ import { useAgentsByRole, useSessions } from '../../api/hooks/useAgents.js';
 import { useTasksByStatus } from '../../api/hooks/useTasks.js';
 import { useActiveAgentOutputs } from '../../api/hooks/useActiveAgentOutputs.js';
 import type { RunningSessionInfo } from '../../api/hooks/useActiveAgentOutputs.js';
+import { useLatestSessionMessages } from '../../api/hooks/useLatestSessionMessages.js';
 import { useDaemonStatus } from '../../api/hooks/useDaemon.js';
 import { ActiveAgentCard } from './ActiveAgentCard.js';
 import type { Agent, SessionRecord, Task } from '../../api/types.js';
+import type { AgentOutput } from '../../api/hooks/useActiveAgentOutputs.js';
 
 interface ActiveAgentsDashboardProps {
   onOpenTerminal: (agentId: string) => void;
@@ -35,6 +37,13 @@ export function ActiveAgentsDashboard({ onOpenTerminal, onOpenDirectorPanel, onS
   const { outputByAgent } = useActiveAgentOutputs(runningSessionInfos);
   const { data: daemonStatus } = useDaemonStatus();
   const [stoppingAgents, setStoppingAgents] = useState<Set<string>>(new Set());
+
+  // Collect session IDs for latest messages polling
+  const sessionIds = useMemo(
+    () => runningSessions.map((s) => s.id),
+    [runningSessions]
+  );
+  const { latestBySession } = useLatestSessionMessages(sessionIds);
 
   // Build agent lookup
   const agentMap = useMemo(() => {
@@ -110,22 +119,39 @@ export function ActiveAgentsDashboard({ onOpenTerminal, onOpenDirectorPanel, onS
       className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
       data-testid="active-agents-dashboard"
     >
-      {activeAgents.map(({ agent, session, task }) => (
-        <ActiveAgentCard
-          key={session.id}
-          agent={agent}
-          session={session}
-          currentTask={task}
-          lastOutput={outputByAgent.get(agent.id)}
-          onOpenTerminal={
-            session.agentRole === 'director'
-              ? () => onOpenDirectorPanel()
-              : () => onOpenTerminal(agent.id)
+      {activeAgents.map(({ agent, session, task }) => {
+        // SSE-based real-time output takes priority
+        const sseOutput = outputByAgent.get(agent.id);
+        // Fall back to persisted session message when SSE hasn't provided data
+        let effectiveOutput = sseOutput;
+        if (!effectiveOutput) {
+          const persisted = latestBySession[session.id];
+          if (persisted?.content) {
+            effectiveOutput = {
+              content: persisted.content,
+              timestamp: persisted.timestamp,
+              eventType: persisted.type as AgentOutput['eventType'],
+            };
           }
-          onStop={handleStop}
-          isStopping={stoppingAgents.has(agent.id)}
-        />
-      ))}
+        }
+
+        return (
+          <ActiveAgentCard
+            key={session.id}
+            agent={agent}
+            session={session}
+            currentTask={task}
+            lastOutput={effectiveOutput}
+            onOpenTerminal={
+              session.agentRole === 'director'
+                ? () => onOpenDirectorPanel()
+                : () => onOpenTerminal(agent.id)
+            }
+            onStop={handleStop}
+            isStopping={stoppingAgents.has(agent.id)}
+          />
+        );
+      })}
     </div>
   );
 }
