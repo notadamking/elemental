@@ -84,14 +84,14 @@
     "claude"
   ],
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.23",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.41",
     "@elemental/core": "workspace:*",
     "@elemental/sdk": "workspace:*",
     "@elemental/storage": "workspace:*",
     "node-pty": "^1.1.0"
   },
   "optionalDependencies": {
-    "@opencode-ai/sdk": "^1.1.53"
+    "@opencode-ai/sdk": "^1.1.64"
   },
   "devDependencies": {
     "@types/bun": "latest",

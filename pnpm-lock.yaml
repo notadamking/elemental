@@ -476,8 +476,8 @@ importers:
   packages/orchestrator-sdk:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: ^0.2.23
-        version: 0.2.23(zod@4.3.6)
+        specifier: ^0.2.41
+        version: 0.2.41(zod@4.3.6)
       '@elemental/core':
         specifier: workspace:*
         version: link:../core
@@ -492,8 +492,8 @@ importers:
         version: 1.1.0
     optionalDependencies:
       '@opencode-ai/sdk':
-        specifier: ^1.1.53
-        version: 1.1.53
+        specifier: ^1.1.64
+        version: 1.1.64
     devDependencies:
       '@types/bun':
         specifier: latest
@@ -569,7 +569,7 @@ importers:
         version: 11.10.0
       sql.js:
         specifier: ^1.12.0
-        version: 1.13.0
+        version: 1.14.0
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.13
@@ -643,8 +643,8 @@ packages:
     engines: {node: '>=10'}
     dev: true
 
-  /@anthropic-ai/claude-agent-sdk@0.2.23(zod@4.3.6):
-    resolution: {integrity: sha512-pkY8vQu4cVoy43JaGNlnV7cl7RiaBjwt5kwiYucLqs37B/EUmvcM2LK44CgC9YyPSM0OTTAXaTYy7Bp4hje4UQ==}
+  /@anthropic-ai/claude-agent-sdk@0.2.41(zod@4.3.6):
+    resolution: {integrity: sha512-8qOHvRWWJSULlRnLdJRWYSivDDA0C1szWQx83kXDrFsxMYlPQX3udFzS53GNoJz98rPxUqfH7MjNAc/Vkt7QSQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       zod: ^4.0.0
@@ -1590,8 +1590,8 @@ packages:
     resolution: {integrity: sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw==}
     dev: false
 
-  /@opencode-ai/sdk@1.1.53:
-    resolution: {integrity: sha512-RUIVnPOP1CyyU32FrOOYuE7Ge51lOBuhaFp2NSX98ncApT7ffoNetmwzqrhOiJQgZB1KrbCHLYOCK6AZfacxag==}
+  /@opencode-ai/sdk@1.1.64:
+    resolution: {integrity: sha512-g+bZGx/86JlRTKyPWsD1oFu1SoENIHeKK4LhzWWFToPv4tpN3MSLVGSUsoTSi2XqSd9JzkfPBHPdTeFvqcbzMA==}
     requiresBuild: true
     dev: false
     optional: true
@@ -5545,8 +5545,8 @@ packages:
     engines: {node: '>=0.10.0'}
     dev: true
 
-  /sql.js@1.13.0:
-    resolution: {integrity: sha512-RJbVP1HRDlUUXahJ7VMTcu9Rm1Nzw+EBpoPr94vnbD4LwR715F3CcxE2G2k45PewcaZ57pjetYa+LoSJLAASgA==}
+  /sql.js@1.14.0:
+    resolution: {integrity: sha512-NXYh+kFqLiYRCNAaHD0PcbjFgXyjuolEKLMk5vRt2DgPENtF1kkNzzMlg42dUk5wIsH8MhUzsRhaUxIisoSlZQ==}
     requiresBuild: true
     dev: false
     optional: true
