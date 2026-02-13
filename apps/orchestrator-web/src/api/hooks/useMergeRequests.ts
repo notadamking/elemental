@@ -295,6 +295,8 @@ export function getMergeStatusDisplayName(status: MergeStatus): string {
       return 'Tests Failed';
     case 'failed':
       return 'Failed';
+    case 'not_applicable':
+      return 'No Merge Needed';
     default:
       return status;
   }
