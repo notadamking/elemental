@@ -632,28 +632,44 @@ export function TasksPage() {
       )}
 
       {/* Page header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-[var(--color-primary-muted)]">
-            <CheckSquare className="w-5 h-5 text-[var(--color-primary)]" />
+      <div className="space-y-3">
+        {/* Top row: Title + Create button — always on the same line */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-lg bg-[var(--color-primary-muted)] shrink-0">
+              <CheckSquare className="w-5 h-5 text-[var(--color-primary)]" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-semibold text-[var(--color-text)]">Tasks</h1>
+              <p className="text-sm text-[var(--color-text-secondary)] truncate">
+                Manage and track agent task assignments
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-semibold text-[var(--color-text)]">Tasks</h1>
-            <p className="text-sm text-[var(--color-text-secondary)]">
-              Manage and track agent task assignments
-            </p>
-          </div>
+          {/* Create Button — always visible and right-aligned */}
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-md hover:bg-[var(--color-primary-hover)] transition-colors duration-150 shrink-0"
+            data-testid="tasks-create"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden @sm:inline">Create Task</span>
+            <kbd className="hidden @sm:inline ml-1 text-xs bg-[var(--color-primary-700)]/50 text-white px-1 py-0.5 rounded">
+              {formatKeyBinding(getCurrentBinding('action.createTask'))}
+            </kbd>
+          </button>
         </div>
+        {/* Bottom row: Search + filter controls */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* Search */}
-          <div className="relative">
+          <div className="relative flex-1 min-w-[12rem] max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
             <input
               type="text"
               placeholder="Search tasks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-3 py-2 text-sm border border-[var(--color-border)] rounded-md bg-[var(--color-input-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent w-48 @md:w-64"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-[var(--color-border)] rounded-md bg-[var(--color-input-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
               data-testid="tasks-search"
             />
           </div>
@@ -678,19 +694,6 @@ export function TasksPage() {
 
           {/* View Toggle */}
           <ViewToggle view={viewMode} onViewChange={setViewMode} />
-
-          {/* Create Button */}
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-md hover:bg-[var(--color-primary-hover)] transition-colors duration-150"
-            data-testid="tasks-create"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="hidden @sm:inline">Create Task</span>
-            <kbd className="hidden @sm:inline ml-1 text-xs bg-[var(--color-primary-700)]/50 text-white px-1 py-0.5 rounded">
-              {formatKeyBinding(getCurrentBinding('action.createTask'))}
-            </kbd>
-          </button>
         </div>
       </div>
 
