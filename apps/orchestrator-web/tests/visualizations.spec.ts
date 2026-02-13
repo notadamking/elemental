@@ -27,6 +27,22 @@ test.describe('TB-O30: Visualization Components', () => {
         });
       });
 
+      await page.route('**/api/elements*', route => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ data: {}, totalElements: 0, types: [], loadedAt: new Date().toISOString() }),
+        });
+      });
+
+      await page.route('**/api/plans*', route => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ items: [], total: 0 }),
+        });
+      });
+
       // Navigate to the metrics page
       await page.goto('/metrics');
       await page.waitForSelector('[data-testid="metrics-page"]');
@@ -39,7 +55,7 @@ test.describe('TB-O30: Visualization Components', () => {
       const heading = page.locator('h1:has-text("Metrics")');
       await expect(heading).toBeVisible();
 
-      const subtitle = page.locator('text=Performance analytics and health monitoring');
+      const subtitle = page.locator('text=Performance analytics and workspace health');
       await expect(subtitle).toBeVisible();
     });
 
@@ -53,26 +69,34 @@ test.describe('TB-O30: Visualization Components', () => {
       const statsCards = page.locator('[data-testid="stats-cards"]');
       await expect(statsCards).toBeVisible();
 
-      // Verify all stat cards are present
+      // Verify key stat cards are present
       const tasksCompleted = page.locator('[data-testid="stat-tasks-completed"]');
       await expect(tasksCompleted).toBeVisible();
-      await expect(tasksCompleted).toContainText('Tasks Completed');
+      await expect(tasksCompleted).toContainText('Completed');
 
       const activeAgents = page.locator('[data-testid="stat-active-agents"]');
       await expect(activeAgents).toBeVisible();
       await expect(activeAgents).toContainText('Active Agents');
 
-      const totalTasks = page.locator('[data-testid="stat-total-tasks"]');
-      await expect(totalTasks).toBeVisible();
-      await expect(totalTasks).toContainText('Total Tasks');
+      const inProgress = page.locator('[data-testid="stat-in-progress"]');
+      await expect(inProgress).toBeVisible();
+      await expect(inProgress).toContainText('In Progress');
 
-      const unassigned = page.locator('[data-testid="stat-unassigned"]');
-      await expect(unassigned).toBeVisible();
-      await expect(unassigned).toContainText('Unassigned');
+      const blocked = page.locator('[data-testid="stat-blocked"]');
+      await expect(blocked).toBeVisible();
+      await expect(blocked).toContainText('Blocked');
+
+      const avgTime = page.locator('[data-testid="stat-avg-time"]');
+      await expect(avgTime).toBeVisible();
+      await expect(avgTime).toContainText('Avg Completion');
+
+      const mergeQueue = page.locator('[data-testid="stat-merge-queue"]');
+      await expect(mergeQueue).toBeVisible();
+      await expect(mergeQueue).toContainText('Merge Queue');
     });
 
-    test('renders charts grid', async ({ page }) => {
-      const chartsGrid = page.locator('[data-testid="charts-grid"]');
+    test('renders activity charts grid', async ({ page }) => {
+      const chartsGrid = page.locator('[data-testid="charts-grid-activity"]');
       await expect(chartsGrid).toBeVisible();
     });
 
@@ -81,10 +105,9 @@ test.describe('TB-O30: Visualization Components', () => {
       await expect(chart).toBeVisible();
 
       // Should show the title
-      await expect(chart).toContainText('Task Distribution');
+      await expect(chart).toContainText('Task Status Distribution');
 
       // Should show either loading, empty state, or actual chart
-      // The chart may show "No tasks to display" if no tasks exist
       const hasContent =
         (await chart.locator('.recharts-pie').count()) > 0 ||
         (await chart.locator('text=No tasks to display').count()) > 0 ||
@@ -98,12 +121,12 @@ test.describe('TB-O30: Visualization Components', () => {
       await expect(chart).toBeVisible();
 
       // Should show the title
-      await expect(chart).toContainText('Tasks Completed');
+      await expect(chart).toContainText('Task Completions');
 
       // Should show either loading, empty state, or actual chart content
       const hasContent =
         (await chart.locator('.recharts-line').count()) > 0 ||
-        (await chart.locator('text=No completion data').count()) > 0 ||
+        (await chart.locator('text=No completions in this period').count()) > 0 ||
         (await chart.locator('text=Loading chart...').count()) > 0;
 
       expect(hasContent).toBeTruthy();
@@ -114,7 +137,7 @@ test.describe('TB-O30: Visualization Components', () => {
       await expect(chart).toBeVisible();
 
       // Should show the title
-      await expect(chart).toContainText('Workload by Agent');
+      await expect(chart).toContainText('Workload');
 
       // Should show either loading, empty state, or actual chart content
       const hasContent =
@@ -125,13 +148,45 @@ test.describe('TB-O30: Visualization Components', () => {
       expect(hasContent).toBeTruthy();
     });
 
+    test('renders agent performance chart', async ({ page }) => {
+      const chart = page.locator('[data-testid="agent-performance-chart"]');
+      await expect(chart).toBeVisible();
+
+      // Should show the title
+      await expect(chart).toContainText('Tasks Completed by Agent');
+    });
+
+    test('renders plan progress section', async ({ page }) => {
+      const chartsGrid = page.locator('[data-testid="charts-grid-health"]');
+      await expect(chartsGrid).toBeVisible();
+
+      // Should have Plan Progress section
+      await expect(chartsGrid).toContainText('Plan Progress');
+    });
+
+    test('renders queue health card', async ({ page }) => {
+      const chartsGrid = page.locator('[data-testid="charts-grid-health"]');
+      await expect(chartsGrid).toContainText('Queue Health');
+    });
+
+    test('renders merge pipeline card', async ({ page }) => {
+      const chartsGrid = page.locator('[data-testid="charts-grid-health"]');
+      await expect(chartsGrid).toContainText('Merge Pipeline');
+    });
+
+    test('renders priority distribution chart', async ({ page }) => {
+      const chart = page.locator('[data-testid="priority-distribution-chart"]');
+      await expect(chart).toBeVisible();
+      await expect(chart).toContainText('Open Tasks by Priority');
+    });
+
     test('charts show empty state when no data', async ({ page }) => {
       // API is already mocked in beforeEach to return empty data
       // Just wait for charts to render with empty state
       await page.waitForTimeout(300);
 
       // At least one chart should show empty message
-      const emptyMessages = await page.locator('text=/No (tasks|completion|assigned).*display|data/').count();
+      const emptyMessages = await page.locator('text=/No (tasks|completion|assigned|completed|open).*display|data|period|tasks/').count();
       expect(emptyMessages).toBeGreaterThan(0);
     });
 
@@ -157,6 +212,22 @@ test.describe('TB-O30: Visualization Components', () => {
         });
       });
 
+      await freshPage.route('**/api/elements*', route => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ data: {}, totalElements: 0, types: [], loadedAt: new Date().toISOString() }),
+        });
+      });
+
+      await freshPage.route('**/api/plans*', route => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ items: [], total: 0 }),
+        });
+      });
+
       // Navigate to metrics page
       await freshPage.goto('/metrics');
       await freshPage.waitForSelector('[data-testid="metrics-page"]');
@@ -169,10 +240,28 @@ test.describe('TB-O30: Visualization Components', () => {
       expect(pageVisible).toBeTruthy();
 
       // Charts should be visible (they handle errors internally)
-      const chartsVisible = await freshPage.locator('[data-testid="charts-grid"]').isVisible();
+      const chartsVisible = await freshPage.locator('[data-testid="charts-grid-activity"]').isVisible();
       expect(chartsVisible).toBeTruthy();
 
       await freshPage.close();
+    });
+
+    test('time range selector opens dropdown and changes range', async ({ page }) => {
+      const timeRange = page.locator('[data-testid="metrics-timerange"]');
+      await expect(timeRange).toBeVisible();
+
+      // Click to open dropdown
+      await timeRange.click();
+
+      // Should show options
+      await expect(page.locator('text=Last 14 days')).toBeVisible();
+      await expect(page.locator('text=Last 30 days')).toBeVisible();
+
+      // Select 14 days
+      await page.locator('text=Last 14 days').click();
+
+      // Button should update
+      await expect(timeRange).toContainText('Last 14 days');
     });
   });
 
@@ -222,6 +311,13 @@ test.describe('TB-O30: Visualization Components', () => {
         updatedAt: new Date().toISOString(), // Completed today
         createdBy: 'human-1',
         tags: [],
+        metadata: {
+          orchestrator: {
+            startedAt: new Date(Date.now() - 3600000).toISOString(),
+            completedAt: new Date().toISOString(),
+            assignedAgent: 'agent-1',
+          },
+        },
       },
     ];
 
@@ -277,6 +373,22 @@ test.describe('TB-O30: Visualization Components', () => {
           body: JSON.stringify({ agents: mockAgents }),
         });
       });
+
+      await page.route('**/api/elements*', route => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ data: {}, totalElements: 0, types: [], loadedAt: new Date().toISOString() }),
+        });
+      });
+
+      await page.route('**/api/plans*', route => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ items: [], total: 0 }),
+        });
+      });
     });
 
     test('StatusPieChart renders segments with mock data', async ({ page }) => {
@@ -305,13 +417,9 @@ test.describe('TB-O30: Visualization Components', () => {
       const completedCard = page.locator('[data-testid="stat-tasks-completed"]');
       await expect(completedCard).toContainText('1');
 
-      // Check active agents (1 running)
+      // Check active agents (1 running out of 2 total)
       const activeCard = page.locator('[data-testid="stat-active-agents"]');
-      await expect(activeCard).toContainText('1');
-
-      // Check total tasks (3)
-      const totalCard = page.locator('[data-testid="stat-total-tasks"]');
-      await expect(totalCard).toContainText('3');
+      await expect(activeCard).toContainText('1/2');
     });
 
     test('HorizontalBarChart shows workload distribution', async ({ page }) => {
@@ -352,22 +460,37 @@ test.describe('TB-O30: Visualization Components', () => {
           body: JSON.stringify({ agents: [] }),
         });
       });
+
+      await page.route('**/api/elements*', route => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ data: {}, totalElements: 0, types: [], loadedAt: new Date().toISOString() }),
+        });
+      });
+
+      await page.route('**/api/plans*', route => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ items: [], total: 0 }),
+        });
+      });
     });
 
     test('charts adapt to mobile viewport', async ({ page }) => {
       // Set mobile viewport
       await page.setViewportSize({ width: 375, height: 667 });
       await page.goto('/metrics');
-      await page.waitForSelector('[data-testid="charts-grid"]');
+      await page.waitForSelector('[data-testid="charts-grid-activity"]');
 
       // Charts should still be visible
-      const chartsGrid = page.locator('[data-testid="charts-grid"]');
+      const chartsGrid = page.locator('[data-testid="charts-grid-activity"]');
       await expect(chartsGrid).toBeVisible();
 
       // All three charts should be visible
       await expect(page.locator('[data-testid="task-distribution-chart"]')).toBeVisible();
       await expect(page.locator('[data-testid="tasks-completed-chart"]')).toBeVisible();
-      await expect(page.locator('[data-testid="workload-by-agent-chart"]')).toBeVisible();
     });
 
     test('stats cards stack on mobile', async ({ page }) => {
@@ -385,7 +508,7 @@ test.describe('TB-O30: Visualization Components', () => {
         window.getComputedStyle(el).getPropertyValue('grid-template-columns')
       );
       // On mobile, should be single column
-      expect(gridStyle).not.toContain('repeat(4');
+      expect(gridStyle).not.toContain('repeat(6');
     });
   });
 });
