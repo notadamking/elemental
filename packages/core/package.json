@@ -7,31 +7,31 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./src/index.ts",
       "bun": "./src/index.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./types": {
-      "types": "./dist/types/index.d.ts",
+      "types": "./src/types/index.ts",
       "bun": "./src/types/index.ts",
       "import": "./dist/types/index.js",
       "default": "./dist/types/index.js"
     },
     "./errors": {
-      "types": "./dist/errors/index.d.ts",
+      "types": "./src/errors/index.ts",
       "bun": "./src/errors/index.ts",
       "import": "./dist/errors/index.js",
       "default": "./dist/errors/index.js"
     },
     "./id": {
-      "types": "./dist/id/index.d.ts",
+      "types": "./src/id/index.ts",
       "bun": "./src/id/index.ts",
       "import": "./dist/id/index.js",
       "default": "./dist/id/index.js"
     },
     "./utils": {
-      "types": "./dist/utils/index.d.ts",
+      "types": "./src/utils/index.ts",
       "bun": "./src/utils/index.ts",
       "import": "./dist/utils/index.js",
       "default": "./dist/utils/index.js"

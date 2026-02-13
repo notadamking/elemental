@@ -20,6 +20,10 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
   },
   resolve: {
+    // Use 'bun' condition to resolve @elemental/* packages from source .ts files
+    // instead of requiring dist/ build artifacts. This enables typecheck and dev
+    // server to work without building dependencies first.
+    conditions: ['bun'],
     dedupe: ['react', 'react-dom'],
     alias: {
       react: resolve(__dirname, 'node_modules/react'),

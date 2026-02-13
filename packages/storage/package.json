@@ -7,25 +7,25 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./src/index.ts",
       "bun": "./src/index.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./bun": {
-      "types": "./dist/bun-backend.d.ts",
+      "types": "./src/bun-backend.ts",
       "bun": "./src/bun-backend.ts",
       "import": "./dist/bun-backend.js",
       "default": "./dist/bun-backend.js"
     },
     "./node": {
-      "types": "./dist/node-backend.d.ts",
+      "types": "./src/node-backend.ts",
       "bun": "./src/node-backend.ts",
       "import": "./dist/node-backend.js",
       "default": "./dist/node-backend.js"
     },
     "./browser": {
-      "types": "./dist/browser-backend.d.ts",
+      "types": "./src/browser-backend.ts",
       "bun": "./src/browser-backend.ts",
       "import": "./dist/browser-backend.js",
       "default": "./dist/browser-backend.js"

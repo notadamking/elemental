@@ -7,43 +7,43 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./src/index.ts",
       "bun": "./src/index.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./types": {
-      "types": "./dist/types/index.d.ts",
+      "types": "./src/types/index.ts",
       "bun": "./src/types/index.ts",
       "import": "./dist/types/index.js",
       "default": "./dist/types/index.js"
     },
     "./services": {
-      "types": "./dist/services/index.d.ts",
+      "types": "./src/services/index.ts",
       "bun": "./src/services/index.ts",
       "import": "./dist/services/index.js",
       "default": "./dist/services/index.js"
     },
     "./runtime": {
-      "types": "./dist/runtime/index.d.ts",
+      "types": "./src/runtime/index.ts",
       "bun": "./src/runtime/index.ts",
       "import": "./dist/runtime/index.js",
       "default": "./dist/runtime/index.js"
     },
     "./git": {
-      "types": "./dist/git/index.d.ts",
+      "types": "./src/git/index.ts",
       "bun": "./src/git/index.ts",
       "import": "./dist/git/index.js",
       "default": "./dist/git/index.js"
     },
     "./testing": {
-      "types": "./dist/testing/index.d.ts",
+      "types": "./src/testing/index.ts",
       "bun": "./src/testing/index.ts",
       "import": "./dist/testing/index.js",
       "default": "./dist/testing/index.js"
     },
     "./providers": {
-      "types": "./dist/providers/index.d.ts",
+      "types": "./src/providers/index.ts",
       "bun": "./src/providers/index.ts",
       "import": "./dist/providers/index.js",
       "default": "./dist/providers/index.js"

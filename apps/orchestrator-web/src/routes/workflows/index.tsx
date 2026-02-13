@@ -33,6 +33,9 @@ import {
   useCancelWorkflow,
   useDeleteWorkflow,
   useWorkflowDetail,
+  // Types
+  type Workflow as WorkflowType,
+  type Playbook,
 } from '@elemental/ui/workflows';
 
 type TabValue = 'templates' | 'active';
@@ -88,12 +91,12 @@ export function WorkflowsPage() {
 
   // Split workflows into active and terminal
   const activeWorkflows = useMemo(() =>
-    allWorkflows.filter(w => w.status === 'pending' || w.status === 'running'),
+    allWorkflows.filter((w: WorkflowType) => w.status === 'pending' || w.status === 'running'),
     [allWorkflows]
   );
 
   const terminalWorkflows = useMemo(() =>
-    allWorkflows.filter(w => ['completed', 'failed', 'cancelled'].includes(w.status)),
+    allWorkflows.filter((w: WorkflowType) => ['completed', 'failed', 'cancelled'].includes(w.status)),
     [allWorkflows]
   );
 
@@ -106,20 +109,20 @@ export function WorkflowsPage() {
     const query = searchQuery.toLowerCase().trim();
     if (!query) return playbooks;
     return playbooks.filter(
-      p => p.name.toLowerCase().includes(query) || p.title.toLowerCase().includes(query)
+      (p: Playbook) => p.name.toLowerCase().includes(query) || p.title.toLowerCase().includes(query)
     );
   }, [searchQuery, playbooks]);
 
   const filteredActiveWorkflows = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     if (!query) return activeWorkflows;
-    return activeWorkflows.filter(w => w.title.toLowerCase().includes(query));
+    return activeWorkflows.filter((w: WorkflowType) => w.title.toLowerCase().includes(query));
   }, [searchQuery, activeWorkflows]);
 
   const filteredTerminalWorkflows = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     if (!query) return terminalWorkflows;
-    return terminalWorkflows.filter(w => w.title.toLowerCase().includes(query));
+    return terminalWorkflows.filter((w: WorkflowType) => w.title.toLowerCase().includes(query));
   }, [searchQuery, terminalWorkflows]);
 
   const setTab = (tab: TabValue) => {
@@ -277,7 +280,7 @@ export function WorkflowsPage() {
           type="text"
           placeholder={currentTab === 'templates' ? 'Search templates...' : 'Search workflows...'}
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
           className="w-full pl-10 pr-4 py-2 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
           data-testid="workflows-search"
         />
@@ -374,7 +377,7 @@ export function WorkflowsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="playbooks-grid">
-              {filteredPlaybooks.map((playbook) => (
+              {filteredPlaybooks.map((playbook: Playbook) => (
                 <PlaybookCard
                   key={playbook.id}
                   playbook={playbook}
@@ -422,7 +425,7 @@ export function WorkflowsPage() {
                     Active ({filteredActiveWorkflows.length})
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="active-workflows-grid">
-                    {filteredActiveWorkflows.map((workflow) => (
+                    {filteredActiveWorkflows.map((workflow: WorkflowType) => (
                       <WorkflowCard
                         key={workflow.id}
                         workflow={workflow}
@@ -442,7 +445,7 @@ export function WorkflowsPage() {
                     Recent ({filteredTerminalWorkflows.length})
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="terminal-workflows-grid">
-                    {filteredTerminalWorkflows.slice(0, 9).map((workflow) => (
+                    {filteredTerminalWorkflows.slice(0, 9).map((workflow: WorkflowType) => (
                       <WorkflowCard
                         key={workflow.id}
                         workflow={workflow}

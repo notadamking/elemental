@@ -17,7 +17,6 @@ import {
   ListTodo,
   Terminal,
   XCircle,
-  Code,
 } from 'lucide-react';
 import type {
   Workflow,

@@ -15,13 +15,14 @@ import {
 } from 'lucide-react';
 import { VirtualizedChatList } from '../../../components/shared/VirtualizedChatList';
 import { ChannelMembersPanel } from '../../../components/message/ChannelMembersPanel';
-import { groupMessagesByDay } from '../../../lib';
+import { groupMessagesByDay, type MessageWithDayGroup } from '../../../lib';
 import { useChannel, useChannelMessages, useDeleteChannel } from '../../../api/hooks/useMessages';
 import { useCurrentUser } from '../../../contexts';
 import {
   ChannelHeader as SharedChannelHeader,
   ChannelIcon,
   useChannelSearch,
+  type ChannelHeaderChannel,
 } from '@elemental/ui';
 import { MessageBubble, DateSeparator } from './MessageBubble';
 import { MessageComposer } from './MessageComposer';
@@ -133,7 +134,7 @@ export function ChannelView({ channelId, isMobile = false, onBack, onChannelDele
 
   // Calculate reply counts for each message
   const replyCounts = messages.reduce(
-    (acc, msg) => {
+    (acc: Record<string, number>, msg: Message) => {
       if (msg.threadId) {
         acc[msg.threadId] = (acc[msg.threadId] || 0) + 1;
       }
@@ -143,11 +144,11 @@ export function ChannelView({ channelId, isMobile = false, onBack, onChannelDele
   );
 
   // Filter out threaded messages from main view (show only root messages)
-  const rootMessages = messages.filter((msg) => !msg.threadId);
+  const rootMessages = messages.filter((msg: Message) => !msg.threadId);
 
   // Group messages by day for date separators (TB99)
   const groupedMessages = useMemo(
-    () => groupMessagesByDay(rootMessages, (msg) => msg.createdAt),
+    () => groupMessagesByDay(rootMessages, (msg: Message) => msg.createdAt),
     [rootMessages]
   );
 
@@ -164,12 +165,12 @@ export function ChannelView({ channelId, isMobile = false, onBack, onChannelDele
           ref={searchInputRef}
           type="text"
           value={searchQuery}
-          onChange={(e) => {
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
             setSearchQuery(e.target.value);
             setIsSearchOpen(e.target.value.length > 0);
           }}
           onFocus={() => searchQuery && setIsSearchOpen(true)}
-          onKeyDown={(e) => {
+          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
             if (e.key === 'Escape') {
               clearSearch();
               searchInputRef.current?.blur();
@@ -271,7 +272,7 @@ export function ChannelView({ channelId, isMobile = false, onBack, onChannelDele
               isMobile={isMobile}
               onBack={onBack}
               onOpenMembers={() => setShowMembersPanel(true)}
-              renderIcon={(ch) => (
+              renderIcon={(ch: ChannelHeaderChannel) => (
                 <ChannelIcon channel={ch} className={isMobile ? 'w-4 h-4' : 'w-5 h-5'} />
               )}
               renderActions={renderHeaderActions}
@@ -286,12 +287,12 @@ export function ChannelView({ channelId, isMobile = false, onBack, onChannelDele
                     ref={searchInputRef}
                     type="text"
                     value={searchQuery}
-                    onChange={(e) => {
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                       setSearchQuery(e.target.value);
                       setIsSearchOpen(e.target.value.length > 0);
                     }}
                     onFocus={() => searchQuery && setIsSearchOpen(true)}
-                    onKeyDown={(e) => {
+                    onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                       if (e.key === 'Escape') {
                         clearSearch();
                         setShowMobileSearch(false);
@@ -356,7 +357,7 @@ export function ChannelView({ channelId, isMobile = false, onBack, onChannelDele
           ) : (
             <VirtualizedChatList
               items={groupedMessages}
-              getItemKey={(grouped) => grouped.item.id}
+              getItemKey={(grouped: MessageWithDayGroup<Message>) => grouped.item.id}
               estimateSize={(index) => {
                 const baseHeight = isMobile ? 80 : MESSAGE_ROW_HEIGHT;
                 const grouped = groupedMessages[index];
@@ -401,7 +402,7 @@ export function ChannelView({ channelId, isMobile = false, onBack, onChannelDele
                   </p>
                 </div>
               )}
-              renderItem={(grouped) => (
+              renderItem={(grouped: MessageWithDayGroup<Message>) => (
                 <div>
                   {grouped.isFirstInDay && <DateSeparator date={grouped.formattedDate} />}
                   <MessageBubble
@@ -462,7 +463,7 @@ export function ChannelView({ channelId, isMobile = false, onBack, onChannelDele
           {/* Dialog */}
           <div
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm mx-4"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
           >
             <div className="bg-[var(--color-surface)] rounded-xl shadow-2xl border border-[var(--color-border)]">
               {/* Header */}

@@ -11,43 +11,43 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./src/index.ts",
       "bun": "./src/index.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./api": {
-      "types": "./dist/api/index.d.ts",
+      "types": "./src/api/index.ts",
       "bun": "./src/api/index.ts",
       "import": "./dist/api/index.js",
       "default": "./dist/api/index.js"
     },
     "./services": {
-      "types": "./dist/services/index.d.ts",
+      "types": "./src/services/index.ts",
       "bun": "./src/services/index.ts",
       "import": "./dist/services/index.js",
       "default": "./dist/services/index.js"
     },
     "./sync": {
-      "types": "./dist/sync/index.d.ts",
+      "types": "./src/sync/index.ts",
       "bun": "./src/sync/index.ts",
       "import": "./dist/sync/index.js",
       "default": "./dist/sync/index.js"
     },
     "./cli": {
-      "types": "./dist/cli/index.d.ts",
+      "types": "./src/cli/index.ts",
       "bun": "./src/cli/index.ts",
       "import": "./dist/cli/index.js",
       "default": "./dist/cli/index.js"
     },
     "./config": {
-      "types": "./dist/config/index.d.ts",
+      "types": "./src/config/index.ts",
       "bun": "./src/config/index.ts",
       "import": "./dist/config/index.js",
       "default": "./dist/config/index.js"
     },
     "./http": {
-      "types": "./dist/http/index.d.ts",
+      "types": "./src/http/index.ts",
       "bun": "./src/http/index.ts",
       "import": "./dist/http/index.js",
       "default": "./dist/http/index.js"

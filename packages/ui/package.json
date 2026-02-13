@@ -7,73 +7,73 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./src/index.ts",
       "bun": "./src/index.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./components": {
-      "types": "./dist/components/index.d.ts",
+      "types": "./src/components/index.ts",
       "bun": "./src/components/index.ts",
       "import": "./dist/components/index.js",
       "default": "./dist/components/index.js"
     },
     "./layout": {
-      "types": "./dist/layout/index.d.ts",
+      "types": "./src/layout/index.ts",
       "bun": "./src/layout/index.ts",
       "import": "./dist/layout/index.js",
       "default": "./dist/layout/index.js"
     },
     "./domain": {
-      "types": "./dist/domain/index.d.ts",
+      "types": "./src/domain/index.ts",
       "bun": "./src/domain/index.ts",
       "import": "./dist/domain/index.js",
       "default": "./dist/domain/index.js"
     },
     "./hooks": {
-      "types": "./dist/hooks/index.d.ts",
+      "types": "./src/hooks/index.ts",
       "bun": "./src/hooks/index.ts",
       "import": "./dist/hooks/index.js",
       "default": "./dist/hooks/index.js"
     },
     "./visualizations": {
-      "types": "./dist/visualizations/index.d.ts",
+      "types": "./src/visualizations/index.ts",
       "bun": "./src/visualizations/index.ts",
       "import": "./dist/visualizations/index.js",
       "default": "./dist/visualizations/index.js"
     },
     "./api": {
-      "types": "./dist/api/index.d.ts",
+      "types": "./src/api/index.ts",
       "bun": "./src/api/index.ts",
       "import": "./dist/api/index.js",
       "default": "./dist/api/index.js"
     },
     "./contexts": {
-      "types": "./dist/contexts/index.d.ts",
+      "types": "./src/contexts/index.ts",
       "bun": "./src/contexts/index.ts",
       "import": "./dist/contexts/index.js",
       "default": "./dist/contexts/index.js"
     },
     "./plans": {
-      "types": "./dist/plans/index.d.ts",
+      "types": "./src/plans/index.ts",
       "bun": "./src/plans/index.ts",
       "import": "./dist/plans/index.js",
       "default": "./dist/plans/index.js"
     },
     "./settings": {
-      "types": "./dist/settings/index.d.ts",
+      "types": "./src/settings/index.ts",
       "bun": "./src/settings/index.ts",
       "import": "./dist/settings/index.js",
       "default": "./dist/settings/index.js"
     },
     "./workflows": {
-      "types": "./dist/workflows/index.d.ts",
+      "types": "./src/workflows/index.ts",
       "bun": "./src/workflows/index.ts",
       "import": "./dist/workflows/index.js",
       "default": "./dist/workflows/index.js"
     },
     "./documents": {
-      "types": "./dist/documents/index.d.ts",
+      "types": "./src/documents/index.ts",
       "bun": "./src/documents/index.ts",
       "import": "./dist/documents/index.js",
       "default": "./dist/documents/index.js"

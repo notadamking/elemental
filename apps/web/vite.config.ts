@@ -5,6 +5,12 @@ const apiPort = process.env.VITE_API_PORT || '3456';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    // Use 'bun' condition to resolve @elemental/* packages from source .ts files
+    // instead of requiring dist/ build artifacts. This enables dev server to work
+    // without building dependencies first.
+    conditions: ['bun'],
+  },
   server: {
     port: 5173,
     proxy: {

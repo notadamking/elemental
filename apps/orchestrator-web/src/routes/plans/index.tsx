@@ -35,6 +35,7 @@ import {
   setStoredViewMode,
   SEARCH_DEBOUNCE_DELAY,
   type ViewMode,
+  type HydratedPlan,
 } from '@elemental/ui/plans';
 import { CreateTaskModal } from '../../components/task/CreateTaskModal';
 
@@ -95,7 +96,7 @@ export function PlansPage() {
   // Filter plans by search query
   const filteredPlans = useMemo(() => {
     if (!debouncedSearch) return plans;
-    return plans.filter((plan) => {
+    return plans.filter((plan: HydratedPlan) => {
       const result = fuzzySearch(plan.title, debouncedSearch);
       return result && result.matched;
     });
@@ -152,9 +153,9 @@ export function PlansPage() {
     // We need to fetch the task title - for now we'll use a placeholder
     // The modal will refetch and show the task anyway
     fetch(`/api/tasks/${taskId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        const task = data.task || data;
+      .then((res: Response) => res.json())
+      .then((data: { task?: { id: string; title: string }; id?: string; title?: string }) => {
+        const task = data.task || data as { id: string; title: string };
         notifyPlanModalTaskCreated({ id: task.id, title: task.title });
         toast.success('Task created and added to selection');
       })
@@ -278,7 +279,7 @@ export function PlansPage() {
               {isMobile ? (
                 // Mobile: Card list
                 <div>
-                  {filteredPlans.map((plan) => (
+                  {filteredPlans.map((plan: HydratedPlan) => (
                     <MobilePlanCard
                       key={plan.id}
                       plan={plan}
@@ -291,7 +292,7 @@ export function PlansPage() {
               ) : (
                 // Desktop: List view
                 <div className="p-4 space-y-3">
-                  {filteredPlans.map((plan) => (
+                  {filteredPlans.map((plan: HydratedPlan) => (
                     <PlanListItem
                       key={plan.id}
                       plan={plan}
@@ -320,7 +321,7 @@ export function PlansPage() {
                 toast.success('Plan deleted successfully');
                 handlePlanDeselect();
               }}
-              onDeleteError={(msg) => toast.error(msg)}
+              onDeleteError={(msg: string) => toast.error(msg)}
             />
           </div>
         )}
