@@ -255,6 +255,7 @@ function BreadcrumbsMobile() {
 // Local storage keys
 const SIDEBAR_COLLAPSED_KEY = 'orchestrator-sidebar-collapsed';
 const DIRECTOR_COLLAPSED_KEY = 'orchestrator-director-collapsed';
+const DIRECTOR_MAXIMIZED_KEY = 'orchestrator-director-maximized';
 
 function useSidebarState() {
   const isMobile = useIsMobile();
@@ -297,9 +298,18 @@ function useDirectorPanelState() {
     return stored === null ? true : stored === 'true';
   });
 
+  const [isMaximized, setIsMaximized] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(DIRECTOR_MAXIMIZED_KEY) === 'true';
+  });
+
   useEffect(() => {
     localStorage.setItem(DIRECTOR_COLLAPSED_KEY, String(collapsed));
   }, [collapsed]);
+
+  useEffect(() => {
+    localStorage.setItem(DIRECTOR_MAXIMIZED_KEY, String(isMaximized));
+  }, [isMaximized]);
 
   // Always collapse on mobile
   const effectiveCollapsed = isMobile ? true : collapsed;
@@ -307,6 +317,8 @@ function useDirectorPanelState() {
   return {
     collapsed: effectiveCollapsed,
     setCollapsed,
+    isMaximized: isMobile ? false : isMaximized,
+    setIsMaximized,
     isMobile,
   };
 }
@@ -324,6 +336,8 @@ export function AppShell() {
   const {
     collapsed: directorCollapsed,
     setCollapsed: setDirectorCollapsed,
+    isMaximized: directorMaximized,
+    setIsMaximized: setDirectorMaximized,
   } = useDirectorPanelState();
 
   const health = useHealth();
@@ -362,15 +376,24 @@ export function AppShell() {
     setDirectorCollapsed(prev => !prev);
   }, [setDirectorCollapsed]);
 
+  const toggleDirectorMaximize = useCallback(() => {
+    // If panel is collapsed and we're toggling maximize, uncollapse it first
+    if (directorCollapsed) {
+      setDirectorCollapsed(false);
+    }
+    setDirectorMaximized(prev => !prev);
+  }, [directorCollapsed, setDirectorCollapsed, setDirectorMaximized]);
+
   // Open command palette
   const openCommandPalette = useCallback(() => {
     setCommandPaletteOpen(true);
   }, [setCommandPaletteOpen]);
 
-  // Initialize global keyboard shortcuts (G T, G A, Cmd+B, Cmd+D, etc.)
+  // Initialize global keyboard shortcuts (G T, G A, Cmd+B, Cmd+D, Cmd+Shift+D, etc.)
   useGlobalKeyboardShortcuts({
     onToggleSidebar: toggleSidebar,
     onToggleDirector: toggleDirectorPanel,
+    onToggleDirectorMaximize: toggleDirectorMaximize,
     onOpenCommandPalette: openCommandPalette,
   });
 
@@ -390,6 +413,15 @@ export function AppShell() {
     window.addEventListener('toggle-director-panel', handleToggleDirector);
     return () => window.removeEventListener('toggle-director-panel', handleToggleDirector);
   }, [setDirectorCollapsed]);
+
+  // Listen for maximize-director-panel event from command palette
+  useEffect(() => {
+    const handleMaximizeDirector = () => {
+      toggleDirectorMaximize();
+    };
+    window.addEventListener('maximize-director-panel', handleMaximizeDirector);
+    return () => window.removeEventListener('maximize-director-panel', handleMaximizeDirector);
+  }, [toggleDirectorMaximize]);
 
   // Listen for open-director-panel event (e.g., from Agents page "Open" button)
   useEffect(() => {
@@ -542,6 +574,8 @@ export function AppShell() {
         <DirectorPanel
           collapsed={directorCollapsed}
           onToggle={toggleDirectorPanel}
+          isMaximized={directorMaximized}
+          onToggleMaximize={toggleDirectorMaximize}
         />
       )}
 

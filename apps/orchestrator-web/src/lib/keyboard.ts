@@ -109,6 +109,11 @@ export const DEFAULT_SHORTCUTS: Record<string, ShortcutDefinition> = {
     description: 'Toggle Director Panel',
     category: 'actions',
   },
+  'action.toggleDirectorMaximize': {
+    keys: 'Cmd+Shift+D',
+    description: 'Maximize/Restore Director Panel',
+    category: 'actions',
+  },
   'action.createTask': {
     keys: 'C T',
     path: '/tasks?action=create',

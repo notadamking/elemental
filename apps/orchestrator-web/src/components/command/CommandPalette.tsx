@@ -31,6 +31,7 @@ import {
   Moon,
   Sun,
   Monitor,
+  Maximize2,
 } from 'lucide-react';
 
 // Command types
@@ -335,6 +336,18 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         onOpenChange(false);
       },
       shortcut: 'T',
+    },
+    {
+      id: 'action-maximize-director',
+      label: 'Maximize Director Panel',
+      description: 'Toggle maximize/restore the Director panel',
+      category: 'actions',
+      icon: Maximize2,
+      keywords: ['maximize', 'fullscreen', 'director', 'terminal', 'restore', 'minimize'],
+      action: () => {
+        window.dispatchEvent(new CustomEvent('maximize-director-panel'));
+        onOpenChange(false);
+      },
     },
 
     // Settings commands

@@ -17,6 +17,8 @@ import {
   CirclePause,
   Pickaxe,
   Mail,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import { XTerminal, type TerminalStatus, type XTerminalHandle } from '../terminal';
@@ -35,9 +37,11 @@ type DirectorStatus = 'idle' | 'running' | 'error' | 'connecting' | 'no-director
 interface DirectorPanelProps {
   collapsed?: boolean;
   onToggle?: () => void;
+  isMaximized?: boolean;
+  onToggleMaximize?: () => void;
 }
 
-export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProps) {
+export function DirectorPanel({ collapsed = false, onToggle, isMaximized = false, onToggleMaximize }: DirectorPanelProps) {
   const [terminalStatus, setTerminalStatus] = useState<TerminalStatus>('disconnected');
   const [showMessagesQueue, setShowMessagesQueue] = useState(false);
   const { director, hasActiveSession, hasResumableSession, lastResumableSession, isLoading, error } = useDirector();
@@ -204,6 +208,16 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
     }
   }, [terminalStatus]);
 
+  // Refresh terminal when maximize state changes to allow auto-fit to recalculate
+  useEffect(() => {
+    if (terminalStatus === 'connected') {
+      const timer = setTimeout(() => {
+        terminalRef.current?.refresh();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isMaximized, terminalStatus]);
+
   const handleSiftBacklog = useCallback(() => {
     if (!terminalRef.current) return;
     // Send the command text first
@@ -226,6 +240,14 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
 
   // Unread message count
   const unreadCount = inboxCountData?.count ?? 0;
+
+  // Handle collapsing a maximized panel: minimize first, then collapse
+  const handleCollapse = useCallback(() => {
+    if (isMaximized && onToggleMaximize) {
+      onToggleMaximize();
+    }
+    onToggle?.();
+  }, [isMaximized, onToggleMaximize, onToggle]);
 
   if (collapsed) {
     return (
@@ -262,21 +284,26 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
 
   return (
     <aside
-      className="relative flex flex-col border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)]"
-      style={{ width: `${width}px` }}
+      className={`
+        relative flex flex-col border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)]
+        ${isMaximized ? 'fixed inset-0 z-50 border-l-0' : ''}
+      `}
+      style={isMaximized ? undefined : { width: `${width}px` }}
       data-testid="director-panel"
     >
-      {/* Resize handle */}
-      <div
-        className={`
-          absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10
-          hover:bg-[var(--color-primary)] hover:opacity-50
-          transition-colors duration-150
-          ${isResizing ? 'bg-[var(--color-primary)] opacity-50' : ''}
-        `}
-        onMouseDown={handleResizeStart}
-        data-testid="director-panel-resize-handle"
-      />
+      {/* Resize handle - hidden when maximized */}
+      {!isMaximized && (
+        <div
+          className={`
+            absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10
+            hover:bg-[var(--color-primary)] hover:opacity-50
+            transition-colors duration-150
+            ${isResizing ? 'bg-[var(--color-primary)] opacity-50' : ''}
+          `}
+          onMouseDown={handleResizeStart}
+          data-testid="director-panel-resize-handle"
+        />
+      )}
       {/* Header */}
       <div className="flex items-center justify-between h-14 px-4 border-b border-[var(--color-border)]">
         <div className="flex items-center gap-2">
@@ -382,9 +409,19 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
               )}
             </>
           )}
+          <Tooltip content={isMaximized ? "Restore Panel" : "Maximize Panel"} side="bottom">
+            <button
+              onClick={onToggleMaximize}
+              className="p-1.5 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150"
+              aria-label={isMaximized ? "Restore Panel" : "Maximize Panel"}
+              data-testid="director-panel-maximize"
+            >
+              {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+          </Tooltip>
           <Tooltip content="Collapse Panel" side="left">
             <button
-              onClick={onToggle}
+              onClick={handleCollapse}
               className="p-1.5 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150"
               aria-label="Collapse Director Panel"
               data-testid="director-panel-collapse"

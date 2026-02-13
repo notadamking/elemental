@@ -38,6 +38,8 @@ export interface GlobalKeyboardShortcutsOptions {
   onToggleSidebar?: () => void;
   /** Handler for toggling director panel */
   onToggleDirector?: () => void;
+  /** Handler for toggling director panel maximize/restore */
+  onToggleDirectorMaximize?: () => void;
   /** Handler for opening command palette */
   onOpenCommandPalette?: () => void;
 }
@@ -54,7 +56,7 @@ export interface GlobalKeyboardShortcutsOptions {
  * Hot-reloads when shortcuts are changed in settings.
  */
 export function useGlobalKeyboardShortcuts(options: GlobalKeyboardShortcutsOptions = {}): void {
-  const { onToggleSidebar, onToggleDirector, onOpenCommandPalette } = options;
+  const { onToggleSidebar, onToggleDirector, onToggleDirectorMaximize, onOpenCommandPalette } = options;
   const navigate = useNavigate();
   const shortcutVersion = useShortcutVersion();
 
@@ -116,6 +118,14 @@ export function useGlobalKeyboardShortcuts(options: GlobalKeyboardShortcutsOptio
         continue;
       }
 
+      if (actionId === 'action.toggleDirectorMaximize') {
+        if (onToggleDirectorMaximize) {
+          manager.register(keys, onToggleDirectorMaximize, definition.description);
+          registeredKeys.push(keys);
+        }
+        continue;
+      }
+
       // Register navigation shortcuts
       if (definition.path) {
         manager.register(
@@ -137,6 +147,7 @@ export function useGlobalKeyboardShortcuts(options: GlobalKeyboardShortcutsOptio
     createNavigationHandler,
     onToggleSidebar,
     onToggleDirector,
+    onToggleDirectorMaximize,
     onOpenCommandPalette,
     shortcutVersion,
   ]);
