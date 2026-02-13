@@ -169,6 +169,8 @@ interface LibraryTreeProps {
   onDeleteLibrary?: (id: string) => void;
   activeDragData?: DragData | null;
   isMobile?: boolean;
+  /** When true, uses container query responsive width (w-48 / @3xl/docs:w-64) instead of fixed w-64 */
+  compact?: boolean;
 }
 
 export function LibraryTree({
@@ -185,6 +187,7 @@ export function LibraryTree({
   onDeleteLibrary,
   activeDragData,
   isMobile = false,
+  compact = false,
 }: LibraryTreeProps) {
   const treeRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -333,7 +336,7 @@ export function LibraryTree({
     <LibraryTreeContext.Provider value={contextValue}>
     <div
       data-testid="library-tree"
-      className={`${isMobile ? 'w-full' : 'w-64 border-r border-gray-200 dark:border-[var(--color-border)]'} bg-white dark:bg-[var(--color-bg)] flex flex-col h-full`}
+      className={`${isMobile ? 'w-full' : compact ? 'w-48 @3xl/docs:w-64 border-r border-gray-200 dark:border-[var(--color-border)]' : 'w-64 border-r border-gray-200 dark:border-[var(--color-border)]'} bg-white dark:bg-[var(--color-bg)] flex flex-col h-full`}
     >
       <div className={`${isMobile ? 'p-3' : 'p-4'} border-b border-gray-200 dark:border-[var(--color-border)]`}>
         <div className="flex items-center justify-between mb-3">

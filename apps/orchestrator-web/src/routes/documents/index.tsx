@@ -583,6 +583,9 @@ export function DocumentsPage() {
   }
 
   // Desktop: Side-by-side layout
+  // Uses container queries (@container) so the layout adapts to the actual
+  // content area width rather than the viewport width. This ensures proper
+  // behavior when the director panel is open (reducing available space).
   return (
     <DndContext
       sensors={sensors}
@@ -590,7 +593,7 @@ export function DocumentsPage() {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div data-testid="documents-page" className="flex h-full">
+      <div data-testid="documents-page" className="flex h-full @container/docs">
         {/* Fullscreen Panel - overlays everything when in fullscreen mode */}
         {isFullscreen && selectedDocumentId && (
           <div
@@ -611,18 +614,22 @@ export function DocumentsPage() {
           </div>
         )}
 
-        {/* Library Tree Sidebar - hide in fullscreen mode */}
+        {/* Library Tree Sidebar - hide in fullscreen mode
+         * Uses container query breakpoints to adapt width:
+         * - Narrow container (<48rem/768px): w-48 (192px) to leave more room for content
+         * - Wide container (>=48rem/768px): w-64 (256px) for comfortable tree browsing
+         */}
         {!isFullscreen && (
           <>
             {isLoading ? (
               <div
                 data-testid="libraries-loading"
-                className="w-64 border-r border-gray-200 dark:border-[var(--color-border)] flex items-center justify-center"
+                className="w-48 @3xl/docs:w-64 shrink-0 border-r border-gray-200 dark:border-[var(--color-border)] flex items-center justify-center"
               >
                 <div className="text-gray-500 dark:text-gray-400">Loading libraries...</div>
               </div>
             ) : (
-              <div data-testid="library-tree-sidebar">
+              <div data-testid="library-tree-sidebar" className="shrink-0">
                 <LibraryTree
                   libraries={libraries}
                   selectedLibraryId={selectedLibraryId}
@@ -636,6 +643,7 @@ export function DocumentsPage() {
                   onReorderLibrary={handleReorderLibrary}
                   onDeleteLibrary={handleOpenDeleteLibraryModal}
                   activeDragData={activeDragData}
+                  compact={true}
                 />
               </div>
             )}
@@ -644,17 +652,17 @@ export function DocumentsPage() {
 
         {/* Main Content Area - with or without document detail panel (hidden in fullscreen) */}
         {!isFullscreen && (
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 min-w-0 flex overflow-hidden">
             {/* Document List / Library View - hide when document is expanded */}
             {(!selectedDocumentId || !isDocumentExpanded) && (
-              <div className={`${selectedDocumentId ? 'flex-1 border-r border-gray-200 dark:border-[var(--color-border)]' : 'flex-1'} h-full overflow-hidden`}>
+              <div className={`${selectedDocumentId ? 'flex-1 min-w-0 border-r border-gray-200 dark:border-[var(--color-border)]' : 'flex-1 min-w-0'} h-full overflow-hidden`}>
                 {renderMainContent()}
               </div>
             )}
 
             {/* Document Detail Panel or Not Found */}
             {selectedDocumentId && (
-              <div className={`${isDocumentExpanded ? 'flex-1' : 'flex-1'} flex-shrink-0 overflow-hidden`}>
+              <div className={`${isDocumentExpanded ? 'flex-1' : 'flex-1'} min-w-0 flex-shrink-0 overflow-hidden`}>
                 {deepLink.notFound ? (
                   <ElementNotFound
                     elementType="Document"
