@@ -6,7 +6,7 @@
  */
 
 import { useMemo, useCallback } from 'react';
-import { Mail, Send, Clock, User, RefreshCw, Inbox, CheckCheck } from 'lucide-react';
+import { Mail, Send, Clock, User, RefreshCw, Inbox, CheckCheck, Play } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import {
   useAgentInbox,
@@ -59,6 +59,21 @@ export function PendingMessagesQueue({
 
     // Send a natural language instruction to the director agent to check its inbox
     onSendCommand?.('Check your inbox and process the pending messages');
+    // Send carriage return after a small delay to ensure it registers as the submit action
+    setTimeout(() => {
+      onSendCommand?.('\r');
+    }, 200);
+  }, [hasActiveSession, onSendCommand]);
+
+  // Handle process single message - sends targeted command to director terminal
+  const handleProcessSingle = useCallback((inboxItemId: string) => {
+    if (!hasActiveSession) {
+      console.warn('Cannot process message: Director has no active session');
+      return;
+    }
+
+    const command = `Process inbox item ${inboxItemId} — read it with \`el show ${inboxItemId}\` and handle it. Do not process other inbox messages.`;
+    onSendCommand?.(command);
     // Send carriage return after a small delay to ensure it registers as the submit action
     setTimeout(() => {
       onSendCommand?.('\r');
@@ -183,7 +198,12 @@ export function PendingMessagesQueue({
         ) : (
           <ul className="divide-y divide-[var(--color-border)]" data-testid="messages-list">
             {pendingMessages.map((item) => (
-              <MessageItem key={item.id} item={item} />
+              <MessageItem
+                key={item.id}
+                item={item}
+                hasActiveSession={hasActiveSession}
+                onProcessSingle={handleProcessSingle}
+              />
             ))}
           </ul>
         )}
@@ -195,12 +215,24 @@ export function PendingMessagesQueue({
 /**
  * Individual message item in the queue
  */
-function MessageItem({ item }: { item: InboxItem }) {
+function MessageItem({
+  item,
+  hasActiveSession,
+  onProcessSingle,
+}: {
+  item: InboxItem;
+  hasActiveSession: boolean;
+  onProcessSingle: (inboxItemId: string) => void;
+}) {
   const senderName = item.sender?.name ?? item.message?.sender ?? 'Unknown';
   const contentPreview = item.message?.contentPreview ?? item.message?.fullContent ?? '';
   const timestamp = item.createdAt;
   const channelName = item.channel?.name;
   const sourceType = item.sourceType;
+
+  const handleProcess = useCallback(() => {
+    onProcessSingle(item.id);
+  }, [item.id, onProcessSingle]);
 
   return (
     <li
@@ -235,9 +267,27 @@ function MessageItem({ item }: { item: InboxItem }) {
             </div>
           </div>
 
-          {/* Message content preview */}
-          <div className="text-sm text-[var(--color-text-secondary)] line-clamp-2">
-            {renderMessageContent(contentPreview)}
+          {/* Message content preview and process action */}
+          <div className="flex items-end gap-2">
+            <div className="flex-1 text-sm text-[var(--color-text-secondary)] line-clamp-2">
+              {renderMessageContent(contentPreview)}
+            </div>
+
+            {/* Process single message button */}
+            <Tooltip
+              content={hasActiveSession ? 'Process this message' : 'Start director session first'}
+              side="left"
+            >
+              <button
+                onClick={handleProcess}
+                disabled={!hasActiveSession}
+                className="flex-shrink-0 p-1 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label={`Process message ${item.id}`}
+                data-testid="process-single-message-btn"
+              >
+                <Play className="w-3.5 h-3.5" />
+              </button>
+            </Tooltip>
           </div>
         </div>
       </div>
