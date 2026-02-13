@@ -40,6 +40,8 @@ import { EditorSettingsPanel } from '../../components/editor/EditorSettingsPanel
 import { EditorExtensionsPanel } from '../../components/editor/EditorExtensionsPanel';
 import { EditorTabBar, type EditorTab } from '../../components/editor/EditorTabBar';
 import { LspMonacoEditor } from '../../components/editor/LspMonacoEditor';
+import { ExtensionDetailPage } from '../../components/editor/ExtensionDetailPage';
+import type { OpenVSXExtensionSummary } from '../../lib/openvsx/client';
 import { useAllDocuments } from '../../api/hooks/useAllElements';
 import { useWorkspace } from '../../contexts';
 import type { Document } from '../../api/hooks/useAllElements';
@@ -737,6 +739,36 @@ export function FileEditorPage() {
     localStorage.setItem('editor.theme', theme);
   }, []);
 
+  // Handle extension click (opens extension detail page in a tab)
+  const handleExtensionClick = useCallback((ext: OpenVSXExtensionSummary) => {
+    const tabId = `ext:${ext.namespace}.${ext.name}`;
+    const displayName = ext.displayName || ext.name;
+
+    // Check if already open
+    const existing = tabsRef.current.find(t => t.id === tabId);
+    if (existing) {
+      setActiveTabId(tabId);
+      return;
+    }
+
+    captureEditorContent();
+
+    const newTab: EditorTab = {
+      id: tabId,
+      name: displayName,
+      path: `Extension: ${displayName}`,
+      content: '',
+      language: 'plaintext',
+      source: 'extension',
+      isPreview: false,
+      isDirty: false,
+      extensionId: `${ext.namespace}.${ext.name}`,
+    };
+
+    setTabs(prev => [...prev, newTab]);
+    setActiveTabId(tabId);
+  }, [captureEditorContent]);
+
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -922,7 +954,7 @@ export function FileEditorPage() {
                   Extensions
                 </h2>
               </div>
-              <EditorExtensionsPanel />
+              <EditorExtensionsPanel onExtensionClick={handleExtensionClick} />
             </>
           )}
 
@@ -982,106 +1014,115 @@ export function FileEditorPage() {
               </p>
             </div>
           ) : activeTab ? (
-            <>
-              {/* Editor toolbar */}
-              <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--color-border)] bg-[var(--color-surface-hover)]">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <Braces className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
-                    <span className="text-xs font-medium text-[var(--color-text-secondary)]">
-                      {languageInfo?.displayName || 'Plain Text'}
-                    </span>
-                  </div>
-                  {/* LSP status indicator */}
-                  {isPotentialLspLanguage(activeTab.language) && (
-                    <div
-                      className={`flex items-center gap-1.5 text-xs ${
-                        lspState === 'connected' ? 'text-green-500' :
-                        lspState === 'connecting' ? 'text-yellow-500' :
-                        lspState === 'error' ? 'text-red-500' :
-                        'text-[var(--color-text-muted)]'
-                      }`}
-                      title={
-                        lspState === 'connected' ? 'LSP connected - Autocompletion, hover info, and diagnostics active' :
-                        lspState === 'connecting' ? 'Connecting to language server...' :
-                        lspState === 'error' ? 'LSP connection failed' :
-                        lspState === 'unavailable' ? 'Language server not available' :
-                        'LSP idle'
-                      }
-                    >
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                        lspState === 'connected' ? 'bg-green-500' :
-                        lspState === 'connecting' ? 'bg-yellow-500 animate-pulse' :
-                        lspState === 'error' ? 'bg-red-500' :
-                        'bg-[var(--color-text-muted)]'
-                      }`} />
-                      <span>LSP</span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {/* Save message */}
-                  {saveMessage && (
-                    <div
-                      className={`flex items-center gap-1.5 text-xs ${
-                        saveMessage.type === 'success'
-                          ? 'text-green-500'
-                          : 'text-[var(--color-danger)]'
-                      }`}
-                      data-testid="save-message"
-                    >
-                      {saveMessage.type === 'success' ? (
-                        <CheckCircle className="w-3.5 h-3.5" />
-                      ) : (
-                        <AlertCircle className="w-3.5 h-3.5" />
-                      )}
-                      <span>{saveMessage.text}</span>
-                    </div>
-                  )}
-                  {/* Save button */}
-                  {activeTab.source === 'workspace' && (
-                    <button
-                      onClick={() => handleSaveFile()}
-                      disabled={!activeTab.isDirty || isSaving}
-                      className={`
-                        flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded transition-colors
-                        ${activeTab.isDirty
-                          ? 'text-[var(--color-primary)] hover:bg-[var(--color-surface)] cursor-pointer'
-                          : 'text-[var(--color-text-muted)] cursor-not-allowed'
-                        }
-                        disabled:opacity-50
-                      `}
-                      title={activeTab.isDirty ? 'Save (Cmd+S)' : 'No unsaved changes'}
-                      data-testid="save-button"
-                    >
-                      {isSaving ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Save className="w-3.5 h-3.5" />
-                      )}
-                      <span>Save</span>
-                    </button>
-                  )}
-                  {/* Read-only indicator for documents */}
-                  {activeTab.source === 'documents' && (
-                    <span className="text-xs text-[var(--color-text-muted)]">
-                      Read Only
-                    </span>
-                  )}
-                </div>
-              </div>
-              <LspMonacoEditor
-                value={activeTab.content}
-                language={activeTab.language}
-                theme={editorTheme}
-                readOnly={activeTab.source === 'documents'}
-                onChange={handleEditorChange}
-                onMount={handleEditorDidMount}
-                onLspStateChange={setLspState}
-                filePath={activeTab.source === 'workspace' ? activeTab.path : undefined}
-                className="flex-1"
+            activeTab.source === 'extension' ? (
+              /* Extension detail page */
+              <ExtensionDetailPage
+                extensionId={activeTab.extensionId!}
+                className="flex-1 overflow-auto"
               />
-            </>
+            ) : (
+              /* Monaco editor for file tabs */
+              <>
+                {/* Editor toolbar */}
+                <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--color-border)] bg-[var(--color-surface-hover)]">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Braces className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+                      <span className="text-xs font-medium text-[var(--color-text-secondary)]">
+                        {languageInfo?.displayName || 'Plain Text'}
+                      </span>
+                    </div>
+                    {/* LSP status indicator */}
+                    {isPotentialLspLanguage(activeTab.language) && (
+                      <div
+                        className={`flex items-center gap-1.5 text-xs ${
+                          lspState === 'connected' ? 'text-green-500' :
+                          lspState === 'connecting' ? 'text-yellow-500' :
+                          lspState === 'error' ? 'text-red-500' :
+                          'text-[var(--color-text-muted)]'
+                        }`}
+                        title={
+                          lspState === 'connected' ? 'LSP connected - Autocompletion, hover info, and diagnostics active' :
+                          lspState === 'connecting' ? 'Connecting to language server...' :
+                          lspState === 'error' ? 'LSP connection failed' :
+                          lspState === 'unavailable' ? 'Language server not available' :
+                          'LSP idle'
+                        }
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          lspState === 'connected' ? 'bg-green-500' :
+                          lspState === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+                          lspState === 'error' ? 'bg-red-500' :
+                          'bg-[var(--color-text-muted)]'
+                        }`} />
+                        <span>LSP</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {/* Save message */}
+                    {saveMessage && (
+                      <div
+                        className={`flex items-center gap-1.5 text-xs ${
+                          saveMessage.type === 'success'
+                            ? 'text-green-500'
+                            : 'text-[var(--color-danger)]'
+                        }`}
+                        data-testid="save-message"
+                      >
+                        {saveMessage.type === 'success' ? (
+                          <CheckCircle className="w-3.5 h-3.5" />
+                        ) : (
+                          <AlertCircle className="w-3.5 h-3.5" />
+                        )}
+                        <span>{saveMessage.text}</span>
+                      </div>
+                    )}
+                    {/* Save button */}
+                    {activeTab.source === 'workspace' && (
+                      <button
+                        onClick={() => handleSaveFile()}
+                        disabled={!activeTab.isDirty || isSaving}
+                        className={`
+                          flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded transition-colors
+                          ${activeTab.isDirty
+                            ? 'text-[var(--color-primary)] hover:bg-[var(--color-surface)] cursor-pointer'
+                            : 'text-[var(--color-text-muted)] cursor-not-allowed'
+                          }
+                          disabled:opacity-50
+                        `}
+                        title={activeTab.isDirty ? 'Save (Cmd+S)' : 'No unsaved changes'}
+                        data-testid="save-button"
+                      >
+                        {isSaving ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Save className="w-3.5 h-3.5" />
+                        )}
+                        <span>Save</span>
+                      </button>
+                    )}
+                    {/* Read-only indicator for documents */}
+                    {activeTab.source === 'documents' && (
+                      <span className="text-xs text-[var(--color-text-muted)]">
+                        Read Only
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <LspMonacoEditor
+                  value={activeTab.content}
+                  language={activeTab.language}
+                  theme={editorTheme}
+                  readOnly={activeTab.source === 'documents'}
+                  onChange={handleEditorChange}
+                  onMount={handleEditorDidMount}
+                  onLspStateChange={setLspState}
+                  filePath={activeTab.source === 'workspace' ? activeTab.path : undefined}
+                  className="flex-1"
+                />
+              </>
+            )
           ) : null}
         </div>
       </div>

@@ -30,7 +30,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { X, FileCode, FileText, FileJson, Settings, File } from 'lucide-react';
+import { X, FileCode, FileText, FileJson, Settings, File, Puzzle } from 'lucide-react';
 import type { FileSource } from './EditorFileTree';
 
 // ============================================================================
@@ -49,12 +49,14 @@ export interface EditorTab {
   content: string;
   /** Monaco language identifier */
   language: string;
-  /** Source of the file (workspace or documents) */
-  source: FileSource;
+  /** Source of the file (workspace, documents, or extension) */
+  source: FileSource | 'extension';
   /** Whether this is a preview tab (will be replaced when opening another file) */
   isPreview: boolean;
   /** Whether the file has unsaved changes */
   isDirty: boolean;
+  /** Extension ID in "namespace.name" format (only when source === 'extension') */
+  extensionId?: string;
 }
 
 export interface EditorTabBarProps {
@@ -196,8 +198,9 @@ interface TabItemProps {
 }
 
 function TabItem({ tab, isActive, onSelect, onClose, isDragging = false }: TabItemProps) {
-  const Icon = getFileIcon(tab.name);
-  const iconColor = getIconColor(tab.name);
+  // Use Puzzle icon for extension tabs, otherwise use file icon
+  const Icon = tab.source === 'extension' ? Puzzle : getFileIcon(tab.name);
+  const iconColor = tab.source === 'extension' ? 'text-purple-500' : getIconColor(tab.name);
 
   return (
     <div

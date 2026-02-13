@@ -33,6 +33,8 @@ import { ExtensionCard } from './ExtensionCard';
 export interface EditorExtensionsPanelProps {
   /** Optional class name */
   className?: string;
+  /** Handler called when an extension card is clicked (to open detail page) */
+  onExtensionClick?: (extension: OpenVSXExtensionSummary) => void;
 }
 
 /** Category filter options */
@@ -78,7 +80,7 @@ const CATEGORY_MAP: Record<CategoryFilter, string | undefined> = {
 // EditorExtensionsPanel Component
 // ============================================================================
 
-export function EditorExtensionsPanel({ className = '' }: EditorExtensionsPanelProps) {
+export function EditorExtensionsPanel({ className = '', onExtensionClick }: EditorExtensionsPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<number | null>(null);
 
@@ -543,6 +545,7 @@ export function EditorExtensionsPanel({ className = '' }: EditorExtensionsPanelP
                       isUninstalling={uninstallingIds.has(item.ext.id)}
                       onInstall={handleInstall}
                       onUninstall={handleUninstall}
+                      onClick={onExtensionClick}
                     />
                   </div>
                 );
@@ -559,6 +562,7 @@ export function EditorExtensionsPanel({ className = '' }: EditorExtensionsPanelP
                       incompatibilityReasons={item.compatibility?.reasons}
                       onInstall={handleInstall}
                       onUninstall={handleUninstall}
+                      onClick={onExtensionClick}
                     />
                   </div>
                 );

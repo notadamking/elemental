@@ -34,6 +34,8 @@ export interface ExtensionCardProps {
   onInstall: (namespace: string, name: string) => void;
   /** Uninstall handler */
   onUninstall: (extensionId: string) => void;
+  /** Click handler for opening extension details (not fired when clicking action button) */
+  onClick?: (extension: OpenVSXExtensionSummary) => void;
 }
 
 // ============================================================================
@@ -50,6 +52,7 @@ export function ExtensionCard({
   incompatibilityReasons = [],
   onInstall,
   onUninstall,
+  onClick,
 }: ExtensionCardProps) {
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -87,6 +90,13 @@ export function ExtensionCard({
     return incompatibilityReasons.join('\n');
   }, [isIncompatible, incompatibilityReasons]);
 
+  // Handle card click (opens extension details)
+  const handleCardClick = useCallback(() => {
+    if (onClick) {
+      onClick(extension);
+    }
+  }, [onClick, extension]);
+
   return (
     <div
       className={`
@@ -96,64 +106,71 @@ export function ExtensionCard({
       `}
       data-testid={`extension-card-${extensionId}`}
     >
-      {/* Icon */}
-      <div className="flex-shrink-0 w-10 h-10 rounded-md bg-[var(--color-surface)] flex items-center justify-center overflow-hidden">
-        {iconUrl ? (
-          <img
-            src={iconUrl}
-            alt={`${displayName} icon`}
-            className="w-full h-full object-cover"
-            loading="lazy"
-            onError={(e) => {
-              // Fallback to default icon on error
-              (e.target as HTMLImageElement).style.display = 'none';
-              (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-            }}
+      {/* Clickable area (icon + content) */}
+      <button
+        type="button"
+        onClick={handleCardClick}
+        className="flex gap-3 flex-1 min-w-0 text-left cursor-pointer"
+        disabled={!onClick}
+      >
+        {/* Icon */}
+        <div className="flex-shrink-0 w-10 h-10 rounded-md bg-[var(--color-surface)] flex items-center justify-center overflow-hidden">
+          {iconUrl ? (
+            <img
+              src={iconUrl}
+              alt={`${displayName} icon`}
+              className="w-full h-full object-cover"
+              loading="lazy"
+              onError={(e) => {
+                // Fallback to default icon on error
+                (e.target as HTMLImageElement).style.display = 'none';
+                (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+          ) : null}
+          <Package
+            className={`w-5 h-5 text-[var(--color-text-muted)] ${iconUrl ? 'hidden' : ''}`}
           />
-        ) : null}
-        <Package
-          className={`w-5 h-5 text-[var(--color-text-muted)] ${iconUrl ? 'hidden' : ''}`}
-        />
-      </div>
+        </div>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        {/* Header row */}
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-sm font-medium text-[var(--color-text)] truncate">
-            {displayName}
-          </span>
-          {/* Version badge */}
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface)] text-[var(--color-text-muted)] flex-shrink-0">
-            v{version}
-          </span>
-          {/* Incompatible warning */}
-          {isIncompatible && (
-            <Tooltip content={incompatibilityTooltip || 'Incompatible extension'}>
-              <span className="flex-shrink-0">
-                <AlertTriangle className="w-3.5 h-3.5 text-[var(--color-warning)]" />
-              </span>
-            </Tooltip>
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          {/* Header row */}
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="text-sm font-medium text-[var(--color-text)] truncate">
+              {displayName}
+            </span>
+            {/* Version badge */}
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface)] text-[var(--color-text-muted)] flex-shrink-0">
+              v{version}
+            </span>
+            {/* Incompatible warning */}
+            {isIncompatible && (
+              <Tooltip content={incompatibilityTooltip || 'Incompatible extension'}>
+                <span className="flex-shrink-0">
+                  <AlertTriangle className="w-3.5 h-3.5 text-[var(--color-warning)]" />
+                </span>
+              </Tooltip>
+            )}
+          </div>
+
+          {/* Publisher */}
+          <div className="text-xs text-[var(--color-text-muted)] mb-1">
+            {publisher}
+          </div>
+
+          {/* Description */}
+          <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2">
+            {description}
+          </p>
+        {/* Error message */}
+          {actionError && (
+            <p className="text-xs text-[var(--color-danger)] mt-1">
+              {actionError}
+            </p>
           )}
         </div>
-
-        {/* Publisher */}
-        <div className="text-xs text-[var(--color-text-muted)] mb-1">
-          {publisher}
-        </div>
-
-        {/* Description */}
-        <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2">
-          {description}
-        </p>
-
-        {/* Error message */}
-        {actionError && (
-          <p className="text-xs text-[var(--color-danger)] mt-1">
-            {actionError}
-          </p>
-        )}
-      </div>
+      </button>
 
       {/* Action button */}
       <div className="flex-shrink-0 flex items-center">
