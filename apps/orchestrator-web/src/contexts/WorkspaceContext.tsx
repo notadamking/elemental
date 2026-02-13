@@ -12,6 +12,8 @@ import {
   type FileEntry,
   type FileReadResult,
   type FileWriteResult,
+  type FileDeleteResult,
+  type FileRenameResult,
 } from '../hooks/useServerWorkspace';
 
 // ============================================================================
@@ -68,4 +70,4 @@ export function useWorkspace(): UseServerWorkspaceReturn {
 /** @deprecated Use FileEntry instead */
 export type FileSystemEntry = FileEntry;
 
-export type { FileEntry, FileReadResult, FileWriteResult, UseServerWorkspaceReturn };
+export type { FileEntry, FileReadResult, FileWriteResult, FileDeleteResult, FileRenameResult, UseServerWorkspaceReturn };

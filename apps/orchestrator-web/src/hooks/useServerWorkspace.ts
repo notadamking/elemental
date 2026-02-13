@@ -10,6 +10,8 @@
  * - Read directory contents from server
  * - Read individual file contents via API
  * - Write file content via API
+ * - Delete files via API
+ * - Rename/move files via API
  * - Full cross-browser support
  */
 
@@ -73,6 +75,28 @@ export interface FileWriteResult {
 }
 
 /**
+ * Result of deleting a file from the server.
+ */
+export interface FileDeleteResult {
+  /** Whether the delete was successful */
+  success: boolean;
+  /** The file path that was deleted */
+  path: string;
+}
+
+/**
+ * Result of renaming a file on the server.
+ */
+export interface FileRenameResult {
+  /** Whether the rename was successful */
+  success: boolean;
+  /** The original file path */
+  oldPath: string;
+  /** The new file path */
+  newPath: string;
+}
+
+/**
  * Hook return value - matches the interface consumers expect.
  */
 export interface UseServerWorkspaceReturn {
@@ -100,6 +124,10 @@ export interface UseServerWorkspaceReturn {
   readFileByPath: (path: string) => Promise<FileReadResult | null>;
   /** Write file content */
   writeFile: (entry: FileEntry, content: string) => Promise<FileWriteResult>;
+  /** Delete a file by path */
+  deleteFile: (path: string) => Promise<FileDeleteResult>;
+  /** Rename a file */
+  renameFile: (oldPath: string, newPath: string) => Promise<FileRenameResult>;
 }
 
 // ============================================================================
@@ -133,6 +161,19 @@ interface WriteResponse {
   success: boolean;
   path: string;
   bytesWritten: number;
+  error?: { code: string; message: string };
+}
+
+interface DeleteResponse {
+  success: boolean;
+  path: string;
+  error?: { code: string; message: string };
+}
+
+interface RenameResponse {
+  success: boolean;
+  oldPath: string;
+  newPath: string;
   error?: { code: string; message: string };
 }
 
@@ -355,6 +396,68 @@ export function useServerWorkspace(): UseServerWorkspaceReturn {
     };
   }, []);
 
+  /**
+   * Delete a file by path.
+   */
+  const deleteFile = useCallback(async (path: string): Promise<FileDeleteResult> => {
+    const response = await fetch(`/api/workspace/file?path=${encodeURIComponent(path)}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: { message: 'Failed to delete file' } }));
+      throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json() as DeleteResponse;
+    if (data.error) {
+      throw new Error(data.error.message);
+    }
+
+    // Invalidate the workspace tree query to refresh the file tree
+    await queryClient.invalidateQueries({ queryKey: WORKSPACE_TREE_QUERY_KEY });
+
+    return {
+      success: data.success,
+      path: data.path,
+    };
+  }, [queryClient]);
+
+  /**
+   * Rename a file.
+   */
+  const renameFile = useCallback(async (oldPath: string, newPath: string): Promise<FileRenameResult> => {
+    const response = await fetch('/api/workspace/rename', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        oldPath,
+        newPath,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: { message: 'Failed to rename file' } }));
+      throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json() as RenameResponse;
+    if (data.error) {
+      throw new Error(data.error.message);
+    }
+
+    // Invalidate the workspace tree query to refresh the file tree
+    await queryClient.invalidateQueries({ queryKey: WORKSPACE_TREE_QUERY_KEY });
+
+    return {
+      success: data.success,
+      oldPath: data.oldPath,
+      newPath: data.newPath,
+    };
+  }, [queryClient]);
+
   return {
     isSupported: true,
     isOpen,
@@ -368,6 +471,8 @@ export function useServerWorkspace(): UseServerWorkspaceReturn {
     readFile,
     readFileByPath,
     writeFile,
+    deleteFile,
+    renameFile,
   };
 }
 
