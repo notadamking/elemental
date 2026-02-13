@@ -157,7 +157,7 @@ const agentListOptions: CommandOption[] = [
   {
     name: 'focus',
     short: 'f',
-    description: 'Filter by steward focus (merge, health, reminder, ops)',
+    description: 'Filter by steward focus (merge, health, reminder, ops, docs)',
     hasValue: true,
   },
   {
@@ -229,7 +229,7 @@ async function agentListHandler(
 
     // Filter by steward focus
     if (options.focus) {
-      const validFocuses = ['merge', 'health', 'reminder', 'ops'];
+      const validFocuses = ['merge', 'health', 'reminder', 'ops', 'docs'];
       if (!validFocuses.includes(options.focus)) {
         return failure(
           `Invalid focus: ${options.focus}. Must be one of: ${validFocuses.join(', ')}`,
@@ -300,7 +300,7 @@ Options:
   -r, --role <role>        Filter by role (director, worker, steward)
   -s, --status <status>    Filter by session status (idle, running, suspended, terminated)
   -m, --workerMode <mode>  Filter by worker mode (ephemeral, persistent)
-  -f, --focus <focus>      Filter by steward focus (merge, health, reminder, ops)
+  -f, --focus <focus>      Filter by steward focus (merge, health, reminder, ops, docs)
   --reportsTo <id>         Filter by manager entity ID
   --hasSession             Filter to agents with active sessions
 
@@ -424,7 +424,7 @@ const agentRegisterOptions: CommandOption[] = [
   {
     name: 'focus',
     short: 'f',
-    description: 'Steward focus (merge, health, reminder, ops)',
+    description: 'Steward focus (merge, health, reminder, ops, docs)',
     hasValue: true,
   },
   {
@@ -540,7 +540,7 @@ async function agentRegisterHandler(
 
       case 'steward': {
         const stewardFocus = (options.focus as StewardFocus) ?? 'health';
-        const validFocuses = ['merge', 'health', 'reminder', 'ops'];
+        const validFocuses = ['merge', 'health', 'reminder', 'ops', 'docs'];
         if (!validFocuses.includes(stewardFocus)) {
           return failure(
             `Invalid focus: ${stewardFocus}. Must be one of: ${validFocuses.join(', ')}`,
@@ -600,7 +600,7 @@ Arguments:
 Options:
   -r, --role <role>       Agent role: director, worker, steward (required)
   -m, --mode <mode>       Worker mode: ephemeral, persistent (default: ephemeral)
-  -f, --focus <focus>     Steward focus: merge, health, reminder, ops
+  -f, --focus <focus>     Steward focus: merge, health, reminder, ops, docs
   -t, --maxTasks <n>      Maximum concurrent tasks (default: 1)
   --tags <tags>           Comma-separated tags (e.g., "frontend,urgent")
   --reportsTo <id>        Manager entity ID (for workers/stewards)

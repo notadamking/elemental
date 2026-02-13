@@ -4,7 +4,7 @@
  * Provides forms for creating:
  * - Director (strategic agent)
  * - Worker (ephemeral or persistent)
- * - Steward (merge, health, reminder, ops)
+ * - Steward (merge, health, reminder, ops, docs)
  *
  * TB-O22: Steward Configuration UI
  */
@@ -32,6 +32,7 @@ import type {
   Agent,
 } from '../../api/types';
 import { useCreateAgent, useAgents, useProviders, useProviderModels } from '../../api/hooks/useAgents';
+import { useAgentDefaultsSettings } from '../../api/hooks/useSettings';
 
 export interface CreateAgentDialogProps {
   isOpen: boolean;
@@ -80,6 +81,10 @@ const stewardFocusOptions: Record<StewardFocus, { label: string; description: st
     label: 'Ops Steward',
     description: 'Runs scheduled maintenance tasks and garbage collection.',
   },
+  docs: {
+    label: 'Documentation Steward',
+    description: 'Reviews, updates, and maintains workspace documents.',
+  },
 };
 
 const workerModeOptions: Record<WorkerMode, { label: string; description: string }> = {
@@ -104,6 +109,7 @@ const workerModeOptions: Record<WorkerMode, { label: string; description: string
  * - Health stewards: "h-steward-1", "h-steward-2", etc.
  * - Reminder stewards: "r-steward-1", "r-steward-2", etc.
  * - Ops stewards: "o-steward-1", "o-steward-2", etc.
+ * - Doc stewards: "d-steward-1", "d-steward-2", etc.
  */
 function generateAgentName(
   role: AgentRole,
@@ -190,10 +196,15 @@ export function CreateAgentDialog({
   const providers = useMemo(() => providersData?.providers ?? [], [providersData?.providers]);
   const hasMultipleProviders = providers.length > 1;
 
+  // Load agent defaults from settings
+  const { settings: agentDefaults } = useAgentDefaultsSettings();
+
   const [form, setForm] = useState<FormState>({
     ...defaultState,
     role: initialRole ?? 'steward',
     stewardFocus: initialStewardFocus ?? 'merge',
+    provider: agentDefaults.defaultProvider || 'claude',
+    model: agentDefaults.defaultModels[agentDefaults.defaultProvider] ?? '',
   });
 
   // Fetch models for the selected provider (must be after form state declaration)
@@ -228,6 +239,17 @@ export function CreateAgentDialog({
     }
   }, [isOpen]);
 
+  // Apply agent default settings when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      setForm(prev => ({
+        ...prev,
+        provider: agentDefaults.defaultProvider || prev.provider,
+        model: agentDefaults.defaultModels[agentDefaults.defaultProvider] ?? '',
+      }));
+    }
+  }, [isOpen, agentDefaults.defaultProvider, agentDefaults.defaultModels]);
+
   const createAgent = useCreateAgent();
 
   if (!isOpen) return null;
@@ -237,15 +259,18 @@ export function CreateAgentDialog({
       ...defaultState,
       role: initialRole ?? 'steward',
       stewardFocus: initialStewardFocus ?? 'merge',
+      provider: agentDefaults.defaultProvider || 'claude',
+      model: agentDefaults.defaultModels[agentDefaults.defaultProvider] ?? '',
     });
     setError(null);
     setNameManuallyEdited(false);
     onClose();
   };
 
-  // Handler for provider change - reset model to default when provider changes
+  // Handler for provider change - apply default model from settings for the new provider
   const handleProviderChange = (newProvider: string) => {
-    setForm(prev => ({ ...prev, provider: newProvider, model: '' }));
+    const defaultModelForProvider = agentDefaults.defaultModels[newProvider] ?? '';
+    setForm(prev => ({ ...prev, provider: newProvider, model: defaultModelForProvider }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

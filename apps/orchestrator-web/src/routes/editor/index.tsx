@@ -1142,6 +1142,7 @@ export function FileEditorPage() {
                     onDeleteFile={fileSource === 'workspace' ? handleDeleteFile : undefined}
                     onRenameFile={fileSource === 'workspace' ? handleRenameFile : undefined}
                     onPasteFile={fileSource === 'workspace' ? handlePasteFile : undefined}
+                    onMoveFile={fileSource === 'workspace' ? handleRenameFile : undefined}
                     workspaceRoot={workspaceRoot}
                   />
                 )}

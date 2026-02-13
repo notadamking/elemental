@@ -50,11 +50,22 @@ export interface StewardScheduleSettings {
   opsStewardEnabled: boolean;
 }
 
+/** Provider name type for agent providers */
+export type AgentProvider = 'claude' | 'opencode' | 'codex';
+
+export interface AgentDefaultsSettings {
+  /** Default provider used when creating new agents */
+  defaultProvider: AgentProvider;
+  /** Default model per provider (provider name → model id) */
+  defaultModels: Record<string, string>;
+}
+
 export interface Settings {
   theme: Theme;
   notifications: NotificationSettings;
   workspace: WorkspaceSettings;
   stewardSchedules: StewardScheduleSettings;
+  agentDefaults: AgentDefaultsSettings;
 }
 
 // ============================================================================
@@ -84,12 +95,18 @@ const DEFAULT_STEWARD_SCHEDULE_SETTINGS: StewardScheduleSettings = {
   opsStewardEnabled: true,
 };
 
+const DEFAULT_AGENT_DEFAULTS_SETTINGS: AgentDefaultsSettings = {
+  defaultProvider: 'claude',
+  defaultModels: {},
+};
+
 // Default settings (exported for testing and documentation)
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   notifications: DEFAULT_NOTIFICATION_SETTINGS,
   workspace: DEFAULT_WORKSPACE_SETTINGS,
   stewardSchedules: DEFAULT_STEWARD_SCHEDULE_SETTINGS,
+  agentDefaults: DEFAULT_AGENT_DEFAULTS_SETTINGS,
 };
 
 // ============================================================================
@@ -100,6 +117,7 @@ const THEME_KEY = 'settings.theme';
 const NOTIFICATIONS_KEY = 'settings.notifications';
 const WORKSPACE_KEY = 'settings.workspace';
 const STEWARD_SCHEDULES_KEY = 'settings.stewardSchedules';
+const AGENT_DEFAULTS_KEY = 'settings.agentDefaults';
 
 // ============================================================================
 // Helper Functions
@@ -271,6 +289,41 @@ export function useStewardScheduleSettings() {
 }
 
 /**
+ * Hook for managing agent default settings (provider & model)
+ */
+export function useAgentDefaultsSettings() {
+  const [settings, setSettingsState] = useState<AgentDefaultsSettings>(() =>
+    loadFromStorage(AGENT_DEFAULTS_KEY, DEFAULT_AGENT_DEFAULTS_SETTINGS)
+  );
+
+  useEffect(() => {
+    saveToStorage(AGENT_DEFAULTS_KEY, settings);
+  }, [settings]);
+
+  const setSettings = useCallback((updates: Partial<AgentDefaultsSettings>) => {
+    setSettingsState((prev) => ({ ...prev, ...updates }));
+  }, []);
+
+  const setDefaultModel = useCallback((provider: string, model: string) => {
+    setSettingsState((prev) => ({
+      ...prev,
+      defaultModels: { ...prev.defaultModels, [provider]: model },
+    }));
+  }, []);
+
+  const resetToDefaults = useCallback(() => {
+    setSettingsState(DEFAULT_AGENT_DEFAULTS_SETTINGS);
+  }, []);
+
+  return {
+    settings,
+    setSettings,
+    setDefaultModel,
+    resetToDefaults,
+  };
+}
+
+/**
  * Hook for managing all settings
  */
 export function useSettings() {
@@ -278,12 +331,14 @@ export function useSettings() {
   const notificationsHook = useNotificationSettings();
   const workspaceHook = useWorkspaceSettings();
   const stewardSchedulesHook = useStewardScheduleSettings();
+  const agentDefaultsHook = useAgentDefaultsSettings();
 
   const settings: Settings = {
     theme: themeHook.theme,
     notifications: notificationsHook.settings,
     workspace: workspaceHook.settings,
     stewardSchedules: stewardSchedulesHook.settings,
+    agentDefaults: agentDefaultsHook.settings,
   };
 
   const resetAllToDefaults = useCallback(() => {
@@ -291,7 +346,8 @@ export function useSettings() {
     notificationsHook.resetToDefaults();
     workspaceHook.resetToDefaults();
     stewardSchedulesHook.resetToDefaults();
-  }, [themeHook, notificationsHook, workspaceHook, stewardSchedulesHook]);
+    agentDefaultsHook.resetToDefaults();
+  }, [themeHook, notificationsHook, workspaceHook, stewardSchedulesHook, agentDefaultsHook]);
 
   return {
     settings,
@@ -299,6 +355,7 @@ export function useSettings() {
     notifications: notificationsHook,
     workspace: workspaceHook,
     stewardSchedules: stewardSchedulesHook,
+    agentDefaults: agentDefaultsHook,
     resetAllToDefaults,
   };
 }

@@ -1117,6 +1117,12 @@ export class ElementalAPIImpl implements ElementalAPI {
     // Process mentions and inbox for messages
     if (isMessage(element)) {
       const messageData = element as unknown as Message;
+      const messageMetadata = messageData.metadata as Record<string, unknown> | undefined;
+
+      // Skip inbox item creation if the message has suppressInbox flag set.
+      // This is used by dispatch notifications (task-assignment, task-reassignment)
+      // to prevent cluttering the operator/director's inbox.
+      const suppressInbox = messageMetadata?.suppressInbox === true;
 
       // Get the channel to determine type and members
       const channelRow = this.backend.queryOne<ElementRow>(
@@ -1130,21 +1136,23 @@ export class ElementalAPIImpl implements ElementalAPI {
         );
         const channel = deserializeElement<Channel>(channelRow, channelTags.map((r) => r.tag));
 
-        // For direct channels: Create inbox item for the OTHER member (not the sender)
-        if (channel && isDirectChannel(channel)) {
-          for (const memberId of channel.members) {
-            // Skip the sender - they don't need an inbox item for their own message
-            if (memberId !== messageData.sender) {
-              try {
-                this.inboxService.addToInbox({
-                  recipientId: memberId as EntityId,
-                  messageId: messageData.id as unknown as MessageId,
-                  channelId: messageData.channelId as unknown as MessageChannelId,
-                  sourceType: InboxSourceType.DIRECT,
-                  createdBy: messageData.sender,
-                });
-              } catch {
-                // Ignore errors (e.g., duplicate inbox item)
+        if (!suppressInbox) {
+          // For direct channels: Create inbox item for the OTHER member (not the sender)
+          if (channel && isDirectChannel(channel)) {
+            for (const memberId of channel.members) {
+              // Skip the sender - they don't need an inbox item for their own message
+              if (memberId !== messageData.sender) {
+                try {
+                  this.inboxService.addToInbox({
+                    recipientId: memberId as EntityId,
+                    messageId: messageData.id as unknown as MessageId,
+                    channelId: messageData.channelId as unknown as MessageChannelId,
+                    sourceType: InboxSourceType.DIRECT,
+                    createdBy: messageData.sender,
+                  });
+                } catch {
+                  // Ignore errors (e.g., duplicate inbox item)
+                }
               }
             }
           }
@@ -1199,7 +1207,7 @@ export class ElementalAPIImpl implements ElementalAPI {
               }
 
               // Create inbox item for the mentioned entity (if not the sender)
-              if (mentionedEntityId !== messageData.sender) {
+              if (!suppressInbox && mentionedEntityId !== messageData.sender) {
                 try {
                   this.inboxService.addToInbox({
                     recipientId: mentionedEntityId,
@@ -1217,7 +1225,7 @@ export class ElementalAPIImpl implements ElementalAPI {
         }
 
         // For thread replies: Notify the parent message sender
-        if (messageData.threadId) {
+        if (!suppressInbox && messageData.threadId) {
           const parentMessageRow = this.backend.queryOne<ElementRow>(
             `SELECT * FROM elements WHERE id = ? AND type = 'message' AND deleted_at IS NULL`,
             [messageData.threadId]

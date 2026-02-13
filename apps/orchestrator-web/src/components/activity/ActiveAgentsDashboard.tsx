@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react';
 import { useAgentsByRole, useSessions } from '../../api/hooks/useAgents.js';
 import { useTasksByStatus } from '../../api/hooks/useTasks.js';
 import { useActiveAgentOutputs } from '../../api/hooks/useActiveAgentOutputs.js';
+import type { RunningSessionInfo } from '../../api/hooks/useActiveAgentOutputs.js';
 import { useDaemonStatus } from '../../api/hooks/useDaemon.js';
 import { ActiveAgentCard } from './ActiveAgentCard.js';
 import type { Agent, SessionRecord, Task } from '../../api/types.js';
@@ -24,11 +25,16 @@ export function ActiveAgentsDashboard({ onOpenTerminal, onOpenDirectorPanel, onS
   const { allAgents } = useAgentsByRole();
   const { data: sessionsData } = useSessions({ status: 'running' });
   const { inProgress } = useTasksByStatus();
-  const { outputByAgent } = useActiveAgentOutputs();
+  const runningSessions = sessionsData?.sessions ?? [];
+
+  // Build running session info for seeding initial output state
+  const runningSessionInfos = useMemo<RunningSessionInfo[]>(() => {
+    return runningSessions.map((s) => ({ sessionId: s.id, agentId: s.agentId }));
+  }, [runningSessions]);
+
+  const { outputByAgent } = useActiveAgentOutputs(runningSessionInfos);
   const { data: daemonStatus } = useDaemonStatus();
   const [stoppingAgents, setStoppingAgents] = useState<Set<string>>(new Set());
-
-  const runningSessions = sessionsData?.sessions ?? [];
 
   // Build agent lookup
   const agentMap = useMemo(() => {

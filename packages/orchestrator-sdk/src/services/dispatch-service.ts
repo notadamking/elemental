@@ -381,13 +381,15 @@ export class DispatchServiceImpl implements DispatchService {
       contentDoc as unknown as Record<string, unknown> & { createdBy: EntityId }
     );
 
-    // Create message for the agent's channel
+    // Create message for the agent's channel.
+    // suppressInbox prevents inbox items from being created for channel members,
+    // so dispatch notifications don't clutter the operator/director's inbox.
     const message = await createMessage({
       channelId: channelId as unknown as import('@elemental/core').ChannelId,
       sender,
       contentRef: savedDoc.id as unknown as DocumentId,
       tags: ['dispatch-notification', metadata.type],
-      metadata: metadata as Record<string, unknown>,
+      metadata: { ...metadata as Record<string, unknown>, suppressInbox: true },
     });
 
     // Save the message

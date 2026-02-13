@@ -5,17 +5,26 @@
  * Allows the operator to manually trigger inbox reading.
  */
 
-import { useMemo, useCallback } from 'react';
-import { Mail, Send, Clock, User, RefreshCw, Inbox, CheckCheck } from 'lucide-react';
-import { Tooltip } from '../ui/Tooltip';
+import { useMemo, useCallback } from "react";
+import {
+  Mail,
+  Send,
+  Clock,
+  User,
+  RefreshCw,
+  Inbox,
+  CheckCheck,
+  Play,
+} from "lucide-react";
+import { Tooltip } from "../ui/Tooltip";
 import {
   useAgentInbox,
   useMarkAllInboxRead,
   formatInboxTime,
   type InboxItem,
-} from '../../api/hooks/useAgentInbox';
-import { useRealtimeEvents } from '../../api/hooks/useRealtimeEvents';
-import { renderMessageContent } from '../../lib/message-content';
+} from "../../api/hooks/useAgentInbox";
+import { useRealtimeEvents } from "../../api/hooks/useRealtimeEvents";
+import { renderMessageContent } from "../../lib/message-content";
 
 interface PendingMessagesQueueProps {
   /** Director agent ID */
@@ -25,14 +34,14 @@ interface PendingMessagesQueueProps {
   /** Callback to send command to director terminal */
   onSendCommand?: (command: string) => void;
   /** Test ID for testing */
-  'data-testid'?: string;
+  "data-testid"?: string;
 }
 
 export function PendingMessagesQueue({
   directorId,
   hasActiveSession,
   onSendCommand,
-  'data-testid': testId = 'pending-messages-queue',
+  "data-testid": testId = "pending-messages-queue",
 }: PendingMessagesQueueProps) {
   // Subscribe to real-time inbox updates for the director
   useRealtimeEvents({
@@ -41,29 +50,52 @@ export function PendingMessagesQueue({
   });
 
   // Fetch unread inbox items for the director
-  const { data: inboxData, isLoading, error, refetch } = useAgentInbox(directorId, 'unread');
-  const markAllRead = useMarkAllInboxRead(directorId ?? '');
+  const {
+    data: inboxData,
+    isLoading,
+    error,
+    refetch,
+  } = useAgentInbox(directorId, "unread");
+  const markAllRead = useMarkAllInboxRead(directorId ?? "");
 
   // Filter to only show unread messages
   const pendingMessages = useMemo(() => {
     if (!inboxData?.items) return [];
-    return inboxData.items.filter((item) => item.status === 'unread');
+    return inboxData.items.filter((item) => item.status === "unread");
   }, [inboxData?.items]);
 
   // Handle process button click - tells the director agent to check and process its inbox
   const handleProcessMessages = useCallback(() => {
     if (!hasActiveSession) {
-      console.warn('Cannot process messages: Director has no active session');
+      console.warn("Cannot process messages: Director has no active session");
       return;
     }
 
     // Send a natural language instruction to the director agent to check its inbox
-    onSendCommand?.('Check your inbox and process the pending messages');
+    onSendCommand?.("Check your inbox and process the pending messages");
     // Send carriage return after a small delay to ensure it registers as the submit action
     setTimeout(() => {
-      onSendCommand?.('\r');
+      onSendCommand?.("\r");
     }, 200);
   }, [hasActiveSession, onSendCommand]);
+
+  // Handle process single message - sends targeted command to director terminal
+  const handleProcessSingle = useCallback(
+    (inboxItemId: string) => {
+      if (!hasActiveSession) {
+        console.warn("Cannot process message: Director has no active session");
+        return;
+      }
+
+      const command = `Process inbox item ${inboxItemId} — read it with \`el show ${inboxItemId}\` and handle it. Do not process other inbox messages.`;
+      onSendCommand?.(command);
+      // Send carriage return after a small delay to ensure it registers as the submit action
+      setTimeout(() => {
+        onSendCommand?.("\r");
+      }, 200);
+    },
+    [hasActiveSession, onSendCommand],
+  );
 
   // Handle mark all as read
   const handleMarkAllRead = useCallback(async () => {
@@ -71,7 +103,7 @@ export function PendingMessagesQueue({
     try {
       await markAllRead.mutateAsync();
     } catch (err) {
-      console.error('Failed to mark all messages as read:', err);
+      console.error("Failed to mark all messages as read:", err);
     }
   }, [directorId, markAllRead]);
 
@@ -83,7 +115,9 @@ export function PendingMessagesQueue({
         data-testid={testId}
       >
         <Inbox className="w-8 h-8 text-[var(--color-text-muted)] mb-2" />
-        <p className="text-sm text-[var(--color-text-muted)]">No Director agent</p>
+        <p className="text-sm text-[var(--color-text-muted)]">
+          No Director agent
+        </p>
       </div>
     );
   }
@@ -95,7 +129,9 @@ export function PendingMessagesQueue({
         data-testid={testId}
       >
         <RefreshCw className="w-6 h-6 text-[var(--color-text-muted)] animate-spin" />
-        <p className="text-sm text-[var(--color-text-muted)] mt-2">Loading messages...</p>
+        <p className="text-sm text-[var(--color-text-muted)] mt-2">
+          Loading messages...
+        </p>
       </div>
     );
   }
@@ -106,7 +142,9 @@ export function PendingMessagesQueue({
         className="flex flex-col items-center justify-center h-full p-4 text-center"
         data-testid={testId}
       >
-        <p className="text-sm text-[var(--color-danger)]">Failed to load messages</p>
+        <p className="text-sm text-[var(--color-danger)]">
+          Failed to load messages
+        </p>
         <button
           onClick={() => refetch()}
           className="mt-2 text-xs text-[var(--color-primary)] hover:underline"
@@ -151,7 +189,11 @@ export function PendingMessagesQueue({
                 </button>
               </Tooltip>
               <Tooltip
-                content={hasActiveSession ? 'Process messages' : 'Start director session first'}
+                content={
+                  hasActiveSession
+                    ? "Process messages"
+                    : "Start director session first"
+                }
                 side="bottom"
               >
                 <button
@@ -175,15 +217,25 @@ export function PendingMessagesQueue({
         {pendingMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-4 text-center">
             <Inbox className="w-8 h-8 text-[var(--color-text-muted)] mb-2" />
-            <p className="text-sm text-[var(--color-text-muted)]">No pending messages</p>
+            <p className="text-sm text-[var(--color-text-muted)]">
+              No pending messages
+            </p>
             <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
               Messages will appear here when received
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-[var(--color-border)]" data-testid="messages-list">
+          <ul
+            className="divide-y divide-[var(--color-border)]"
+            data-testid="messages-list"
+          >
             {pendingMessages.map((item) => (
-              <MessageItem key={item.id} item={item} />
+              <MessageItem
+                key={item.id}
+                item={item}
+                hasActiveSession={hasActiveSession}
+                onProcessSingle={handleProcessSingle}
+              />
             ))}
           </ul>
         )}
@@ -195,12 +247,25 @@ export function PendingMessagesQueue({
 /**
  * Individual message item in the queue
  */
-function MessageItem({ item }: { item: InboxItem }) {
-  const senderName = item.sender?.name ?? item.message?.sender ?? 'Unknown';
-  const contentPreview = item.message?.contentPreview ?? item.message?.fullContent ?? '';
+function MessageItem({
+  item,
+  hasActiveSession,
+  onProcessSingle,
+}: {
+  item: InboxItem;
+  hasActiveSession: boolean;
+  onProcessSingle: (inboxItemId: string) => void;
+}) {
+  const senderName = item.sender?.name ?? item.message?.sender ?? "Unknown";
+  const contentPreview =
+    item.message?.contentPreview ?? item.message?.fullContent ?? "";
   const timestamp = item.createdAt;
   const channelName = item.channel?.name;
   const sourceType = item.sourceType;
+
+  const handleProcess = useCallback(() => {
+    onProcessSingle(item.id);
+  }, [item.id, onProcessSingle]);
 
   return (
     <li
@@ -224,7 +289,7 @@ function MessageItem({ item }: { item: InboxItem }) {
                 #{channelName}
               </span>
             )}
-            {sourceType === 'mention' && (
+            {sourceType === "mention" && (
               <span className="px-1 py-0.5 text-[10px] font-medium rounded bg-blue-500/20 text-blue-400">
                 @mention
               </span>
@@ -235,9 +300,31 @@ function MessageItem({ item }: { item: InboxItem }) {
             </div>
           </div>
 
-          {/* Message content preview */}
-          <div className="text-sm text-[var(--color-text-secondary)] line-clamp-2">
-            {renderMessageContent(contentPreview)}
+          {/* Message content preview and process action */}
+          <div className="flex items-end gap-2">
+            <div className="flex-1 text-sm text-[var(--color-text-secondary)] line-clamp-2">
+              {renderMessageContent(contentPreview)}
+            </div>
+
+            {/* Process single message button */}
+            <Tooltip
+              content={
+                hasActiveSession
+                  ? "Process this message"
+                  : "Start director session first"
+              }
+              side="left"
+            >
+              <button
+                onClick={handleProcess}
+                disabled={!hasActiveSession}
+                className="flex-shrink-0 p-1 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label={`Process message ${item.id}`}
+                data-testid="process-single-message-btn"
+              >
+                <Play className="w-3.5 h-3.5" />
+              </button>
+            </Tooltip>
           </div>
         </div>
       </div>

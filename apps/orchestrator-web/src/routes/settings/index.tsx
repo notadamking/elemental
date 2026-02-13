@@ -6,7 +6,7 @@
  * - Workspace: Worktree directory, ephemeral retention, steward schedules
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import {
   Settings,
@@ -26,12 +26,17 @@ import {
   GitBranch,
   Trash2,
   Calendar,
+  Bot,
+  ChevronDown,
+  Loader2,
 } from 'lucide-react';
 import { useIsMobile, ShortcutsSection } from '@elemental/ui';
 import {
   useSettings,
   type Theme,
+  type AgentProvider,
 } from '../../api/hooks/useSettings';
+import { useProviders, useProviderModels } from '../../api/hooks/useAgents';
 import { DEFAULT_SHORTCUTS } from '../../lib/keyboard';
 
 type TabValue = 'preferences' | 'workspace';
@@ -109,7 +114,7 @@ export function SettingsPage() {
 // ============================================================================
 
 function PreferencesTab() {
-  const { theme, notifications } = useSettings();
+  const { theme, notifications, agentDefaults } = useSettings();
   const isMobile = useIsMobile();
 
   return (
@@ -217,6 +222,14 @@ function PreferencesTab() {
         </div>
       </SettingsSection>
 
+      {/* Agent Defaults */}
+      <AgentDefaultsSection
+        settings={agentDefaults.settings}
+        setSettings={agentDefaults.setSettings}
+        setDefaultModel={agentDefaults.setDefaultModel}
+        resetToDefaults={agentDefaults.resetToDefaults}
+      />
+
       {/* Keyboard Shortcuts */}
       <SettingsSection
         icon={Keyboard}
@@ -225,6 +238,174 @@ function PreferencesTab() {
       >
         <ShortcutsSection defaults={DEFAULT_SHORTCUTS} isMobile={isMobile} />
       </SettingsSection>
+    </div>
+  );
+}
+
+// ============================================================================
+// Agent Defaults Section
+// ============================================================================
+
+const PROVIDER_LABELS: Record<string, string> = {
+  claude: 'Claude',
+  opencode: 'OpenCode',
+  codex: 'Codex',
+};
+
+interface AgentDefaultsSectionProps {
+  settings: {
+    defaultProvider: AgentProvider;
+    defaultModels: Record<string, string>;
+  };
+  setSettings: (updates: { defaultProvider?: AgentProvider }) => void;
+  setDefaultModel: (provider: string, model: string) => void;
+  resetToDefaults: () => void;
+}
+
+function AgentDefaultsSection({ settings, setSettings, setDefaultModel, resetToDefaults }: AgentDefaultsSectionProps) {
+  const { data: providersData } = useProviders();
+  const providers = useMemo(() => providersData?.providers ?? [], [providersData?.providers]);
+
+  // Get available provider names (from API or fallback to known providers)
+  const availableProviders = useMemo(() => {
+    if (providers.length > 0) return providers;
+    // Fallback to known providers if API hasn't loaded yet
+    return [
+      { name: 'claude', available: true, installInstructions: '' },
+      { name: 'opencode', available: true, installInstructions: '' },
+      { name: 'codex', available: true, installInstructions: '' },
+    ];
+  }, [providers]);
+
+  return (
+    <SettingsSection
+      icon={Bot}
+      title="Agent Defaults"
+      description="Default provider and model for new agents"
+    >
+      <div className="space-y-4">
+        {/* Default Provider */}
+        <div>
+          <label
+            htmlFor="default-provider"
+            className="block text-sm text-[var(--color-text-secondary)] mb-1"
+          >
+            Default Provider
+          </label>
+          <div className="relative">
+            <select
+              id="default-provider"
+              value={settings.defaultProvider}
+              onChange={(e) => setSettings({ defaultProvider: e.target.value as AgentProvider })}
+              className="w-full px-3 py-2 pr-8 rounded-md border border-[var(--color-border)] bg-[var(--color-input-bg)] text-[var(--color-text)] appearance-none focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+              data-testid="settings-default-provider"
+            >
+              {availableProviders.map((p) => (
+                <option key={p.name} value={p.name} disabled={!p.available}>
+                  {PROVIDER_LABELS[p.name] ?? p.name}
+                  {!p.available ? ' (not installed)' : ''}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)] pointer-events-none" />
+          </div>
+          <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">
+            Provider used by default when creating new agents
+          </p>
+        </div>
+
+        {/* Default Model per Provider */}
+        <div>
+          <label className="block text-sm text-[var(--color-text-secondary)] mb-2">
+            Default Model per Provider
+          </label>
+          <div className="space-y-3">
+            {availableProviders
+              .filter((p) => p.available)
+              .map((provider) => (
+                <ProviderModelSelector
+                  key={provider.name}
+                  providerName={provider.name}
+                  providerLabel={PROVIDER_LABELS[provider.name] ?? provider.name}
+                  selectedModel={settings.defaultModels[provider.name] ?? ''}
+                  onModelChange={(model) => setDefaultModel(provider.name, model)}
+                />
+              ))}
+          </div>
+          <p className="mt-2 text-xs text-[var(--color-text-tertiary)]">
+            These models will be pre-selected when creating agents with the corresponding provider
+          </p>
+        </div>
+
+        {/* Reset */}
+        <div className="pt-2">
+          <button
+            onClick={resetToDefaults}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded-md transition-colors"
+            data-testid="settings-agent-defaults-reset"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Reset to defaults
+          </button>
+        </div>
+      </div>
+    </SettingsSection>
+  );
+}
+
+/**
+ * Model selector for a specific provider
+ */
+function ProviderModelSelector({
+  providerName,
+  providerLabel,
+  selectedModel,
+  onModelChange,
+}: {
+  providerName: string;
+  providerLabel: string;
+  selectedModel: string;
+  onModelChange: (model: string) => void;
+}) {
+  const { data: modelsData, isLoading } = useProviderModels(providerName);
+  const allModels = useMemo(() => modelsData?.models ?? [], [modelsData?.models]);
+  const defaultModel = useMemo(() => allModels.find((m) => m.isDefault), [allModels]);
+  const models = useMemo(() => allModels.filter((m) => !m.isDefault), [allModels]);
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-sm text-[var(--color-text)] w-24 flex-shrink-0 font-medium">
+        {providerLabel}
+      </span>
+      <div className="relative flex-1">
+        {isLoading ? (
+          <div className="flex items-center gap-2 py-2 text-xs text-[var(--color-text-tertiary)]">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Loading models...
+          </div>
+        ) : (
+          <>
+            <select
+              value={selectedModel}
+              onChange={(e) => onModelChange(e.target.value)}
+              className="w-full px-3 py-1.5 pr-8 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-input-bg)] text-[var(--color-text)] appearance-none focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+              data-testid={`settings-default-model-${providerName}`}
+            >
+              <option value="">
+                {defaultModel
+                  ? `Provider default (${defaultModel.displayName})`
+                  : 'Provider default'}
+              </option>
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.providerName ? `${m.displayName} — ${m.providerName}` : m.displayName}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)] pointer-events-none" />
+          </>
+        )}
+      </div>
     </div>
   );
 }
