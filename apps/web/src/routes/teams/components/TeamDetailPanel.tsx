@@ -8,7 +8,8 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Users, X, Pencil, Save, Trash2, Loader2, Search, Plus, UserMinus } from 'lucide-react';
 import { ListTodo, CheckCircle, Clock, PlusCircle } from 'lucide-react';
-import { EntityLink } from '../../../components/entity/EntityLink';
+import { EntityLink } from '@elemental/ui/domain';
+import { useEntityNavigation } from '../../../hooks/useEntityNavigation';
 import { useTeam, useTeamMembers, useTeamStats, useUpdateTeam, useDeleteTeam, useAllEntities } from '../hooks';
 import { ENTITY_TYPE_STYLES } from '../constants';
 import { StatCard } from './StatCard';
@@ -28,6 +29,7 @@ export function TeamDetailPanel({ teamId, onClose, onDeleted }: TeamDetailPanelP
   const entities = useAllEntities();
   const updateTeam = useUpdateTeam();
   const deleteTeam = useDeleteTeam();
+  const { onNavigate, renderProfileLink } = useEntityNavigation();
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState('');
@@ -391,6 +393,10 @@ export function TeamDetailPanel({ teamId, onClose, onDeleted }: TeamDetailPanelP
                       <EntityLink
                         entityRef={member.id}
                         className="text-sm"
+                        showHoverCard
+                        navigable
+                        onNavigate={onNavigate}
+                        renderProfileLink={renderProfileLink}
                         data-testid={`member-link-${member.id}`}
                       >
                         {member.name}

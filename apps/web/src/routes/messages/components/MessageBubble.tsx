@@ -12,7 +12,8 @@ import {
   MoreVertical,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { EntityLink } from '../../../components/entity/EntityLink';
+import { EntityLink } from '@elemental/ui/domain';
+import { useEntityNavigation } from '../../../hooks/useEntityNavigation';
 import { renderMessageContent } from '../../../lib/message-content';
 import { useEntities } from '../../../api/hooks/useMessages';
 import type { Message } from '../types';
@@ -71,6 +72,7 @@ export function MessageBubble({
   const [showMobileActions, setShowMobileActions] = useState(false);
   const messageRef = useRef<HTMLDivElement>(null);
   const touchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { onNavigate, renderProfileLink } = useEntityNavigation();
 
   const { data: entities } = useEntities();
   const senderEntity = entities?.find((e) => e.id === message.sender);
@@ -173,6 +175,10 @@ export function MessageBubble({
             <EntityLink
               entityRef={message.sender}
               className={`font-semibold ${isMobile ? 'text-sm' : ''}`}
+              showHoverCard
+              navigable
+              onNavigate={onNavigate}
+              renderProfileLink={renderProfileLink}
               data-testid={`message-sender-${message.id}`}
             >
               {senderName}

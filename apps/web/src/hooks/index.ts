@@ -48,3 +48,6 @@ export type { Breakpoint, DeviceType } from './useBreakpoint';
 
 // Deep link navigation
 export { useDeepLink } from './useDeepLink';
+
+// Entity navigation for EntityLink
+export { useEntityNavigation } from './useEntityNavigation';

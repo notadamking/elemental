@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Loader2, Search } from 'lucide-react';
-import { EntityLink } from '../../../components/entity/EntityLink';
+import { EntityLink } from '@elemental/ui/domain';
 import { useMessageSearch } from '../../../api/hooks/useMessages';
 import { highlightSearchMatch } from '../../../lib/message-content';
 
@@ -133,7 +133,6 @@ export function MessageSearchDropdown({
                     <EntityLink
                       entityRef={result.sender}
                       className="font-medium text-sm"
-                      showPreview={false}
                     />
                     <span className="text-xs text-gray-400">{formatTime(result.createdAt)}</span>
                   </div>

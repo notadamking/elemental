@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Eye, Pencil, Check, Loader2, Trash2, Paperclip, FileText, ChevronDown, ChevronRight, Plus, Search, Circle, ExternalLink, Users, Save, Bot, Server, Inbox } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
-import { EntityLink } from '../entity/EntityLink';
+import { EntityLink } from '@elemental/ui/domain';
+import { useEntityNavigation } from '../../hooks/useEntityNavigation';
 import { MarkdownRenderer } from '../shared/MarkdownRenderer';
 import { BlockEditor } from '../editor/BlockEditor';
 import { useAllEntities } from '../../api/hooks/useAllElements';
@@ -1394,6 +1395,7 @@ function MentionedEntitiesSection({
 }) {
   const { data: entitiesData } = useAllEntities();
   const [isExpanded, setIsExpanded] = useState(true);
+  const { onNavigate, renderProfileLink } = useEntityNavigation();
 
   // Collect all mentions from description
   const mentionedNames = useMemo(() => {
@@ -1437,6 +1439,10 @@ function MentionedEntitiesSection({
               key={entity.id}
               entityRef={entity.id}
               showIcon
+              showHoverCard
+              navigable
+              onNavigate={onNavigate}
+              renderProfileLink={renderProfileLink}
               data-testid={`mentioned-entity-${entity.id}`}
             />
           ))}
@@ -1915,6 +1921,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
   const deleteTask = useDeleteTask();
   const [updateField, setUpdateField] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const { onNavigate, renderProfileLink } = useEntityNavigation();
 
   const handleUpdate = (updates: Partial<TaskDetail>, fieldName: string) => {
     setUpdateField(fieldName);
@@ -2049,6 +2056,10 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
                 <EntityLink
                   entityRef={task.owner}
                   showIcon
+                  showHoverCard
+                  navigable
+                  onNavigate={onNavigate}
+                  renderProfileLink={renderProfileLink}
                   data-testid="task-detail-owner-link"
                 />
               </div>
@@ -2132,6 +2143,10 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
               <span className="font-medium">Created by:</span>{' '}
               <EntityLink
                 entityRef={task.createdBy}
+                showHoverCard
+                navigable
+                onNavigate={onNavigate}
+                renderProfileLink={renderProfileLink}
                 data-testid="task-detail-creator-link"
               />
             </div>
