@@ -7,11 +7,12 @@
  * - Unsaved indicator (dot) for dirty tabs
  * - Close button with save confirmation dialog
  * - Drag-and-drop tab reordering
+ * - Right-click context menu (Close, Close Others, Close to the Right, Close Saved, Close All)
  *
  * Follows VSCode conventions for tab management.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -30,6 +31,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import * as ContextMenu from '@radix-ui/react-context-menu';
 import { X, FileCode, FileText, FileJson, Settings, File, Puzzle } from 'lucide-react';
 import type { FileSource } from './EditorFileTree';
 
@@ -262,12 +264,102 @@ function TabItem({ tab, isActive, onSelect, onClose, isDragging = false }: TabIt
 }
 
 // ============================================================================
+// Tab Context Menu Component
+// ============================================================================
+
+interface TabContextMenuProps {
+  tab: EditorTab;
+  children: React.ReactNode;
+  onClose: () => void;
+  onCloseOthers: () => void;
+  onCloseToRight: () => void;
+  onCloseSaved: () => void;
+  onCloseAll: () => void;
+}
+
+function TabContextMenu({
+  children,
+  onClose,
+  onCloseOthers,
+  onCloseToRight,
+  onCloseSaved,
+  onCloseAll,
+}: TabContextMenuProps) {
+  const menuItemClassName =
+    'flex items-center px-3 py-1.5 text-sm text-[var(--color-text)] data-[highlighted]:bg-[var(--color-surface-active)] cursor-pointer outline-none';
+
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>
+        {children}
+      </ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content
+          className="min-w-[180px] bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg shadow-lg py-1 z-50"
+          data-testid="tab-context-menu"
+        >
+          <ContextMenu.Item
+            className={menuItemClassName}
+            onSelect={onClose}
+            data-testid="tab-context-menu-close"
+          >
+            Close
+          </ContextMenu.Item>
+          <ContextMenu.Item
+            className={menuItemClassName}
+            onSelect={onCloseOthers}
+            data-testid="tab-context-menu-close-others"
+          >
+            Close Others
+          </ContextMenu.Item>
+          <ContextMenu.Item
+            className={menuItemClassName}
+            onSelect={onCloseToRight}
+            data-testid="tab-context-menu-close-to-right"
+          >
+            Close to the Right
+          </ContextMenu.Item>
+          <ContextMenu.Separator className="h-px bg-[var(--color-border)] my-1" />
+          <ContextMenu.Item
+            className={menuItemClassName}
+            onSelect={onCloseSaved}
+            data-testid="tab-context-menu-close-saved"
+          >
+            Close Saved
+          </ContextMenu.Item>
+          <ContextMenu.Item
+            className={menuItemClassName}
+            onSelect={onCloseAll}
+            data-testid="tab-context-menu-close-all"
+          >
+            Close All
+          </ContextMenu.Item>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
+  );
+}
+
+// ============================================================================
 // Sortable Tab Wrapper
 // ============================================================================
 
-interface SortableTabProps extends TabItemProps {}
+interface SortableTabProps extends TabItemProps {
+  onContextClose: () => void;
+  onContextCloseOthers: () => void;
+  onContextCloseToRight: () => void;
+  onContextCloseSaved: () => void;
+  onContextCloseAll: () => void;
+}
 
-function SortableTab(props: SortableTabProps) {
+function SortableTab({
+  onContextClose,
+  onContextCloseOthers,
+  onContextCloseToRight,
+  onContextCloseSaved,
+  onContextCloseAll,
+  ...props
+}: SortableTabProps) {
   const {
     attributes,
     listeners,
@@ -283,9 +375,18 @@ function SortableTab(props: SortableTabProps) {
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <TabItem {...props} isDragging={isDragging} />
-    </div>
+    <TabContextMenu
+      tab={props.tab}
+      onClose={onContextClose}
+      onCloseOthers={onContextCloseOthers}
+      onCloseToRight={onContextCloseToRight}
+      onCloseSaved={onContextCloseSaved}
+      onCloseAll={onContextCloseAll}
+    >
+      <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+        <TabItem {...props} isDragging={isDragging} />
+      </div>
+    </TabContextMenu>
   );
 }
 
@@ -307,6 +408,8 @@ export function EditorTabBar({
     tabId: string;
     fileName: string;
   }>({ isOpen: false, tabId: '', fileName: '' });
+  // Queue for sequential save prompts during bulk close operations
+  const pendingCloseQueueRef = useRef<string[]>([]);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -358,6 +461,25 @@ export function EditorTabBar({
     }
   }, [onTabClose]);
 
+  // Process the next unsaved tab in the bulk close queue
+  const processNextInQueue = useCallback(() => {
+    if (pendingCloseQueueRef.current.length === 0) return;
+
+    const nextTabId = pendingCloseQueueRef.current[0];
+    const nextTab = tabs.find(t => t.id === nextTabId);
+    if (nextTab) {
+      setConfirmDialog({
+        isOpen: true,
+        tabId: nextTab.id,
+        fileName: nextTab.name,
+      });
+    } else {
+      // Tab no longer exists, skip it
+      pendingCloseQueueRef.current.shift();
+      processNextInQueue();
+    }
+  }, [tabs]);
+
   const handleSaveAndClose = useCallback(async () => {
     const { tabId } = confirmDialog;
     if (onSaveRequest) {
@@ -369,16 +491,80 @@ export function EditorTabBar({
     }
     onTabClose(tabId);
     setConfirmDialog({ isOpen: false, tabId: '', fileName: '' });
-  }, [confirmDialog, onSaveRequest, onTabClose]);
+
+    // Process next queued unsaved tab
+    pendingCloseQueueRef.current.shift();
+    // Use setTimeout to let React reconcile the state update before showing next dialog
+    setTimeout(() => processNextInQueue(), 0);
+  }, [confirmDialog, onSaveRequest, onTabClose, processNextInQueue]);
 
   const handleDiscardAndClose = useCallback(() => {
     onTabClose(confirmDialog.tabId);
     setConfirmDialog({ isOpen: false, tabId: '', fileName: '' });
-  }, [confirmDialog.tabId, onTabClose]);
+
+    // Process next queued unsaved tab
+    pendingCloseQueueRef.current.shift();
+    setTimeout(() => processNextInQueue(), 0);
+  }, [confirmDialog.tabId, onTabClose, processNextInQueue]);
 
   const handleCancelClose = useCallback(() => {
     setConfirmDialog({ isOpen: false, tabId: '', fileName: '' });
+    // Cancel clears the entire queue — user chose to abort the bulk close
+    pendingCloseQueueRef.current = [];
   }, []);
+
+  /**
+   * Close multiple tabs: closes saved tabs immediately, queues unsaved tabs
+   * for sequential save prompts via the confirmation dialog.
+   */
+  const closeTabs = useCallback((tabIds: string[]) => {
+    const targetTabs = tabIds.map(id => tabs.find(t => t.id === id)).filter(Boolean) as EditorTab[];
+    const saved = targetTabs.filter(t => !t.hasUnsavedChanges);
+    const unsaved = targetTabs.filter(t => t.hasUnsavedChanges);
+
+    // Close all saved tabs immediately
+    saved.forEach(t => onTabClose(t.id));
+
+    // Queue unsaved tabs for sequential save prompts
+    if (unsaved.length > 0) {
+      pendingCloseQueueRef.current = unsaved.map(t => t.id);
+      processNextInQueue();
+    }
+  }, [tabs, onTabClose, processNextInQueue]);
+
+  // Context menu action: Close a single tab (with save prompt if unsaved)
+  const handleContextClose = useCallback((tabId: string) => {
+    closeTabs([tabId]);
+  }, [closeTabs]);
+
+  // Context menu action: Close all tabs except the specified one
+  const handleContextCloseOthers = useCallback((tabId: string) => {
+    const tabIds = tabs.filter(t => t.id !== tabId).map(t => t.id);
+    closeTabs(tabIds);
+  }, [tabs, closeTabs]);
+
+  // Context menu action: Close all tabs to the right of the specified one
+  const handleContextCloseToRight = useCallback((tabId: string) => {
+    const tabIndex = tabs.findIndex(t => t.id === tabId);
+    if (tabIndex === -1) return;
+    const tabIds = tabs.slice(tabIndex + 1).map(t => t.id);
+    if (tabIds.length === 0) return;
+    closeTabs(tabIds);
+  }, [tabs, closeTabs]);
+
+  // Context menu action: Close all tabs that have no unsaved changes
+  const handleContextCloseSaved = useCallback(() => {
+    const savedTabIds = tabs.filter(t => !t.hasUnsavedChanges).map(t => t.id);
+    if (savedTabIds.length === 0) return;
+    // No save prompts needed — all these tabs are saved
+    savedTabIds.forEach(id => onTabClose(id));
+  }, [tabs, onTabClose]);
+
+  // Context menu action: Close all tabs
+  const handleContextCloseAll = useCallback(() => {
+    const tabIds = tabs.map(t => t.id);
+    closeTabs(tabIds);
+  }, [tabs, closeTabs]);
 
   if (tabs.length === 0) {
     return null;
@@ -407,6 +593,11 @@ export function EditorTabBar({
                 isActive={tab.id === activeTabId}
                 onSelect={() => onTabSelect(tab.id)}
                 onClose={(e) => handleTabClose(e, tab)}
+                onContextClose={() => handleContextClose(tab.id)}
+                onContextCloseOthers={() => handleContextCloseOthers(tab.id)}
+                onContextCloseToRight={() => handleContextCloseToRight(tab.id)}
+                onContextCloseSaved={handleContextCloseSaved}
+                onContextCloseAll={handleContextCloseAll}
               />
             ))}
           </SortableContext>
