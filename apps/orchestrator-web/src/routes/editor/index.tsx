@@ -267,9 +267,11 @@ export function FileEditorPage() {
     entries: workspaceEntries,
     isLoading: workspaceLoading,
     error: workspaceError,
-    refreshTree,
+    deleteFile,
+    renameFile,
     readFileByPath,
     writeFile,
+    refreshTree,
   } = useWorkspace();
 
   // Save state
@@ -447,6 +449,90 @@ export function FileEditorPage() {
     },
     [handleSelectFile]
   );
+
+  // Handle delete file from context menu
+  const handleDeleteFile = useCallback(async (path: string) => {
+    try {
+      await deleteFile(path);
+      // Close any open tab for this file
+      setTabs(prevTabs => {
+        const newTabs = prevTabs.filter(t => t.path !== path && !t.path.startsWith(path + '/'));
+        // If active tab was deleted, switch to another
+        if (activeTabIdRef.current) {
+          const activeTab = newTabs.find(t => t.id === activeTabIdRef.current);
+          if (!activeTab && newTabs.length > 0) {
+            setActiveTabId(newTabs[0].id);
+            setSelectedId(newTabs[0].id);
+          } else if (newTabs.length === 0) {
+            setActiveTabId(null);
+            setSelectedId(null);
+          }
+        }
+        return newTabs;
+      });
+    } catch (error) {
+      console.error('Failed to delete file:', error);
+      throw error;
+    }
+  }, [deleteFile]);
+
+  // Handle rename file from context menu
+  const handleRenameFile = useCallback(async (oldPath: string, newPath: string) => {
+    try {
+      await renameFile(oldPath, newPath);
+      // Update any open tabs that reference the old path
+      setTabs(prevTabs => prevTabs.map(t => {
+        if (t.path === oldPath) {
+          const newName = newPath.split('/').pop() || t.name;
+          return { ...t, id: newPath, path: newPath, name: newName };
+        }
+        // Handle files inside a renamed directory
+        if (t.path.startsWith(oldPath + '/')) {
+          const newTabPath = newPath + t.path.slice(oldPath.length);
+          return { ...t, id: newTabPath, path: newTabPath };
+        }
+        return t;
+      }));
+      // Update activeTabId and selectedId if they referenced the old path
+      if (activeTabIdRef.current === oldPath) {
+        setActiveTabId(newPath);
+        setSelectedId(newPath);
+      }
+    } catch (error) {
+      console.error('Failed to rename file:', error);
+      throw error;
+    }
+  }, [renameFile]);
+
+  // Handle paste file from context menu (copy or cut operations)
+  const handlePasteFile = useCallback(async (sourcePath: string, destFolder: string, operation: 'copy' | 'cut') => {
+    try {
+      const fileName = sourcePath.split('/').pop() || 'file';
+      const destPath = destFolder ? `${destFolder}/${fileName}` : fileName;
+
+      if (operation === 'copy') {
+        // Read source file content, then write to destination
+        const content = await readFileByPath(sourcePath);
+        if (content) {
+          await writeFile({ id: destPath, name: fileName, type: 'file', path: destPath }, content.content);
+        }
+      } else {
+        // Cut = rename/move
+        await renameFile(sourcePath, destPath);
+        // Update tabs same as rename
+        setTabs(prevTabs => prevTabs.map(t => {
+          if (t.path === sourcePath) {
+            return { ...t, id: destPath, path: destPath };
+          }
+          return t;
+        }));
+      }
+      await refreshTree();
+    } catch (error) {
+      console.error('Failed to paste file:', error);
+      throw error;
+    }
+  }, [readFileByPath, writeFile, renameFile, refreshTree]);
 
   // Handle search result selection - open file and navigate to line
   const handleSearchResultSelect = useCallback(
@@ -801,6 +887,9 @@ export function FileEditorPage() {
                     selectedId={selectedId}
                     onSelectFile={handleSelectFile}
                     onDoubleClickFile={handleDoubleClickFile}
+                    onDeleteFile={fileSource === 'workspace' ? handleDeleteFile : undefined}
+                    onRenameFile={fileSource === 'workspace' ? handleRenameFile : undefined}
+                    onPasteFile={fileSource === 'workspace' ? handlePasteFile : undefined}
                   />
                 )}
               </div>
