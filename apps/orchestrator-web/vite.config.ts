@@ -20,14 +20,17 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
   },
   resolve: {
-    // Use 'bun' condition to resolve @elemental/* packages from source .ts files
-    // instead of requiring dist/ build artifacts. This enables typecheck and dev
-    // server to work without building dependencies first.
-    conditions: ['bun'],
     dedupe: ['react', 'react-dom'],
     alias: {
       react: resolve(__dirname, 'node_modules/react'),
       'react-dom': resolve(__dirname, 'node_modules/react-dom'),
+      // Resolve @elemental/ui from TypeScript source so the dev server works
+      // without building the UI package first. Previously used
+      // resolve.conditions: ['bun'] for this, but that caused
+      // @tanstack/router-core/isServer to resolve to server.js (isServer=true),
+      // breaking client-side routing with "Cannot read properties of undefined
+      // (reading 'state')" in useRouterState.
+      '@elemental/ui': resolve(__dirname, '../../packages/ui/src'),
     },
   },
   server: {

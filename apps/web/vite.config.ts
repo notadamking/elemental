@@ -1,15 +1,23 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 const apiPort = process.env.VITE_API_PORT || '3456';
 
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    // Use 'bun' condition to resolve @elemental/* packages from source .ts files
-    // instead of requiring dist/ build artifacts. This enables dev server to work
-    // without building dependencies first.
-    conditions: ['bun'],
+    alias: {
+      // Resolve @elemental/ui from TypeScript source so the dev server works
+      // without building the UI package first. Previously used
+      // resolve.conditions: ['bun'] for this, but that caused
+      // @tanstack/router-core/isServer to resolve to server.js (isServer=true),
+      // breaking client-side routing.
+      '@elemental/ui': resolve(__dirname, '../../packages/ui/src'),
+    },
   },
   server: {
     port: 5173,
