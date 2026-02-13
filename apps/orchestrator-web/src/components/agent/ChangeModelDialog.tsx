@@ -173,7 +173,7 @@ export function ChangeModelDialog({
                   </option>
                   {models.map(m => (
                     <option key={m.id} value={m.id}>
-                      {m.displayName}
+                      {m.providerName ? `${m.displayName}  —  ${m.providerName}` : m.displayName}
                     </option>
                   ))}
                 </select>

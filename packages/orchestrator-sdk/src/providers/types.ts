@@ -153,6 +153,8 @@ export interface ModelInfo {
   readonly description?: string;
   /** Whether this is the provider's default model */
   readonly isDefault?: boolean;
+  /** Provider name for disambiguation (e.g., 'anthropic', 'openai') */
+  readonly providerName?: string;
 }
 
 // ============================================================================

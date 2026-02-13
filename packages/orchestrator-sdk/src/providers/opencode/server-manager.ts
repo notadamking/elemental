@@ -107,6 +107,9 @@ interface OpencodeServer {
 // Server Manager
 // ============================================================================
 
+/** Default model for OpenCode provider */
+const OPENCODE_DEFAULT_MODEL = 'opencode/minimax-m2.5-free';
+
 export interface ServerManagerConfig {
   port?: number;
   cwd?: string;
@@ -175,7 +178,7 @@ class OpenCodeServerManager {
    */
   async listModels(
     config?: ServerManagerConfig
-  ): Promise<Array<{ id: string; displayName: string; description?: string; isDefault?: boolean }>> {
+  ): Promise<Array<{ id: string; displayName: string; description?: string; isDefault?: boolean; providerName?: string }>> {
     const client = await this.acquire(config);
 
     try {
@@ -186,11 +189,7 @@ class OpenCodeServerManager {
         return this.listModelsFromConfig(client);
       }
 
-      const models: Array<{ id: string; displayName: string; description?: string; isDefault?: boolean }> = [];
-
-      // The `default` map contains role -> "providerID/modelID" entries for default models
-      const defaults = response.data.default ?? {};
-      const defaultModelIds = new Set(Object.values(defaults));
+      const models: Array<{ id: string; displayName: string; description?: string; isDefault?: boolean; providerName?: string }> = [];
 
       for (const provider of response.data.all) {
         if (!provider.models) continue;
@@ -207,7 +206,8 @@ class OpenCodeServerManager {
             id,
             displayName: model.name || modelKey,
             description: undefined,
-            ...(defaultModelIds.has(id) ? { isDefault: true } : {}),
+            providerName: provider.name || provider.id,
+            ...(id === OPENCODE_DEFAULT_MODEL ? { isDefault: true } : {}),
           });
         }
       }
@@ -223,16 +223,14 @@ class OpenCodeServerManager {
    */
   private async listModelsFromConfig(
     client: OpencodeClient
-  ): Promise<Array<{ id: string; displayName: string; description?: string; isDefault?: boolean }>> {
+  ): Promise<Array<{ id: string; displayName: string; description?: string; isDefault?: boolean; providerName?: string }>> {
     const response = await client.config.providers();
 
     if (!response.data?.providers) {
       return [];
     }
 
-    const models: Array<{ id: string; displayName: string; description?: string; isDefault?: boolean }> = [];
-    const defaults = response.data.default ?? {};
-    const defaultModelIds = new Set(Object.values(defaults));
+    const models: Array<{ id: string; displayName: string; description?: string; isDefault?: boolean; providerName?: string }> = [];
 
     for (const provider of response.data.providers) {
       if (!provider.models) continue;
@@ -247,7 +245,8 @@ class OpenCodeServerManager {
           id,
           displayName: model.name || modelKey,
           description: undefined,
-          ...(defaultModelIds.has(id) ? { isDefault: true } : {}),
+          providerName: provider.name || provider.id,
+          ...(id === OPENCODE_DEFAULT_MODEL ? { isDefault: true } : {}),
         });
       }
     }
