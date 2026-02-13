@@ -1,8 +1,0 @@
-/**
- * UserSelector - Re-export from shared @elemental/ui package
- *
- * This re-exports the shared UserSelector component for backward compatibility
- * with existing imports in this app.
- */
-
-export { UserSelector } from '@elemental/ui';

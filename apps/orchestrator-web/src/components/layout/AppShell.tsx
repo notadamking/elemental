@@ -6,9 +6,8 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Outlet, useRouterState, Link, useRouter } from '@tanstack/react-router';
 import { Sidebar } from './Sidebar';
-import { MobileDrawer } from './MobileDrawer';
+import { MobileDrawer, UserSelector } from '@elemental/ui';
 import { DirectorPanel } from './DirectorPanel';
-import { UserSelector } from './UserSelector';
 import { DaemonToggle } from './DaemonToggle';
 import { StopAllAgentsButton } from './StopAllAgentsButton';
 import { ThemeToggle } from '../ui/ThemeToggle';
