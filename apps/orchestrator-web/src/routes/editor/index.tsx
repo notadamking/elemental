@@ -857,7 +857,18 @@ export function FileEditorPage() {
       extensionId: `${ext.namespace}.${ext.name}`,
     };
 
-    setTabs(prev => [...prev, newTab]);
+    setTabs(prev => {
+      // Find an existing extension tab to replace
+      const existingExtIndex = prev.findIndex(t => t.source === 'extension');
+      if (existingExtIndex !== -1) {
+        // Replace the existing extension tab in-place (preserves tab order)
+        const updated = [...prev];
+        updated[existingExtIndex] = newTab;
+        return updated;
+      }
+      // No existing extension tab — add as new
+      return [...prev, newTab];
+    });
     setActiveTabId(tabId);
   }, [captureEditorContent]);
 
