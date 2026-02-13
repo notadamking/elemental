@@ -1,22 +1,23 @@
 /**
  * Extension Registry Bridge
  *
- * Bridges the storage layer (IndexedDB) with Monaco's extension system
- * (@codingame/monaco-vscode-api). Handles loading installed extensions on
- * startup and registering/unregistering extensions at runtime.
+ * Bridges the storage layer (IndexedDB) with Monaco's extension system.
+ * Uses vanilla Monaco APIs (not @codingame/monaco-vscode-api) to register
+ * theme extensions via monaco.editor.defineTheme().
  *
  * Key responsibilities:
  * - Load installed extensions from IndexedDB on startup
- * - Register extensions with Monaco via registerExtension()
- * - Create blob URLs for extension files and register them
+ * - Register theme extensions with Monaco via defineTheme()
+ * - Convert VS Code theme format to Monaco IStandaloneThemeData format
  * - Track registered extensions for cleanup on uninstall
- * - Revoke blob URLs and dispose extension handles on uninstall
+ * - Revoke blob URLs and track defined themes for removal
+ *
+ * Note: Grammar (TextMate) and snippet extensions require vscode-textmate +
+ * vscode-oniguruma which is out of scope. These will log a warning but still
+ * be tracked as installed.
  */
 
-import {
-  registerExtension as monacoRegisterExtension,
-  type IExtensionManifest,
-} from '@codingame/monaco-vscode-api/extensions';
+import * as monaco from 'monaco-editor';
 import {
   getInstalledExtensions,
   getExtensionFiles,
@@ -52,6 +53,8 @@ export interface RegisteredExtension {
   dispose: () => Promise<void>;
   /** Promise that resolves when the extension is ready */
   whenReady: () => Promise<void>;
+  /** Theme IDs defined by this extension (for tracking) */
+  definedThemeIds: string[];
 }
 
 /**
@@ -64,12 +67,43 @@ export interface RegistrationResult {
   error?: string;
 }
 
+/**
+ * VS Code theme JSON format (tokenColors array style)
+ */
+interface VSCodeThemeData {
+  name?: string;
+  type?: 'dark' | 'light' | 'hc' | 'hcLight';
+  colors?: Record<string, string>;
+  tokenColors?: Array<{
+    name?: string;
+    scope?: string | string[];
+    settings?: {
+      foreground?: string;
+      background?: string;
+      fontStyle?: string;
+    };
+  }>;
+}
+
+/**
+ * Theme contribution in extension manifest
+ */
+interface ThemeContribution {
+  id?: string;
+  label: string;
+  uiTheme: 'vs' | 'vs-dark' | 'hc-black' | 'hc-light';
+  path: string;
+}
+
 // ============================================================================
 // State
 // ============================================================================
 
 /** Map of extension ID to registered extension */
 const registeredExtensions = new Map<string, RegisteredExtension>();
+
+/** Set of all defined theme IDs (for tracking which themes are available) */
+const definedThemeIds = new Set<string>();
 
 /** Flag to track if initial load has been performed */
 let initialLoadComplete = false;
@@ -117,20 +151,188 @@ function createBlobUrl(content: Uint8Array, path: string): string {
 }
 
 /**
- * Convert our ExtensionManifest to the IExtensionManifest format expected
- * by @codingame/monaco-vscode-api.
- */
-function toMonacoManifest(manifest: ExtensionManifest): IExtensionManifest {
-  // The manifest types are largely compatible, but we need to cast
-  // because our type is slightly more permissive
-  return manifest as unknown as IExtensionManifest;
-}
-
-/**
  * Generate the extension ID from a manifest.
  */
 function getExtensionId(manifest: ExtensionManifest): string {
   return `${manifest.publisher}.${manifest.name}`;
+}
+
+/**
+ * Strip the leading # from a hex color if present.
+ */
+function stripHash(color: string): string {
+  return color.startsWith('#') ? color.slice(1) : color;
+}
+
+/**
+ * Generate a unique theme ID from extension ID and theme label.
+ */
+function generateThemeId(extensionId: string, themeLabel: string): string {
+  // Create a slug from the theme label
+  const slug = themeLabel
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  return `${extensionId}-${slug}`;
+}
+
+/**
+ * Determine the base theme from VS Code uiTheme value.
+ */
+function getBaseTheme(
+  uiTheme: string
+): 'vs' | 'vs-dark' | 'hc-black' | 'hc-light' {
+  switch (uiTheme) {
+    case 'vs':
+      return 'vs';
+    case 'vs-dark':
+      return 'vs-dark';
+    case 'hc-black':
+      return 'hc-black';
+    case 'hc-light':
+      return 'hc-light';
+    default:
+      return 'vs-dark';
+  }
+}
+
+/**
+ * Convert VS Code theme data to Monaco IStandaloneThemeData format.
+ *
+ * VS Code themes use:
+ * - tokenColors[].scope (string or string[])
+ * - tokenColors[].settings.foreground
+ * - tokenColors[].settings.fontStyle
+ * - colors object
+ *
+ * Monaco themes use:
+ * - rules[].token
+ * - rules[].foreground (without #)
+ * - rules[].fontStyle
+ * - colors object
+ */
+function convertVSCodeThemeToMonaco(
+  themeData: VSCodeThemeData,
+  uiTheme: string
+): monaco.editor.IStandaloneThemeData {
+  const rules: monaco.editor.ITokenThemeRule[] = [];
+
+  // Convert tokenColors to rules
+  if (themeData.tokenColors) {
+    for (const tokenColor of themeData.tokenColors) {
+      const settings = tokenColor.settings;
+      if (!settings) continue;
+
+      const scopes = tokenColor.scope;
+      if (!scopes) {
+        // Global settings (no scope) - apply as empty token
+        if (settings.foreground || settings.fontStyle) {
+          rules.push({
+            token: '',
+            foreground: settings.foreground
+              ? stripHash(settings.foreground)
+              : undefined,
+            fontStyle: settings.fontStyle,
+          });
+        }
+        continue;
+      }
+
+      // Handle both single scope and array of scopes
+      const scopeArray = Array.isArray(scopes) ? scopes : [scopes];
+
+      for (const scope of scopeArray) {
+        // Skip empty scopes
+        if (!scope || scope.trim() === '') continue;
+
+        rules.push({
+          token: scope,
+          foreground: settings.foreground
+            ? stripHash(settings.foreground)
+            : undefined,
+          fontStyle: settings.fontStyle,
+        });
+      }
+    }
+  }
+
+  return {
+    base: getBaseTheme(uiTheme),
+    inherit: true,
+    rules,
+    colors: themeData.colors || {},
+  };
+}
+
+/**
+ * Register themes from an extension with Monaco.
+ *
+ * @param extensionId - The extension ID
+ * @param manifest - The extension manifest
+ * @param files - Map of file paths to their content
+ * @returns Array of registered theme IDs
+ */
+function registerThemes(
+  extensionId: string,
+  manifest: ExtensionManifest,
+  files: Map<string, Uint8Array>
+): string[] {
+  const registeredThemes: string[] = [];
+
+  // Get theme contributions from manifest
+  const themes = manifest.contributes?.themes as ThemeContribution[] | undefined;
+  if (!themes || themes.length === 0) {
+    return registeredThemes;
+  }
+
+  for (const theme of themes) {
+    try {
+      // Normalize the path (remove leading ./ or /)
+      let themePath = theme.path;
+      if (themePath.startsWith('./')) {
+        themePath = themePath.slice(2);
+      } else if (themePath.startsWith('/')) {
+        themePath = themePath.slice(1);
+      }
+
+      // Get the theme file content
+      const themeContent = files.get(themePath);
+      if (!themeContent) {
+        console.warn(
+          `[ExtensionRegistry] Theme file not found: ${themePath} for extension ${extensionId}`
+        );
+        continue;
+      }
+
+      // Parse the theme JSON
+      const themeJson = new TextDecoder().decode(themeContent);
+      const themeData: VSCodeThemeData = JSON.parse(themeJson);
+
+      // Generate a unique theme ID
+      const themeId = theme.id || generateThemeId(extensionId, theme.label);
+
+      // Convert to Monaco format
+      const monacoTheme = convertVSCodeThemeToMonaco(themeData, theme.uiTheme);
+
+      // Register with Monaco
+      monaco.editor.defineTheme(themeId, monacoTheme);
+
+      // Track the theme
+      definedThemeIds.add(themeId);
+      registeredThemes.push(themeId);
+
+      console.log(
+        `[ExtensionRegistry] Registered theme: ${themeId} (${theme.label})`
+      );
+    } catch (error) {
+      console.error(
+        `[ExtensionRegistry] Failed to register theme ${theme.label} from ${extensionId}:`,
+        error
+      );
+    }
+  }
+
+  return registeredThemes;
 }
 
 // ============================================================================
@@ -140,8 +342,12 @@ function getExtensionId(manifest: ExtensionManifest): string {
 /**
  * Register a single extension with Monaco.
  *
- * Creates blob URLs for all contributed files, registers them with the
- * extension system, and tracks the registration for later cleanup.
+ * For theme extensions: parses VS Code theme JSON, converts to Monaco format,
+ * and calls monaco.editor.defineTheme().
+ *
+ * For grammar/snippet extensions: logs a warning that these are not yet
+ * supported (requires vscode-textmate + vscode-oniguruma) but still tracks
+ * the extension as installed.
  *
  * @param manifest - The extension manifest (package.json)
  * @param files - Map of file paths to their content
@@ -165,14 +371,7 @@ export function registerExtension(
   }
 
   try {
-    // Register the extension with Monaco
-    // ExtensionHostKind.LocalProcess = 1 (using literal due to isolatedModules)
-    const registration = monacoRegisterExtension(
-      toMonacoManifest(manifest),
-      1 // ExtensionHostKind.LocalProcess
-    );
-
-    // Create blob URLs for all files and register them
+    // Create blob URLs for all files (for potential future use)
     const blobUrls = new Map<string, string>();
     const fileDisposables: Disposable[] = [];
 
@@ -180,9 +379,29 @@ export function registerExtension(
       const blobUrl = createBlobUrl(content, path);
       blobUrls.set(path, blobUrl);
 
-      // Register the file URL with the extension
-      const disposable = registration.registerFileUrl(path, blobUrl);
-      fileDisposables.push(disposable);
+      // Create a disposable that revokes the blob URL
+      fileDisposables.push({
+        dispose: () => URL.revokeObjectURL(blobUrl),
+      });
+    }
+
+    // Register themes
+    const themeIds = registerThemes(extensionId, manifest, files);
+
+    // Check for grammar contributions and warn
+    const grammars = manifest.contributes?.grammars;
+    if (grammars && Array.isArray(grammars) && grammars.length > 0) {
+      console.warn(
+        `[ExtensionRegistry] Extension ${extensionId} contributes ${grammars.length} grammar(s) - TextMate grammar registration is not yet supported (requires vscode-textmate + vscode-oniguruma)`
+      );
+    }
+
+    // Check for snippet contributions and warn
+    const snippets = manifest.contributes?.snippets;
+    if (snippets && Array.isArray(snippets) && snippets.length > 0) {
+      console.warn(
+        `[ExtensionRegistry] Extension ${extensionId} contributes ${snippets.length} snippet(s) - snippet registration is not yet supported`
+      );
     }
 
     // Create the registered extension record
@@ -191,14 +410,30 @@ export function registerExtension(
       manifest,
       blobUrls,
       fileDisposables,
-      dispose: registration.dispose.bind(registration),
-      whenReady: registration.whenReady.bind(registration),
+      definedThemeIds: themeIds,
+      dispose: async () => {
+        // Revoke all blob URLs
+        for (const disposable of fileDisposables) {
+          disposable.dispose();
+        }
+        // Note: Monaco doesn't have undefineTheme, so we just track which
+        // themes are from uninstalled extensions and exclude them from the picker
+        for (const themeId of themeIds) {
+          definedThemeIds.delete(themeId);
+        }
+      },
+      whenReady: async () => {
+        // With vanilla Monaco, themes are ready immediately after defineTheme()
+        return Promise.resolve();
+      },
     };
 
     // Track the registration
     registeredExtensions.set(extensionId, registeredExtension);
 
-    console.log(`[ExtensionRegistry] Registered extension: ${extensionId}`);
+    console.log(
+      `[ExtensionRegistry] Registered extension: ${extensionId} (${themeIds.length} theme(s))`
+    );
 
     return {
       success: true,
@@ -221,7 +456,9 @@ export function registerExtension(
 /**
  * Unregister an extension and clean up all associated resources.
  *
- * Revokes all blob URLs and disposes the extension registration.
+ * Revokes all blob URLs and marks themes as unavailable.
+ * Note: Monaco doesn't have undefineTheme, so themes remain defined
+ * but are tracked as unavailable for the theme picker.
  *
  * @param extensionId - The extension ID to unregister
  */
@@ -236,17 +473,7 @@ export async function unregisterExtension(extensionId: string): Promise<void> {
   }
 
   try {
-    // Dispose file URL registrations
-    for (const disposable of registration.fileDisposables) {
-      disposable.dispose();
-    }
-
-    // Revoke all blob URLs to free memory
-    for (const blobUrl of registration.blobUrls.values()) {
-      URL.revokeObjectURL(blobUrl);
-    }
-
-    // Dispose the extension registration
+    // Dispose the extension (revokes blob URLs, removes theme tracking)
     await registration.dispose();
 
     // Remove from tracking
@@ -393,10 +620,21 @@ export function isInitialLoadComplete(): boolean {
 }
 
 /**
+ * Get all available theme IDs from registered extensions.
+ * This returns themes that are currently available (not from uninstalled extensions).
+ *
+ * @returns Array of available theme IDs
+ */
+export function getAvailableThemeIds(): string[] {
+  return Array.from(definedThemeIds);
+}
+
+/**
  * Reset the registry state. Useful for testing.
  * Does NOT unregister extensions from Monaco.
  */
 export function resetRegistryState(): void {
   registeredExtensions.clear();
+  definedThemeIds.clear();
   initialLoadComplete = false;
 }

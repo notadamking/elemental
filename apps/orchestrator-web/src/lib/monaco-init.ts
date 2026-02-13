@@ -1,25 +1,16 @@
 /**
  * Monaco Editor Initialization Module
  *
- * Centralizes Monaco editor initialization using @codingame/monaco-vscode-api.
- * This module replaces scattered loader.init() calls with a single initialize()
- * call that sets up VSCode service overrides.
+ * Centralizes Monaco editor initialization with custom theme registration.
+ * Uses vanilla monaco-editor (not @codingame/monaco-vscode-api) to avoid
+ * bundle size bloat and architectural conflicts with the lightweight LSP client.
  *
  * Features:
  * - Idempotent initialization (safe to call multiple times)
- * - VSCode service overrides for theme, textmate, model, configuration, languages
- * - Built-in VS Code themes (dark, light, high contrast)
  * - Custom elemental-dark theme registration
+ * - Exposes window.monaco for E2E testing
  */
 
-import { initialize } from '@codingame/monaco-vscode-api/services';
-import getThemeServiceOverride from '@codingame/monaco-vscode-theme-service-override';
-import getTextmateServiceOverride from '@codingame/monaco-vscode-textmate-service-override';
-import getModelServiceOverride from '@codingame/monaco-vscode-model-service-override';
-import getConfigurationServiceOverride from '@codingame/monaco-vscode-configuration-service-override';
-import getLanguagesServiceOverride from '@codingame/monaco-vscode-languages-service-override';
-// Import for side effects: registers built-in VS Code themes (dark, light, high contrast)
-import '@codingame/monaco-vscode-theme-defaults-default-extension';
 import * as monaco from 'monaco-editor';
 
 // Module-level promise for idempotent initialization
@@ -92,25 +83,14 @@ const ELEMENTAL_DARK_THEME: monaco.editor.IStandaloneThemeData = {
 };
 
 /**
- * Register the custom elemental-dark theme
- * Must be called after initialize() completes
- */
-function registerElementalDarkTheme(): void {
-  monaco.editor.defineTheme('elemental-dark', ELEMENTAL_DARK_THEME);
-}
-
-/**
- * Initialize Monaco editor with @codingame/monaco-vscode-api service overrides.
+ * Initialize Monaco editor.
  *
  * This function is idempotent - multiple calls return the same promise and
  * do not re-initialize. Consumers should await this before creating editors.
  *
- * Service overrides included:
- * - Theme service: VS Code theme support
- * - Textmate service: TextMate grammar support
- * - Model service: Document model management
- * - Configuration service: Editor configuration
- * - Languages service: Language registration
+ * Operations:
+ * - Registers the custom elemental-dark theme
+ * - Exposes window.monaco for E2E testing
  *
  * @returns Promise that resolves when initialization is complete
  */
@@ -125,16 +105,8 @@ export async function initializeMonaco(): Promise<void> {
       return;
     }
 
-    await initialize({
-      ...getThemeServiceOverride(),
-      ...getTextmateServiceOverride(),
-      ...getModelServiceOverride(),
-      ...getConfigurationServiceOverride(),
-      ...getLanguagesServiceOverride(),
-    });
-
-    // Register custom theme after initialization
-    registerElementalDarkTheme();
+    // Register custom elemental-dark theme
+    monaco.editor.defineTheme('elemental-dark', ELEMENTAL_DARK_THEME);
 
     // Expose monaco on window for E2E testing (marker inspection, etc.)
     if (typeof window !== 'undefined') {
@@ -142,7 +114,7 @@ export async function initializeMonaco(): Promise<void> {
     }
 
     initialized = true;
-    console.log('[monaco-init] Monaco initialized with @codingame/monaco-vscode-api');
+    console.log('[monaco-init] Monaco initialized');
   })();
 
   return initPromise;
