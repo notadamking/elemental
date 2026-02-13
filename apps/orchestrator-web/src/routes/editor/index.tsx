@@ -869,15 +869,17 @@ export function FileEditorPage() {
     editorRef.current = editor;
   }, []);
 
-  // Handle editor ready - capture initial savedVersionId for the active tab
+  // Handle editor ready - sync savedVersionId for the active tab on every model load.
+  // Called on initial mount AND on tab switches so savedVersionId always reflects the
+  // current model's version. Also resets hasUnsavedChanges since the model just loaded.
   const handleEditorReady = useCallback((versionId: number) => {
     const currentTabId = activeTabIdRef.current;
     if (!currentTabId) return;
 
     setTabs(prevTabs =>
       prevTabs.map(t =>
-        t.id === currentTabId && t.savedVersionId === 0
-          ? { ...t, savedVersionId: versionId }
+        t.id === currentTabId
+          ? { ...t, savedVersionId: versionId, hasUnsavedChanges: false }
           : t
       )
     );

@@ -213,6 +213,9 @@ function LspMonacoEditorComponent({
   const lspChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Disposables for editor subscriptions (content change, focus/blur)
   const editorDisposablesRef = useRef<monaco.IDisposable[]>([]);
+  // Suppress onChange calls during model switching to prevent false hasUnsavedChanges
+  // Only suppresses the onChange callback to parent — LSP notifications are still sent
+  const suppressChangeRef = useRef(false);
 
   // Use LSP hook for language server connection
   // Monaco is guaranteed to be initialized by the parent (FileEditorPage)
@@ -249,9 +252,13 @@ function LspMonacoEditorComponent({
 
     // Set up content change listener
     const contentDisposable = editor.onDidChangeModelContent(() => {
-      // Pass the current version ID for hasUnsavedChanges tracking
-      const versionId = editor.getModel()?.getAlternativeVersionId();
-      onChange?.(versionId);
+      // Skip onChange to parent during model switching to prevent false hasUnsavedChanges.
+      // LSP notifications below are NOT suppressed — only the parent onChange callback.
+      if (!suppressChangeRef.current) {
+        // Pass the current version ID for hasUnsavedChanges tracking
+        const versionId = editor.getModel()?.getAlternativeVersionId();
+        onChange?.(versionId);
+      }
 
       // Debounce LSP didChange — only read model value when the timer fires
       if (didOpenSentRef.current) {
@@ -332,6 +339,11 @@ function LspMonacoEditorComponent({
     // Get or create new model
     const newModel = getOrCreateModel(filePath, value, language);
 
+    // Suppress onChange during model switch to prevent false hasUnsavedChanges.
+    // setModel and setValue fire onDidChangeModelContent synchronously, but at this point
+    // savedVersionId hasn't been updated yet, causing a race condition.
+    suppressChangeRef.current = true;
+
     // Switch to new model (preserves undo history per-model)
     editor.setModel(newModel);
 
@@ -340,11 +352,14 @@ function LspMonacoEditorComponent({
       newModel.setValue(value);
     }
 
+    suppressChangeRef.current = false;
+
     prevFilePathRef.current = filePath;
     prevLanguageRef.current = language;
     prevValuePropRef.current = value;
 
-    // Call onReady with the new model's version ID for savedVersionId tracking on tab switch
+    // Call onReady with the new model's version ID for savedVersionId tracking on tab switch.
+    // This is called AFTER setModel/setValue so the version ID reflects the final state.
     if (onReady) {
       onReady(newModel.getAlternativeVersionId());
     }
@@ -424,7 +439,10 @@ function LspMonacoEditorComponent({
     if (!editorRef.current) return;
     const model = editorRef.current.getModel();
     if (model && model.getValue() !== value) {
+      // Suppress onChange during programmatic value update to prevent false hasUnsavedChanges
+      suppressChangeRef.current = true;
       model.setValue(value);
+      suppressChangeRef.current = false;
     }
   }, [value]);
 
