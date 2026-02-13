@@ -8,7 +8,7 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import type { EntityId, ElementId, Task } from '@elemental/core';
 import { createTimestamp, ElementType } from '@elemental/core';
-import type { SessionFilter, SpawnedSessionEvent, AgentRole, WorkerMetadata } from '@elemental/orchestrator-sdk';
+import type { SessionFilter, SpawnedSessionEvent, AgentRole, WorkerMetadata, StewardMetadata } from '@elemental/orchestrator-sdk';
 import { loadRolePrompt, getAgentMetadata, generateSessionBranchName, generateSessionWorktreePath, trackListeners } from '@elemental/orchestrator-sdk';
 import type { Services } from '../services.js';
 import { formatSessionRecord } from '../formatters.js';
@@ -246,6 +246,9 @@ export function createSessionRoutes(
       const workerMode = agentRole === 'worker'
         ? (agentMeta as WorkerMetadata)?.workerMode
         : undefined;
+      const stewardFocus = agentRole === 'steward'
+        ? (agentMeta as StewardMetadata)?.stewardFocus
+        : undefined;
 
       console.log('[sessions] Agent metadata:', agentMeta ? `role=${agentMeta.agentRole}${workerMode ? ` mode=${workerMode}` : ''}` : 'undefined');
 
@@ -283,7 +286,7 @@ export function createSessionRoutes(
       // This is prepended to any other prompt content
       let rolePrompt: string | undefined;
       if (agentRole) {
-        const roleResult = loadRolePrompt(agentRole, undefined, { projectRoot: process.cwd(), workerMode });
+        const roleResult = loadRolePrompt(agentRole, stewardFocus, { projectRoot: process.cwd(), workerMode });
         console.log('[sessions] Role prompt result:', roleResult ? `${roleResult.prompt.length} chars from ${roleResult.source}` : 'undefined');
         if (roleResult) {
           rolePrompt = roleResult.prompt;
