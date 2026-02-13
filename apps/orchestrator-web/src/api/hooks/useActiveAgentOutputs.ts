@@ -107,7 +107,6 @@ export function useActiveAgentOutputs(runningSessions?: RunningSessionInfo[]) {
   const { isConnected, sessionEvents } = useActivityStream('all');
   const mapRef = useRef<Map<string, AgentOutput>>(new Map());
   const [version, setVersion] = useState(0);
-  const lastProcessedRef = useRef(0);
   const seededSessionsRef = useRef<Set<string>>(new Set());
 
   // Seed initial output from persisted messages when sessions are provided
@@ -144,26 +143,25 @@ export function useActiveAgentOutputs(runningSessions?: RunningSessionInfo[]) {
     }
   }, [runningSessions, seedInitialOutput]);
 
+  // Rebuild per-agent output map from the capped sessionEvents array on each change.
+  // The array is newest-first and max 100 items, so we scan it and take the first
+  // (i.e. newest) entry per agentId. This avoids the previous length-based tracking
+  // that broke once the 100-event cap caused the array length to stop growing.
   useEffect(() => {
     if (sessionEvents.length === 0) {
       if (mapRef.current.size > 0) {
         mapRef.current.clear();
         setVersion((v) => v + 1);
       }
-      lastProcessedRef.current = 0;
       return;
     }
 
-    // sessionEvents is newest-first, so process new events
-    // that arrived since our last check
-    const newCount = sessionEvents.length - lastProcessedRef.current;
-    if (newCount <= 0) return;
+    const nextMap = new Map<string, AgentOutput>();
 
-    let changed = false;
-    // New events are at indices 0..newCount-1 (newest first)
-    for (let i = newCount - 1; i >= 0; i--) {
-      const event = sessionEvents[i];
+    // Scan newest-first; only keep the first (newest) entry per agent
+    for (const event of sessionEvents) {
       if (!event.agentId) continue;
+      if (nextMap.has(event.agentId)) continue;
 
       // Determine content to display
       let displayContent = event.content;
@@ -176,16 +174,39 @@ export function useActiveAgentOutputs(runningSessions?: RunningSessionInfo[]) {
       // Skip events with no displayable content
       if (!displayContent) continue;
 
-      mapRef.current.set(event.agentId, {
+      nextMap.set(event.agentId, {
         content: displayContent,
         timestamp: event.timestamp,
         eventType: event.type,
       });
-      changed = true;
     }
 
-    lastProcessedRef.current = sessionEvents.length;
+    // Merge with seeded data: seeded entries are kept only if SSE hasn't provided newer data
+    let changed = false;
+    const mergedMap = new Map<string, AgentOutput>(nextMap);
+
+    for (const [agentId, output] of mapRef.current) {
+      if (!mergedMap.has(agentId)) {
+        // Preserve seeded output for agents not present in current SSE window
+        mergedMap.set(agentId, output);
+      }
+    }
+
+    // Detect if the map actually changed
+    if (mergedMap.size !== mapRef.current.size) {
+      changed = true;
+    } else {
+      for (const [agentId, output] of mergedMap) {
+        const prev = mapRef.current.get(agentId);
+        if (!prev || prev.content !== output.content || prev.timestamp !== output.timestamp) {
+          changed = true;
+          break;
+        }
+      }
+    }
+
     if (changed) {
+      mapRef.current = mergedMap;
       setVersion((v) => v + 1);
     }
   }, [sessionEvents]);
