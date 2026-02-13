@@ -137,7 +137,8 @@ export function EditorExtensionsPanel({ className = '', onExtensionClick }: Edit
         const result = await searchExtensions(query, {
           category: categoryParam,
           size: 50,
-          sortBy: 'relevance',
+          sortBy: 'downloadCount',
+          sortOrder: 'desc',
         });
 
         setSearchState((prev) => ({

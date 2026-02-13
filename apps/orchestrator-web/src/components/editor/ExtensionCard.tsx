@@ -39,6 +39,20 @@ export interface ExtensionCardProps {
 }
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Format a download count into a human-readable string.
+ * e.g., 1_200_000 → "1.2M", 45_300 → "45.3K", 892 → "892"
+ */
+function formatDownloadCount(count: number): string {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
+  return count.toLocaleString();
+}
+
+// ============================================================================
 // ExtensionCard Component
 // ============================================================================
 
@@ -154,9 +168,15 @@ export function ExtensionCard({
             )}
           </div>
 
-          {/* Publisher */}
-          <div className="text-xs text-[var(--color-text-muted)] mb-1">
-            {publisher}
+          {/* Publisher and downloads */}
+          <div className="text-xs text-[var(--color-text-muted)] mb-1 flex items-center gap-2">
+            <span>{publisher}</span>
+            {extension.downloadCount !== undefined && (
+              <span className="flex items-center gap-0.5">
+                <Download className="w-3 h-3" />
+                {formatDownloadCount(extension.downloadCount)}
+              </span>
+            )}
           </div>
 
           {/* Description */}
