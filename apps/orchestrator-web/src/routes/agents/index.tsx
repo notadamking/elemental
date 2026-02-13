@@ -300,7 +300,7 @@ export function AgentsPage() {
               placeholder="Search agents..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-3 py-2 text-sm border border-[var(--color-border)] rounded-md bg-[var(--color-input-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent w-48 md:w-64"
+              className="pl-9 pr-3 py-2 text-sm border border-[var(--color-border)] rounded-md bg-[var(--color-input-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent w-48 @md:w-64"
               data-testid="agents-search"
             />
           </div>
@@ -573,7 +573,7 @@ function AgentsTab({
           description="Long-lived workers that handle multiple tasks"
           count={persistentWorkers.length}
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 @md:grid-cols-2 @xl:grid-cols-3 gap-4">
             {persistentWorkers.map((agent) => (
               <AgentCard
                 key={agent.id}
@@ -600,7 +600,7 @@ function AgentsTab({
           description="Short-lived workers spawned per task"
           count={ephemeralWorkers.length}
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 @md:grid-cols-2 @xl:grid-cols-3 gap-4">
             {ephemeralWorkers.map((agent) => (
               <AgentCard
                 key={agent.id}
@@ -681,7 +681,7 @@ function StewardsTab({ stewards, onStart, onStop, onOpenTerminal, onRename, onDe
           icon={Shield}
           count={agents.length}
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 @md:grid-cols-2 @xl:grid-cols-3 gap-4">
             {agents.map((agent) => (
               <AgentCard
                 key={agent.id}
