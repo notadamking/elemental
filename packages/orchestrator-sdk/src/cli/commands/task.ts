@@ -462,6 +462,7 @@ async function taskMergeHandler(
 
     await api.update<Task>(taskId as ElementId, {
       status: TaskStatus.CLOSED,
+      assignee: undefined,
       closedAt: now,
       metadata: newMeta,
     });

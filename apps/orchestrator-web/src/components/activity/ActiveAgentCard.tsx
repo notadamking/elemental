@@ -102,18 +102,20 @@ export function ActiveAgentCard({
         )}
       </div>
 
-      {/* Row 3: Last output + duration */}
-      <div className="flex items-center gap-2 min-h-[20px]">
-        <span className="flex-1 text-xs font-mono text-[var(--color-text-tertiary)] truncate">
-          {lastOutput?.content
-            ? `> ${lastOutput.content}`
-            : isStarting
-              ? '> starting...'
-              : isRunning
-                ? '> working...'
-                : '> idle...'}
-        </span>
-        <span className="text-xs text-[var(--color-text-secondary)] font-mono flex-shrink-0">
+      {/* Row 3: Last output (bordered block) + duration */}
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-hover)] px-3 py-2">
+          <span className="text-xs font-mono text-[var(--color-text-secondary)] line-clamp-3">
+            {lastOutput?.content
+              ? lastOutput.content
+              : isStarting
+                ? 'starting...'
+                : isRunning
+                  ? 'working...'
+                  : 'idle...'}
+          </span>
+        </div>
+        <span className="text-xs text-[var(--color-text-secondary)] font-mono flex-shrink-0 pt-2">
           {elapsed}
         </span>
       </div>
