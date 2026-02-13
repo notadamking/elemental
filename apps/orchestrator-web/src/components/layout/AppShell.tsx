@@ -521,7 +521,18 @@ export function AppShell() {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-[var(--color-bg)]">
+        {/*
+         * Container query context (@container) enables child components to use
+         * container-width-based breakpoints (@sm:, @md:, @lg:, @xl:) instead of
+         * viewport-width-based ones (sm:, md:, lg:, xl:). This is critical for
+         * correct responsive behavior when the director panel is open, as the
+         * main content area is narrower than the viewport.
+         *
+         * Tailwind v4 natively supports container queries:
+         *   - @container on parent → sets container-type: inline-size
+         *   - @sm:, @md:, @lg:, @xl: on children → respond to container width
+         */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-[var(--color-bg)] @container">
           <Outlet />
         </main>
       </div>
