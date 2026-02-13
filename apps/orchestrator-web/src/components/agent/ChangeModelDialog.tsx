@@ -67,10 +67,8 @@ export function ChangeModelDialog({
 
   const allModels = modelsData?.models ?? [];
   const defaultModel = allModels.find(m => m.isDefault);
-  // If the default model's name already says "Default", don't duplicate it in the list
-  const models = defaultModel?.displayName.toLowerCase().includes('default')
-    ? allModels.filter(m => !m.isDefault)
-    : allModels;
+  // Filter out the default model — it's already shown in the "Default (...)" option
+  const models = allModels.filter(m => !m.isDefault);
   const normalizedCurrent = currentModel ?? '';
   const hasChanged = model !== normalizedCurrent;
 
@@ -165,11 +163,7 @@ export function ChangeModelDialog({
                   data-testid="change-model-select"
                 >
                   <option value="">
-                    {defaultModel
-                      ? (defaultModel.displayName.toLowerCase().includes('default')
-                        ? defaultModel.displayName
-                        : `Default (${defaultModel.displayName})`)
-                      : '(Default)'}
+                    {defaultModel ? `Default (${defaultModel.displayName})` : '(Default)'}
                   </option>
                   {models.map(m => (
                     <option key={m.id} value={m.id}>
