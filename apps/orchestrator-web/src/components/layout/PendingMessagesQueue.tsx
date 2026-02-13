@@ -279,7 +279,7 @@ function MessageItem({
         </div>
 
         <div className="flex-1 min-w-0">
-          {/* Header row: sender, channel, time */}
+          {/* Header row: sender, channel, time, process button */}
           <div className="flex items-center gap-2 mb-0.5">
             <span className="text-sm font-medium text-[var(--color-text)] truncate">
               {senderName}
@@ -294,37 +294,32 @@ function MessageItem({
                 @mention
               </span>
             )}
-            <div className="flex items-center gap-1 ml-auto text-xs text-[var(--color-text-tertiary)] flex-shrink-0">
-              <Clock className="w-3 h-3" />
-              <span>{formatInboxTime(timestamp)}</span>
+            <div className="flex items-center gap-1 ml-auto flex-shrink-0">
+              <span className="text-xs text-[var(--color-text-tertiary)] flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {formatInboxTime(timestamp)}
+              </span>
+              {/* Process single message button */}
+              <Tooltip
+                content={hasActiveSession ? 'Process this message' : 'Start director session first'}
+                side="left"
+              >
+                <button
+                  onClick={handleProcess}
+                  disabled={!hasActiveSession}
+                  className="flex items-center gap-1 ml-1 px-1.5 py-0.5 rounded-md text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label={`Process message ${item.id}`}
+                  data-testid="process-single-message-btn"
+                >
+                  <Play className="w-3 h-3" />
+                </button>
+              </Tooltip>
             </div>
           </div>
 
-          {/* Message content preview and process action */}
-          <div className="flex items-end gap-2">
-            <div className="flex-1 text-sm text-[var(--color-text-secondary)] line-clamp-2">
-              {renderMessageContent(contentPreview)}
-            </div>
-
-            {/* Process single message button */}
-            <Tooltip
-              content={
-                hasActiveSession
-                  ? "Process this message"
-                  : "Start director session first"
-              }
-              side="left"
-            >
-              <button
-                onClick={handleProcess}
-                disabled={!hasActiveSession}
-                className="flex-shrink-0 p-1 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label={`Process message ${item.id}`}
-                data-testid="process-single-message-btn"
-              >
-                <Play className="w-3.5 h-3.5" />
-              </button>
-            </Tooltip>
+          {/* Message content preview */}
+          <div className="text-sm text-[var(--color-text-secondary)] line-clamp-2">
+            {renderMessageContent(contentPreview)}
           </div>
         </div>
       </div>
