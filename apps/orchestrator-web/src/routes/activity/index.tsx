@@ -57,7 +57,7 @@ export function ActivityPage() {
   return (
     <div className="space-y-6 animate-fade-in" data-testid="activity-page">
       {/* Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 @sm:flex-row @sm:items-center @sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-[var(--color-primary-muted)]">
             <ActivityIcon className="w-5 h-5 text-[var(--color-primary)]" />

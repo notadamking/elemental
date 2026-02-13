@@ -532,7 +532,7 @@ export function AppShell() {
          *   - @container on parent → sets container-type: inline-size
          *   - @sm:, @md:, @lg:, @xl: on children → respond to container width
          */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-[var(--color-bg)] @container">
+        <main className="flex-1 overflow-y-auto p-4 @md:p-6 bg-[var(--color-bg)] @container">
           <Outlet />
         </main>
       </div>
