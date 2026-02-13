@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { Users } from 'lucide-react';
-import { Card } from '../ui/Card';
-import { Badge } from '../ui/Badge';
+import { Card, Badge } from '@elemental/ui';
 import type { Team } from './types';
 
 /**

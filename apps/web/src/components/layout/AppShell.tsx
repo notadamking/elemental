@@ -3,7 +3,7 @@ import { Outlet, useRouterState, Link, useRouter } from '@tanstack/react-router'
 import { Sidebar } from './Sidebar';
 import { MobileDrawer, UserSelector, type ConnectionState } from '@elemental/ui';
 import { CommandPalette } from '../navigation';
-import { ThemeToggle } from '../ui/ThemeToggle';
+import { ThemeToggle } from '@elemental/ui';
 import { useRealtimeEvents } from '../../api/hooks/useRealtimeEvents';
 import { useQuery } from '@tanstack/react-query';
 import { useGlobalKeyboardShortcuts, useKeyboardShortcut, useIsMobile, useIsTablet, GlobalQuickActionsProvider } from '../../hooks';

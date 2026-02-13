@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { X, Loader2, Plus, ChevronLeft } from 'lucide-react';
-import { TagInput } from '../ui/TagInput';
+import { TagInput } from '@elemental/ui';
 import { useIsMobile } from '../../hooks';
 import { useCurrentUser } from '../../contexts';
 

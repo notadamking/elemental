@@ -19,7 +19,7 @@ import {
   Inbox,
   type LucideIcon,
 } from 'lucide-react';
-import { Tooltip } from '../ui/Tooltip';
+import { Tooltip } from '@elemental/ui';
 import { getCurrentBinding, useShortcutVersion } from '../../lib/keyboard';
 import { useCurrentUser } from '../../contexts';
 

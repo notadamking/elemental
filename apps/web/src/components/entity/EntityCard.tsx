@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { Bot, User, Server } from 'lucide-react';
-import { Card } from '../ui/Card';
-import { Badge } from '../ui/Badge';
+import { Card, Badge } from '@elemental/ui';
 import type { Entity } from './types';
 
 /**

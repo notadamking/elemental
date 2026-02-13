@@ -65,7 +65,7 @@ import {
   ImageIcon,
   Smile,
 } from 'lucide-react';
-import { Tooltip } from '../ui/Tooltip';
+import { Tooltip } from '@elemental/ui';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 
 // Create lowlight instance with common languages

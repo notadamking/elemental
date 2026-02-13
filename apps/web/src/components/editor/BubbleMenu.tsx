@@ -19,7 +19,7 @@ import {
   Highlighter,
   MessageSquare,
 } from 'lucide-react';
-import { Tooltip } from '../ui/Tooltip';
+import { Tooltip } from '@elemental/ui';
 
 // Detect platform for keyboard shortcut display
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);

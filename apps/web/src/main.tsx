@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { Toaster } from 'sonner';
 import { router } from './router';
-import { TooltipProvider } from './components/ui/Tooltip';
+import { TooltipProvider } from '@elemental/ui';
 import { DataPreloader } from './components/shared';
 import { CurrentUserProvider } from './contexts';
 import { getToastPosition, getToastDuration } from './routes/settings';
