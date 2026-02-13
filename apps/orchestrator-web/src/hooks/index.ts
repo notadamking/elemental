@@ -55,6 +55,9 @@ export type {
   UseServerWorkspaceReturn,
 } from './useServerWorkspace';
 
+// Column resize hook
+export { useColumnResize } from './useColumnResize';
+
 // File Content Search hook
 export {
   useFileContentSearch,

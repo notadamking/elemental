@@ -61,7 +61,10 @@ import type {
 import {
   DEFAULT_PAGE_SIZE,
   EMPTY_FILTER,
+  TABLE_COLUMNS,
 } from '../../lib/task-constants';
+import type { ColumnId } from '../../lib/task-constants';
+import { useColumnResize } from '../../hooks/useColumnResize';
 import {
   fuzzySearch,
   highlightMatches,
@@ -125,6 +128,9 @@ export function TasksPage() {
   // Bulk selection state
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+
+  // Column resize
+  const { columnWidths, handleMouseDown: handleColumnResizeStart } = useColumnResize();
 
   // Handle ?action=create and ?backlog=true from global keyboard shortcuts
   useEffect(() => {
@@ -909,6 +915,8 @@ export function TasksPage() {
             allPageSelected={allPageSelected}
             somePageSelected={somePageSelected}
             onToggleSelectAll={handleToggleSelectAll}
+            columnWidths={columnWidths}
+            onColumnResizeStart={handleColumnResizeStart}
           />
           <Pagination
             currentPage={currentPage}
@@ -982,6 +990,10 @@ interface SortableHeaderProps {
   currentSortField: SortField;
   currentSortDirection: SortDirection;
   onSortChange: (field: SortField) => void;
+  width?: number;
+  resizable?: boolean;
+  columnId?: ColumnId;
+  onResizeStart?: (e: React.MouseEvent, columnId: ColumnId) => void;
 }
 
 function SortableHeader({
@@ -990,11 +1002,18 @@ function SortableHeader({
   currentSortField,
   currentSortDirection,
   onSortChange,
+  width,
+  resizable,
+  columnId,
+  onResizeStart,
 }: SortableHeaderProps) {
   const isActive = currentSortField === field;
 
   return (
-    <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
+    <th
+      className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider relative"
+      style={width != null ? { width: `${width}px`, minWidth: `${width}px` } : undefined}
+    >
       <button
         onClick={() => onSortChange(field)}
         className="flex items-center gap-1 cursor-pointer hover:text-[var(--color-text)] transition-colors group"
@@ -1010,7 +1029,35 @@ function SortableHeader({
           <ArrowUpDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50 transition-opacity" />
         )}
       </button>
+      {resizable && columnId && onResizeStart && (
+        <ResizeHandle columnId={columnId} onResizeStart={onResizeStart} />
+      )}
     </th>
+  );
+}
+
+// ============================================================================
+// Resize Handle Component
+// ============================================================================
+
+interface ResizeHandleProps {
+  columnId: ColumnId;
+  onResizeStart: (e: React.MouseEvent, columnId: ColumnId) => void;
+}
+
+function ResizeHandle({ columnId, onResizeStart }: ResizeHandleProps) {
+  return (
+    <div
+      className="absolute top-0 right-0 w-2 h-full cursor-col-resize group/resize z-10 select-none"
+      onMouseDown={(e) => onResizeStart(e, columnId)}
+      onClick={(e) => e.stopPropagation()}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={`Resize ${columnId} column`}
+      data-testid={`column-resize-handle-${columnId}`}
+    >
+      <div className="absolute right-0 top-0 w-[2px] h-full bg-transparent group-hover/resize:bg-[var(--color-primary)] transition-colors" />
+    </div>
   );
 }
 
@@ -1039,6 +1086,8 @@ interface TaskListViewProps {
   allPageSelected: boolean;
   somePageSelected: boolean;
   onToggleSelectAll: () => void;
+  columnWidths: Record<string, number>;
+  onColumnResizeStart: (e: React.MouseEvent, columnId: ColumnId) => void;
 }
 
 function TaskListView({
@@ -1062,16 +1111,36 @@ function TaskListView({
   allPageSelected,
   somePageSelected,
   onToggleSelectAll,
+  columnWidths,
+  onColumnResizeStart,
 }: TaskListViewProps) {
   const showGroups = groups.length > 1 || (groups.length === 1 && groups[0].key !== 'all');
+
+  // Build colgroup for fixed column widths
+  const colDefs = TABLE_COLUMNS;
 
   return (
     <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full" data-testid="tasks-table">
+        <table
+          className="w-full"
+          style={{ tableLayout: 'fixed' }}
+          data-testid="tasks-table"
+        >
+          <colgroup>
+            {colDefs.map((col) => (
+              <col
+                key={col.id}
+                style={{
+                  width: `${columnWidths[col.id] ?? col.defaultWidth}px`,
+                  minWidth: `${col.minWidth}px`,
+                }}
+              />
+            ))}
+          </colgroup>
           <thead className="bg-[var(--color-surface-elevated)]">
             <tr className="border-b border-[var(--color-border)]">
-              <th className="pl-4 pr-1 py-3 w-10">
+              <th className="pl-4 pr-1 py-3" style={{ width: `${columnWidths.checkbox ?? 40}px` }}>
                 <input
                   type="checkbox"
                   checked={allPageSelected}
@@ -1088,6 +1157,10 @@ function TaskListView({
                 currentSortField={sortField}
                 currentSortDirection={sortDirection}
                 onSortChange={onSortChange}
+                width={columnWidths.title}
+                resizable
+                columnId="title"
+                onResizeStart={onColumnResizeStart}
               />
               <SortableHeader
                 label="Status"
@@ -1095,6 +1168,10 @@ function TaskListView({
                 currentSortField={sortField}
                 currentSortDirection={sortDirection}
                 onSortChange={onSortChange}
+                width={columnWidths.status}
+                resizable
+                columnId="status"
+                onResizeStart={onColumnResizeStart}
               />
               <SortableHeader
                 label="Priority"
@@ -1102,6 +1179,10 @@ function TaskListView({
                 currentSortField={sortField}
                 currentSortDirection={sortDirection}
                 onSortChange={onSortChange}
+                width={columnWidths.priority}
+                resizable
+                columnId="priority"
+                onResizeStart={onColumnResizeStart}
               />
               <SortableHeader
                 label="Type"
@@ -1109,6 +1190,10 @@ function TaskListView({
                 currentSortField={sortField}
                 currentSortDirection={sortDirection}
                 onSortChange={onSortChange}
+                width={columnWidths.taskType}
+                resizable
+                columnId="taskType"
+                onResizeStart={onColumnResizeStart}
               />
               <SortableHeader
                 label="Assignee"
@@ -1116,9 +1201,17 @@ function TaskListView({
                 currentSortField={sortField}
                 currentSortDirection={sortDirection}
                 onSortChange={onSortChange}
+                width={columnWidths.assignee}
+                resizable
+                columnId="assignee"
+                onResizeStart={onColumnResizeStart}
               />
-              <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
+              <th
+                className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.branch ?? 160}px` }}
+              >
                 Branch
+                <ResizeHandle columnId="branch" onResizeStart={onColumnResizeStart} />
               </th>
               <SortableHeader
                 label="Updated"
@@ -1126,8 +1219,15 @@ function TaskListView({
                 currentSortField={sortField}
                 currentSortDirection={sortDirection}
                 onSortChange={onSortChange}
+                width={columnWidths.updatedAt}
+                resizable
+                columnId="updatedAt"
+                onResizeStart={onColumnResizeStart}
               />
-              <th className="px-4 py-3 text-right text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
+              <th
+                className="px-4 py-3 text-right text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider"
+                style={{ width: `${columnWidths.actions ?? 100}px` }}
+              >
                 Actions
               </th>
             </tr>

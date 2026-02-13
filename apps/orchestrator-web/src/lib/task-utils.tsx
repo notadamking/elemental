@@ -20,6 +20,8 @@ import {
   SORT_BY_STORAGE_KEY,
   SORT_DIR_STORAGE_KEY,
   SECONDARY_SORT_STORAGE_KEY,
+  COLUMN_WIDTHS_STORAGE_KEY,
+  DEFAULT_COLUMN_WIDTHS,
   GROUP_BY_OPTIONS,
   SORT_OPTIONS,
   STATUS_OPTIONS,
@@ -439,4 +441,24 @@ export function setStoredSecondarySort(field: SortField | null): void {
   } else {
     localStorage.removeItem(SECONDARY_SORT_STORAGE_KEY);
   }
+}
+
+export function getStoredColumnWidths(): Record<string, number> {
+  if (typeof window === 'undefined') return { ...DEFAULT_COLUMN_WIDTHS };
+  const stored = localStorage.getItem(COLUMN_WIDTHS_STORAGE_KEY);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      // Merge with defaults so any new columns get their default width
+      return { ...DEFAULT_COLUMN_WIDTHS, ...parsed };
+    } catch {
+      return { ...DEFAULT_COLUMN_WIDTHS };
+    }
+  }
+  return { ...DEFAULT_COLUMN_WIDTHS };
+}
+
+export function setStoredColumnWidths(widths: Record<string, number>): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(COLUMN_WIDTHS_STORAGE_KEY, JSON.stringify(widths));
 }

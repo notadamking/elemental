@@ -51,6 +51,35 @@ export const SEARCH_STORAGE_KEY = 'orchestrator-tasks.search';
 export const SORT_BY_STORAGE_KEY = 'orchestrator-tasks.sortBy';
 export const SORT_DIR_STORAGE_KEY = 'orchestrator-tasks.sortDir';
 export const SECONDARY_SORT_STORAGE_KEY = 'orchestrator-tasks.secondarySort';
+export const COLUMN_WIDTHS_STORAGE_KEY = 'orchestrator-tasks.columnWidths';
+
+// Column definitions for the task table
+export type ColumnId = 'checkbox' | 'title' | 'status' | 'priority' | 'taskType' | 'assignee' | 'branch' | 'updatedAt' | 'actions';
+
+export interface ColumnDef {
+  id: ColumnId;
+  label: string;
+  defaultWidth: number;
+  minWidth: number;
+  resizable: boolean;
+  sortField?: SortField;
+}
+
+export const TABLE_COLUMNS: ColumnDef[] = [
+  { id: 'checkbox', label: '', defaultWidth: 40, minWidth: 40, resizable: false },
+  { id: 'title', label: 'Task', defaultWidth: 300, minWidth: 120, resizable: true, sortField: 'title' },
+  { id: 'status', label: 'Status', defaultWidth: 140, minWidth: 80, resizable: true, sortField: 'status' },
+  { id: 'priority', label: 'Priority', defaultWidth: 100, minWidth: 70, resizable: true, sortField: 'priority' },
+  { id: 'taskType', label: 'Type', defaultWidth: 90, minWidth: 60, resizable: true, sortField: 'taskType' },
+  { id: 'assignee', label: 'Assignee', defaultWidth: 140, minWidth: 80, resizable: true, sortField: 'assignee' },
+  { id: 'branch', label: 'Branch', defaultWidth: 160, minWidth: 80, resizable: true },
+  { id: 'updatedAt', label: 'Updated', defaultWidth: 100, minWidth: 70, resizable: true, sortField: 'updated_at' },
+  { id: 'actions', label: 'Actions', defaultWidth: 100, minWidth: 60, resizable: false },
+];
+
+export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = Object.fromEntries(
+  TABLE_COLUMNS.map(col => [col.id, col.defaultWidth])
+);
 
 export const EMPTY_FILTER: FilterConfig = {
   status: [],
