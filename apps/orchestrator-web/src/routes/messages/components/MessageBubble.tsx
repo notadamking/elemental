@@ -12,7 +12,7 @@ import {
   MoreVertical,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { EntityLink } from '../../../components/entity/EntityLink';
+import { EntityLink } from '@elemental/ui/domain';
 import { renderMessageContent } from '../../../lib/message-content';
 import { useEntities } from '../../../api/hooks/useMessages';
 import type { Message } from '../types';

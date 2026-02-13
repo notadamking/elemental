@@ -69,6 +69,14 @@ export {
   type MergeStatusBadgeProps,
 } from './TaskBadges';
 
+// Entity link
+export {
+  EntityLink,
+  EntityName,
+  type EntityLinkProps,
+  type EntityStats,
+} from './EntityLink';
+
 // User selection
 export { UserSelector } from './UserSelector';
 
