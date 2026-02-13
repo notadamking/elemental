@@ -50,17 +50,20 @@ export function PendingMessagesQueue({
     return inboxData.items.filter((item) => item.status === 'unread');
   }, [inboxData?.items]);
 
-  // Handle process button click - triggers director to read inbox
+  // Handle process button click - tells the director agent to check and process its inbox
   const handleProcessMessages = useCallback(() => {
     if (!hasActiveSession) {
       console.warn('Cannot process messages: Director has no active session');
       return;
     }
 
-    // Send the inbox command to the director's terminal
-    const command = 'el inbox ' + directorId + '\n';
-    onSendCommand?.(command);
-  }, [directorId, hasActiveSession, onSendCommand]);
+    // Send a natural language instruction to the director agent to check its inbox
+    onSendCommand?.('Check your inbox and process the pending messages');
+    // Send carriage return after a small delay to ensure it registers as the submit action
+    setTimeout(() => {
+      onSendCommand?.('\r');
+    }, 200);
+  }, [hasActiveSession, onSendCommand]);
 
   // Handle mark all as read
   const handleMarkAllRead = useCallback(async () => {
