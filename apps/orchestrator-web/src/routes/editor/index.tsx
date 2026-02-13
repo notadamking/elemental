@@ -238,6 +238,8 @@ export function FileEditorPage() {
   const [editorTheme, setEditorTheme] = useState(() => localStorage.getItem('editor.theme') || 'elemental-dark');
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const searchPanelRef = useRef<EditorSearchPanelRef>(null);
+  // Timer ref for debounced content comparison (manual revert detection)
+  const contentCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lspState, setLspState] = useState<LspState>('idle');
 
   // Initialize Monaco before rendering the editor
@@ -259,6 +261,15 @@ export function FileEditorPage() {
 
     return () => {
       mounted = false;
+    };
+  }, []);
+
+  // Clean up the debounced content check timer on unmount
+  useEffect(() => {
+    return () => {
+      if (contentCheckTimerRef.current) {
+        clearTimeout(contentCheckTimerRef.current);
+      }
     };
   }, []);
 
@@ -319,6 +330,7 @@ export function FileEditorPage() {
         name: selectedDocument.title || 'Untitled',
         path: selectedDocument.title || 'Untitled',
         content: selectedDocument.content || '',
+        savedContent: selectedDocument.content || '',
         language: getLanguageFromDocument(selectedDocument),
         source: 'documents',
         isPreview: false,
@@ -397,6 +409,7 @@ export function FileEditorPage() {
             name: result.name,
             path: result.path,
             content: result.content,
+            savedContent: result.content,
             language: result.language || 'plaintext',
             source: 'workspace',
             isPreview: !pinTab,
@@ -597,6 +610,7 @@ export function FileEditorPage() {
           name: result.name,
           path: result.path,
           content: result.content,
+          savedContent: result.content,
           language: result.language || 'plaintext',
           source: 'workspace',
           isPreview: true,
@@ -676,8 +690,9 @@ export function FileEditorPage() {
   }, []);
 
   // Handle editor content change — receives the current version ID from Monaco's onDidChangeModelContent.
-  // Uses version ID to compute hasUnsavedChanges (comparing against savedVersionId).
-  // Content is read on demand from editorRef when saving or switching tabs.
+  // Fast path: version ID matches savedVersionId → definitely unchanged (handles Ctrl+Z undo).
+  // Slow path: version ID doesn't match → mark as unsaved immediately, then schedule a debounced
+  // content comparison to catch manual reverts (e.g., user typed then backspaced).
   const handleEditorChange = useCallback((versionId?: number) => {
     if (!activeTabId) return;
 
@@ -685,16 +700,50 @@ export function FileEditorPage() {
       const tab = prevTabs.find(t => t.id === activeTabId);
       if (!tab) return prevTabs;
 
-      const hasUnsavedChanges = versionId !== undefined ? versionId !== tab.savedVersionId : true;
-      const needsUpdate = !tab.isDirty || tab.isPreview || tab.hasUnsavedChanges !== hasUnsavedChanges;
-      if (!needsUpdate) return prevTabs;
+      // Fast path: version ID matches saved → definitely unchanged (handles undo)
+      if (versionId !== undefined && versionId === tab.savedVersionId) {
+        if (contentCheckTimerRef.current) {
+          clearTimeout(contentCheckTimerRef.current);
+          contentCheckTimerRef.current = null;
+        }
+        const needsUpdate = !tab.isDirty || tab.isPreview || tab.hasUnsavedChanges !== false;
+        if (!needsUpdate) return prevTabs;
+        return prevTabs.map(t =>
+          t.id === activeTabId ? { ...t, isDirty: true, isPreview: false, hasUnsavedChanges: false } : t
+        );
+      }
 
+      // Mark as dirty and potentially unsaved
+      const needsUpdate = !tab.isDirty || tab.isPreview || !tab.hasUnsavedChanges;
+      if (!needsUpdate) return prevTabs;
       return prevTabs.map(t =>
-        t.id === activeTabId
-          ? { ...t, isDirty: true, isPreview: false, hasUnsavedChanges }
-          : t
+        t.id === activeTabId ? { ...t, isDirty: true, isPreview: false, hasUnsavedChanges: true } : t
       );
     });
+
+    // Schedule debounced content comparison for manual revert detection.
+    // This catches the case where version IDs don't match but content is identical
+    // (e.g., user typed then backspaced, or retyped the same content).
+    if (contentCheckTimerRef.current) {
+      clearTimeout(contentCheckTimerRef.current);
+    }
+    contentCheckTimerRef.current = setTimeout(() => {
+      contentCheckTimerRef.current = null;
+      const tabId = activeTabIdRef.current;
+      if (!tabId || !editorRef.current) return;
+      const model = editorRef.current.getModel();
+      if (!model) return;
+      const currentContent = model.getValue();
+      setTabs(prevTabs => {
+        const tab = prevTabs.find(t => t.id === tabId);
+        if (!tab) return prevTabs;
+        const hasUnsavedChanges = currentContent !== tab.savedContent;
+        if (tab.hasUnsavedChanges === hasUnsavedChanges) return prevTabs;
+        return prevTabs.map(t =>
+          t.id === tabId ? { ...t, hasUnsavedChanges } : t
+        );
+      });
+    }, 300);
   }, [activeTabId]);
 
   // Save the current file
@@ -739,7 +788,7 @@ export function FileEditorPage() {
       setTabs(prevTabs =>
         prevTabs.map(t =>
           t.id === targetTabId
-            ? { ...t, content, isDirty: false, hasUnsavedChanges: false, savedVersionId: currentVersionId }
+            ? { ...t, content, savedContent: content, isDirty: false, hasUnsavedChanges: false, savedVersionId: currentVersionId }
             : t
         )
       );
@@ -798,6 +847,7 @@ export function FileEditorPage() {
       name: displayName,
       path: `Extension: ${displayName}`,
       content: '',
+      savedContent: '',
       language: 'plaintext',
       source: 'extension',
       isPreview: false,

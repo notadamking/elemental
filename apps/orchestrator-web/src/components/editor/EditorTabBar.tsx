@@ -61,6 +61,8 @@ export interface EditorTab {
   hasUnsavedChanges: boolean;
   /** Monaco alternative version ID at the time of last save/load */
   savedVersionId: number;
+  /** Content at last load/save, used for content comparison to detect manual reverts */
+  savedContent: string;
   /** Extension ID in "namespace.name" format (only when source === 'extension') */
   extensionId?: string;
 }
