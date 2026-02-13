@@ -458,6 +458,8 @@ function FileNode({ node, style }: NodeRendererProps<FileTreeNodeData>) {
   const isExpanded = node.isOpen;
   const isSelected = node.isSelected;
   const isRenaming = ctx?.renamingNodeId === node.data.id;
+  const isDropTarget = node.willReceiveDrop;
+  const isDragging = node.isDragging;
 
   const Icon = getFileIcon(node.data.name, isFolder, isExpanded);
   const iconColor = getIconColor(node.data.name, isFolder);
@@ -476,7 +478,7 @@ function FileNode({ node, style }: NodeRendererProps<FileTreeNodeData>) {
     <div
       data-testid={`file-tree-item-${node.id}`}
       style={style}
-      className="pr-2"
+      className={`pr-2 ${isDragging ? 'opacity-50' : ''}`}
     >
       <button
         data-testid={`file-tree-button-${node.id}`}
@@ -484,9 +486,11 @@ function FileNode({ node, style }: NodeRendererProps<FileTreeNodeData>) {
         className={`
           w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-sm
           transition-colors duration-150 ease-in-out
-          ${isSelected
-            ? 'bg-[var(--color-primary)] text-white'
-            : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
+          ${isDropTarget
+            ? 'bg-[var(--color-primary-muted)] ring-1 ring-[var(--color-primary)] text-[var(--color-text)]'
+            : isSelected
+              ? 'bg-[var(--color-primary)] text-white'
+              : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
           }
         `}
       >
@@ -662,6 +666,8 @@ interface EditorFileTreeProps {
   onRenameFile?: (oldPath: string, newPath: string) => Promise<void>;
   /** Callback when a file is pasted */
   onPasteFile?: (sourcePath: string, destFolder: string, operation: 'copy' | 'cut') => Promise<void>;
+  /** Callback when a file/folder is moved via drag-and-drop */
+  onMoveFile?: (oldPath: string, newPath: string) => Promise<void>;
   /** Absolute path to the workspace root (for Copy Path feature) */
   workspaceRoot?: string | null;
   /** Optional class name */
@@ -678,6 +684,7 @@ export const EditorFileTree = forwardRef<EditorFileTreeHandle, EditorFileTreePro
   onDeleteFile,
   onRenameFile,
   onPasteFile,
+  onMoveFile,
   workspaceRoot,
   className = '',
 }: EditorFileTreeProps, ref) {
@@ -853,6 +860,102 @@ export const EditorFileTree = forwardRef<EditorFileTreeHandle, EditorFileTreePro
     setDeletingNode(null);
   }, []);
 
+  // ---- Drag-and-drop handlers ----
+
+  // State for DnD error messages
+  const [moveError, setMoveError] = useState<string | null>(null);
+
+  // Handle drag-and-drop move
+  const handleMove = useCallback(
+    async (args: {
+      dragIds: string[];
+      dragNodes: NodeApi<FileTreeNodeData>[];
+      parentId: string | null;
+      parentNode: NodeApi<FileTreeNodeData> | null;
+      index: number;
+    }) => {
+      if (!onMoveFile) return;
+
+      // Process each dragged node (typically one at a time since multiselect is disabled)
+      for (const dragNode of args.dragNodes) {
+        const oldPath = dragNode.data.path;
+        const fileName = dragNode.data.name;
+
+        // Compute new path based on destination
+        const newPath = args.parentNode
+          ? `${args.parentNode.data.path}/${fileName}`
+          : fileName;
+
+        // No-op if moving to the same location
+        if (oldPath === newPath) continue;
+
+        // Prevent dropping a folder into itself or its descendants
+        if (args.parentNode && args.parentNode.data.path.startsWith(oldPath + '/')) {
+          continue;
+        }
+        if (args.parentNode && args.parentNode.data.path === oldPath) {
+          continue;
+        }
+
+        try {
+          setMoveError(null);
+          await onMoveFile(oldPath, newPath);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to move file';
+          setMoveError(message);
+          console.error('Failed to move file:', error);
+          // Clear error after 5 seconds
+          setTimeout(() => setMoveError(null), 5000);
+        }
+      }
+    },
+    [onMoveFile]
+  );
+
+  // Disable drop handler — prevents invalid drops
+  const disableDropHandler = useCallback(
+    (args: {
+      parentNode: NodeApi<FileTreeNodeData>;
+      dragNodes: NodeApi<FileTreeNodeData>[];
+      index: number;
+    }): boolean => {
+      const { parentNode, dragNodes } = args;
+
+      // Allow drops on the root node (top-level workspace)
+      const isRootDrop = parentNode.isRoot;
+
+      for (const dragNode of dragNodes) {
+        if (isRootDrop) {
+          // Cannot drop into root if already at root level (prevents reordering)
+          const dragParentPath = getParentPath(dragNode.data.path);
+          if (dragParentPath === '') return true;
+          // Root drops are otherwise OK
+          continue;
+        }
+
+        // Cannot drop on a file (only folders are valid drop targets)
+        if (parentNode.data.nodeType === 'file') return true;
+
+        // Cannot drop a folder into itself
+        if (parentNode.data.path === dragNode.data.path) return true;
+
+        // Cannot drop a folder into its own descendants
+        if (parentNode.data.path.startsWith(dragNode.data.path + '/')) return true;
+
+        // Cannot drop into the same parent folder (prevents reordering)
+        const dragParentPath = getParentPath(dragNode.data.path);
+        const dropParentPath = parentNode.data.path;
+        if (dragParentPath === dropParentPath) return true;
+      }
+
+      return false;
+    },
+    []
+  );
+
+  // Determine if DnD should be enabled (only for workspace mode)
+  const isDndEnabled = source === 'workspace' && !!onMoveFile;
+
   // Context value for FileNode
   const contextValue = useMemo<FileTreeContextMenuState>(
     () => ({
@@ -890,30 +993,44 @@ export const EditorFileTree = forwardRef<EditorFileTreeHandle, EditorFileTreePro
       <div
         ref={containerRef}
         data-testid="editor-file-tree"
-        className={`flex-1 overflow-hidden p-1 ${className}`}
+        className={`flex-1 overflow-hidden p-1 relative ${className}`}
       >
         {treeData.length === 0 ? (
           <div className="text-center py-8 text-[var(--color-text-muted)] text-sm">
             No files to display
           </div>
         ) : (
-          <Tree<FileTreeNodeData>
-            ref={treeRef}
-            data={treeData}
-            width="100%"
-            height={treeHeight}
-            rowHeight={FILE_ROW_HEIGHT}
-            indent={16}
-            paddingTop={4}
-            paddingBottom={4}
-            selection={selectedId ?? undefined}
-            onSelect={handleSelect}
-            onActivate={handleActivate}
-            disableMultiSelection
-            openByDefault={false}
-          >
-            {FileNode}
-          </Tree>
+          <>
+            <Tree<FileTreeNodeData>
+              ref={treeRef}
+              data={treeData}
+              width="100%"
+              height={treeHeight}
+              rowHeight={FILE_ROW_HEIGHT}
+              indent={16}
+              paddingTop={4}
+              paddingBottom={4}
+              selection={selectedId ?? undefined}
+              onSelect={handleSelect}
+              onActivate={handleActivate}
+              disableMultiSelection
+              openByDefault={false}
+              onMove={isDndEnabled ? handleMove : undefined}
+              disableDrag={!isDndEnabled}
+              disableDrop={isDndEnabled ? disableDropHandler : true}
+            >
+              {FileNode}
+            </Tree>
+            {/* DnD error message */}
+            {moveError && (
+              <div
+                className="absolute bottom-2 left-2 right-2 px-3 py-2 text-xs text-red-400 bg-red-900/30 border border-red-800/50 rounded-md"
+                data-testid="move-error-message"
+              >
+                {moveError}
+              </div>
+            )}
+          </>
         )}
 
         {/* Delete Confirmation Dialog */}
