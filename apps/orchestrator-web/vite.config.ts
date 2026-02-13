@@ -55,6 +55,8 @@ export default defineConfig({
             '@radix-ui/react-select',
             '@radix-ui/react-tooltip',
             '@radix-ui/react-collapsible',
+            '@radix-ui/react-context-menu',
+            '@radix-ui/react-alert-dialog',
           ],
           'utils-vendor': ['lucide-react', 'cmdk', 'sonner'],
           // Monaco editor in a separate chunk for better caching

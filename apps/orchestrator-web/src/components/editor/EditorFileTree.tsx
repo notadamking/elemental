@@ -3,10 +3,21 @@
  *
  * A performant tree view for displaying files and directories
  * using react-arborist for virtualization and improved UX.
+ * Includes right-click context menu with file operations.
  */
 
-import { useRef, useMemo, useCallback, useState, useEffect } from 'react';
+import {
+  useRef,
+  useMemo,
+  useCallback,
+  useState,
+  useEffect,
+  createContext,
+  useContext,
+} from 'react';
 import { Tree, NodeRendererProps, NodeApi } from 'react-arborist';
+import * as ContextMenu from '@radix-ui/react-context-menu';
+import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import {
   FileCode,
   Folder,
@@ -58,6 +69,30 @@ export interface FileTreeNodeData {
   /** For documents mode */
   document?: Document;
 }
+
+/** Clipboard state for copy/cut operations */
+interface ClipboardState {
+  node: FileTreeNodeData;
+  operation: 'copy' | 'cut';
+}
+
+/** Context for passing menu state to FileNode */
+interface FileTreeContextMenuState {
+  clipboard: ClipboardState | null;
+  renamingNodeId: string | null;
+  onOpen: (node: FileTreeNodeData) => void;
+  onCopy: (node: FileTreeNodeData) => void;
+  onCut: (node: FileTreeNodeData) => void;
+  onPaste: (targetFolder: FileTreeNodeData) => void;
+  onCopyPath: (node: FileTreeNodeData) => void;
+  onCopyRelativePath: (node: FileTreeNodeData) => void;
+  onRename: (node: FileTreeNodeData) => void;
+  onDelete: (node: FileTreeNodeData) => void;
+  onRenameSubmit: (oldPath: string, newName: string) => void;
+  onRenameCancel: () => void;
+}
+
+const FileTreeContextMenuContext = createContext<FileTreeContextMenuState | null>(null);
 
 // ============================================================================
 // Icon utilities
@@ -204,6 +239,188 @@ function getIconColor(name: string, isFolder: boolean): string {
 }
 
 // ============================================================================
+// Context Menu Component
+// ============================================================================
+
+interface FileTreeContextMenuProps {
+  node: FileTreeNodeData;
+  children: React.ReactNode;
+}
+
+function FileTreeContextMenu({ node, children }: FileTreeContextMenuProps) {
+  const ctx = useContext(FileTreeContextMenuContext);
+  if (!ctx) return <>{children}</>;
+
+  const { clipboard, onOpen, onCopy, onCut, onPaste, onCopyPath, onCopyRelativePath, onRename, onDelete } = ctx;
+  const isFolder = node.nodeType === 'folder';
+  const canPaste = clipboard !== null && isFolder;
+
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>
+        {children}
+      </ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content
+          className="min-w-[180px] bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg shadow-lg py-1 z-50"
+          data-testid="file-tree-context-menu"
+        >
+          {/* Open */}
+          <ContextMenu.Item
+            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] cursor-pointer outline-none"
+            onSelect={() => onOpen(node)}
+            data-testid="context-menu-open"
+          >
+            <span>Open</span>
+          </ContextMenu.Item>
+
+          <ContextMenu.Separator className="h-px bg-[var(--color-border)] my-1" />
+
+          {/* Copy */}
+          <ContextMenu.Item
+            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] cursor-pointer outline-none"
+            onSelect={() => onCopy(node)}
+            data-testid="context-menu-copy"
+          >
+            <span>Copy</span>
+          </ContextMenu.Item>
+
+          {/* Cut */}
+          <ContextMenu.Item
+            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] cursor-pointer outline-none"
+            onSelect={() => onCut(node)}
+            data-testid="context-menu-cut"
+          >
+            <span>Cut</span>
+          </ContextMenu.Item>
+
+          {/* Paste */}
+          <ContextMenu.Item
+            className={`flex items-center justify-between px-3 py-1.5 text-sm outline-none ${
+              canPaste
+                ? 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] cursor-pointer'
+                : 'text-[var(--color-text-muted)] opacity-50 cursor-not-allowed'
+            }`}
+            disabled={!canPaste}
+            onSelect={() => canPaste && onPaste(node)}
+            data-testid="context-menu-paste"
+          >
+            <span>Paste</span>
+          </ContextMenu.Item>
+
+          <ContextMenu.Separator className="h-px bg-[var(--color-border)] my-1" />
+
+          {/* Copy Path */}
+          <ContextMenu.Item
+            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] cursor-pointer outline-none"
+            onSelect={() => onCopyPath(node)}
+            data-testid="context-menu-copy-path"
+          >
+            <span>Copy Path</span>
+          </ContextMenu.Item>
+
+          {/* Copy Relative Path */}
+          <ContextMenu.Item
+            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] cursor-pointer outline-none"
+            onSelect={() => onCopyRelativePath(node)}
+            data-testid="context-menu-copy-relative-path"
+          >
+            <span>Copy Relative Path</span>
+          </ContextMenu.Item>
+
+          <ContextMenu.Separator className="h-px bg-[var(--color-border)] my-1" />
+
+          {/* Rename */}
+          <ContextMenu.Item
+            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] cursor-pointer outline-none"
+            onSelect={() => onRename(node)}
+            data-testid="context-menu-rename"
+          >
+            <span>Rename</span>
+            <span className="text-[var(--color-text-muted)] text-xs ml-4">F2</span>
+          </ContextMenu.Item>
+
+          {/* Delete */}
+          <ContextMenu.Item
+            className="flex items-center justify-between px-3 py-1.5 text-sm text-red-400 hover:bg-[var(--color-surface-hover)] cursor-pointer outline-none"
+            onSelect={() => onDelete(node)}
+            data-testid="context-menu-delete"
+          >
+            <span>Delete</span>
+            <span className="text-[var(--color-text-muted)] text-xs ml-4">Del</span>
+          </ContextMenu.Item>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
+  );
+}
+
+// ============================================================================
+// Inline Rename Input Component
+// ============================================================================
+
+interface InlineRenameInputProps {
+  node: FileTreeNodeData;
+  onSubmit: (oldPath: string, newName: string) => void;
+  onCancel: () => void;
+}
+
+function InlineRenameInput({ node, onSubmit, onCancel }: InlineRenameInputProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [value, setValue] = useState(node.name);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+      // Select filename without extension for files
+      if (node.nodeType === 'file') {
+        const lastDot = node.name.lastIndexOf('.');
+        if (lastDot > 0) {
+          inputRef.current.setSelectionRange(0, lastDot);
+        } else {
+          inputRef.current.select();
+        }
+      } else {
+        inputRef.current.select();
+      }
+    }
+  }, [node.name, node.nodeType]);
+
+  const handleSubmit = () => {
+    const trimmedValue = value.trim();
+    if (trimmedValue && trimmedValue !== node.name) {
+      onSubmit(node.path, trimmedValue);
+    } else {
+      onCancel();
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSubmit();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      onCancel();
+    }
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={handleSubmit}
+      onKeyDown={handleKeyDown}
+      className="flex-1 bg-[var(--color-bg)] border border-[var(--color-primary)] rounded px-1 py-0 text-sm text-[var(--color-text)] outline-none"
+      data-testid="inline-rename-input"
+      onClick={(e) => e.stopPropagation()}
+    />
+  );
+}
+
+// ============================================================================
 // Tree Node Renderer
 // ============================================================================
 
@@ -211,14 +428,26 @@ function getIconColor(name: string, isFolder: boolean): string {
  * Custom node renderer for file tree items
  */
 function FileNode({ node, style }: NodeRendererProps<FileTreeNodeData>) {
+  const ctx = useContext(FileTreeContextMenuContext);
   const isFolder = node.data.nodeType === 'folder';
   const isExpanded = node.isOpen;
   const isSelected = node.isSelected;
+  const isRenaming = ctx?.renamingNodeId === node.data.id;
 
   const Icon = getFileIcon(node.data.name, isFolder, isExpanded);
   const iconColor = getIconColor(node.data.name, isFolder);
 
-  return (
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isFolder) {
+      node.toggle();
+    } else {
+      node.select();
+      node.activate();
+    }
+  };
+
+  const nodeContent = (
     <div
       data-testid={`file-tree-item-${node.id}`}
       style={style}
@@ -226,15 +455,7 @@ function FileNode({ node, style }: NodeRendererProps<FileTreeNodeData>) {
     >
       <button
         data-testid={`file-tree-button-${node.id}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (isFolder) {
-            node.toggle();
-          } else {
-            node.select();
-            node.activate();
-          }
-        }}
+        onClick={handleClick}
         className={`
           w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-sm
           transition-colors duration-150 ease-in-out
@@ -264,10 +485,86 @@ function FileNode({ node, style }: NodeRendererProps<FileTreeNodeData>) {
           }`}
         />
 
-        {/* File name */}
-        <span className="truncate flex-1 text-left">{node.data.name}</span>
+        {/* File name or rename input */}
+        {isRenaming && ctx ? (
+          <InlineRenameInput
+            node={node.data}
+            onSubmit={ctx.onRenameSubmit}
+            onCancel={ctx.onRenameCancel}
+          />
+        ) : (
+          <span className="truncate flex-1 text-left">{node.data.name}</span>
+        )}
       </button>
     </div>
+  );
+
+  // Wrap with context menu if context is available
+  if (ctx && !isRenaming) {
+    return (
+      <FileTreeContextMenu node={node.data}>
+        {nodeContent}
+      </FileTreeContextMenu>
+    );
+  }
+
+  return nodeContent;
+}
+
+// ============================================================================
+// Delete Confirmation Dialog
+// ============================================================================
+
+interface DeleteConfirmationDialogProps {
+  node: FileTreeNodeData | null;
+  isOpen: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function DeleteConfirmationDialog({
+  node,
+  isOpen,
+  onConfirm,
+  onCancel,
+}: DeleteConfirmationDialogProps) {
+  return (
+    <AlertDialog.Root open={isOpen} onOpenChange={(open) => !open && onCancel()}>
+      <AlertDialog.Portal>
+        <AlertDialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
+        <AlertDialog.Content
+          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-lg shadow-xl z-50 w-full max-w-md p-6"
+          data-testid="delete-confirmation-dialog"
+        >
+          <AlertDialog.Title className="text-lg font-semibold text-[var(--color-text)]">
+            Are you sure you want to delete {node?.name}?
+          </AlertDialog.Title>
+          <AlertDialog.Description className="mt-2 text-sm text-[var(--color-text-muted)]">
+            This action cannot be undone.
+          </AlertDialog.Description>
+
+          <div className="mt-6 flex justify-end gap-3">
+            <AlertDialog.Cancel asChild>
+              <button
+                className="px-4 py-2 text-sm font-medium text-[var(--color-text)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] rounded-md transition-colors"
+                data-testid="delete-cancel-button"
+              >
+                Cancel
+              </button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action asChild>
+              <button
+                onClick={onConfirm}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
+                data-testid="delete-confirm-button"
+              >
+                Delete
+              </button>
+            </AlertDialog.Action>
+          </div>
+        </AlertDialog.Content>
+      </AlertDialog.Portal>
+    </AlertDialog.Root>
   );
 }
 
@@ -301,6 +598,14 @@ function documentToTreeNode(doc: Document): FileTreeNodeData {
   };
 }
 
+/**
+ * Get parent directory path from a file path
+ */
+function getParentPath(path: string): string {
+  const lastSlash = path.lastIndexOf('/');
+  return lastSlash > 0 ? path.slice(0, lastSlash) : '';
+}
+
 // ============================================================================
 // Main Component
 // ============================================================================
@@ -318,6 +623,12 @@ interface EditorFileTreeProps {
   onSelectFile: (node: FileTreeNodeData) => void;
   /** Callback when a file is double-clicked (pins the tab) */
   onDoubleClickFile?: (node: FileTreeNodeData) => void;
+  /** Callback when a file is deleted */
+  onDeleteFile?: (path: string) => Promise<void>;
+  /** Callback when a file is renamed */
+  onRenameFile?: (oldPath: string, newPath: string) => Promise<void>;
+  /** Callback when a file is pasted */
+  onPasteFile?: (sourcePath: string, destFolder: string, operation: 'copy' | 'cut') => Promise<void>;
   /** Optional class name */
   className?: string;
 }
@@ -329,11 +640,19 @@ export function EditorFileTree({
   selectedId,
   onSelectFile,
   onDoubleClickFile,
+  onDeleteFile,
+  onRenameFile,
+  onPasteFile,
   className = '',
 }: EditorFileTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<any>(null);
   const [treeHeight, setTreeHeight] = useState(400);
+
+  // Context menu state
+  const [clipboard, setClipboard] = useState<ClipboardState | null>(null);
+  const [renamingNodeId, setRenamingNodeId] = useState<string | null>(null);
+  const [deletingNode, setDeletingNode] = useState<FileTreeNodeData | null>(null);
 
   // Measure container height
   useEffect(() => {
@@ -383,36 +702,187 @@ export function EditorFileTree({
     [onSelectFile, onDoubleClickFile]
   );
 
+  // Context menu handlers
+  const handleOpen = useCallback(
+    (node: FileTreeNodeData) => {
+      if (node.nodeType === 'folder') {
+        // Toggle folder - find the node in the tree and toggle it
+        const treeApi = treeRef.current;
+        if (treeApi) {
+          const treeNode = treeApi.get(node.id);
+          if (treeNode) {
+            treeNode.toggle();
+          }
+        }
+      } else {
+        onSelectFile(node);
+      }
+    },
+    [onSelectFile]
+  );
+
+  const handleCopy = useCallback((node: FileTreeNodeData) => {
+    setClipboard({ node, operation: 'copy' });
+  }, []);
+
+  const handleCut = useCallback((node: FileTreeNodeData) => {
+    setClipboard({ node, operation: 'cut' });
+  }, []);
+
+  const handlePaste = useCallback(
+    async (targetFolder: FileTreeNodeData) => {
+      if (!clipboard || !onPasteFile) return;
+
+      try {
+        await onPasteFile(
+          clipboard.node.path,
+          targetFolder.path,
+          clipboard.operation
+        );
+
+        // Clear clipboard after cut operation
+        if (clipboard.operation === 'cut') {
+          setClipboard(null);
+        }
+      } catch (error) {
+        console.error('Failed to paste file:', error);
+      }
+    },
+    [clipboard, onPasteFile]
+  );
+
+  const handleCopyPath = useCallback((node: FileTreeNodeData) => {
+    const absolutePath = `/${node.path}`;
+    navigator.clipboard.writeText(absolutePath);
+  }, []);
+
+  const handleCopyRelativePath = useCallback((node: FileTreeNodeData) => {
+    navigator.clipboard.writeText(node.path);
+  }, []);
+
+  const handleRename = useCallback((node: FileTreeNodeData) => {
+    setRenamingNodeId(node.id);
+  }, []);
+
+  const handleRenameSubmit = useCallback(
+    async (oldPath: string, newName: string) => {
+      if (!onRenameFile) {
+        setRenamingNodeId(null);
+        return;
+      }
+
+      const parentPath = getParentPath(oldPath);
+      const newPath = parentPath ? `${parentPath}/${newName}` : newName;
+
+      try {
+        await onRenameFile(oldPath, newPath);
+      } catch (error) {
+        console.error('Failed to rename file:', error);
+      } finally {
+        setRenamingNodeId(null);
+      }
+    },
+    [onRenameFile]
+  );
+
+  const handleRenameCancel = useCallback(() => {
+    setRenamingNodeId(null);
+  }, []);
+
+  const handleDelete = useCallback((node: FileTreeNodeData) => {
+    setDeletingNode(node);
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deletingNode || !onDeleteFile) {
+      setDeletingNode(null);
+      return;
+    }
+
+    try {
+      await onDeleteFile(deletingNode.path);
+    } catch (error) {
+      console.error('Failed to delete file:', error);
+    } finally {
+      setDeletingNode(null);
+    }
+  }, [deletingNode, onDeleteFile]);
+
+  const handleDeleteCancel = useCallback(() => {
+    setDeletingNode(null);
+  }, []);
+
+  // Context value for FileNode
+  const contextValue = useMemo<FileTreeContextMenuState>(
+    () => ({
+      clipboard,
+      renamingNodeId,
+      onOpen: handleOpen,
+      onCopy: handleCopy,
+      onCut: handleCut,
+      onPaste: handlePaste,
+      onCopyPath: handleCopyPath,
+      onCopyRelativePath: handleCopyRelativePath,
+      onRename: handleRename,
+      onDelete: handleDelete,
+      onRenameSubmit: handleRenameSubmit,
+      onRenameCancel: handleRenameCancel,
+    }),
+    [
+      clipboard,
+      renamingNodeId,
+      handleOpen,
+      handleCopy,
+      handleCut,
+      handlePaste,
+      handleCopyPath,
+      handleCopyRelativePath,
+      handleRename,
+      handleDelete,
+      handleRenameSubmit,
+      handleRenameCancel,
+    ]
+  );
+
   return (
-    <div
-      ref={containerRef}
-      data-testid="editor-file-tree"
-      className={`flex-1 overflow-hidden p-1 ${className}`}
-    >
-      {treeData.length === 0 ? (
-        <div className="text-center py-8 text-[var(--color-text-muted)] text-sm">
-          No files to display
-        </div>
-      ) : (
-        <Tree<FileTreeNodeData>
-          ref={treeRef}
-          data={treeData}
-          width="100%"
-          height={treeHeight}
-          rowHeight={FILE_ROW_HEIGHT}
-          indent={16}
-          paddingTop={4}
-          paddingBottom={4}
-          selection={selectedId ?? undefined}
-          onSelect={handleSelect}
-          onActivate={handleActivate}
-          disableMultiSelection
-          openByDefault={false}
-        >
-          {FileNode}
-        </Tree>
-      )}
-    </div>
+    <FileTreeContextMenuContext.Provider value={contextValue}>
+      <div
+        ref={containerRef}
+        data-testid="editor-file-tree"
+        className={`flex-1 overflow-hidden p-1 ${className}`}
+      >
+        {treeData.length === 0 ? (
+          <div className="text-center py-8 text-[var(--color-text-muted)] text-sm">
+            No files to display
+          </div>
+        ) : (
+          <Tree<FileTreeNodeData>
+            ref={treeRef}
+            data={treeData}
+            width="100%"
+            height={treeHeight}
+            rowHeight={FILE_ROW_HEIGHT}
+            indent={16}
+            paddingTop={4}
+            paddingBottom={4}
+            selection={selectedId ?? undefined}
+            onSelect={handleSelect}
+            onActivate={handleActivate}
+            disableMultiSelection
+            openByDefault={false}
+          >
+            {FileNode}
+          </Tree>
+        )}
+
+        {/* Delete Confirmation Dialog */}
+        <DeleteConfirmationDialog
+          node={deletingNode}
+          isOpen={deletingNode !== null}
+          onConfirm={handleDeleteConfirm}
+          onCancel={handleDeleteCancel}
+        />
+      </div>
+    </FileTreeContextMenuContext.Provider>
   );
 }
-
