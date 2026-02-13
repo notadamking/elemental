@@ -52,6 +52,9 @@ import {
 
 const FILE_ROW_HEIGHT = 32;
 
+/** Delay in ms before a collapsed folder auto-expands during drag-over */
+const DRAG_OVER_EXPAND_DELAY = 500;
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -446,6 +449,53 @@ function InlineRenameInput({ node, onSubmit, onCancel }: InlineRenameInputProps)
 }
 
 // ============================================================================
+// Drag-Over Auto-Expand Hook
+// ============================================================================
+
+/**
+ * Hook that auto-expands a collapsed folder node when a dragged item
+ * hovers over it for DRAG_OVER_EXPAND_DELAY ms.
+ *
+ * Returns `isPendingExpand` — true while the timer is running so the UI
+ * can show a visual cue (e.g. a subtle pulse) before the folder opens.
+ */
+function useDragOverExpand(node: NodeApi<FileTreeNodeData>): boolean {
+  const [isPendingExpand, setIsPendingExpand] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isFolder = node.data.nodeType === 'folder';
+  const isClosed = !node.isOpen;
+  const willReceiveDrop = node.willReceiveDrop;
+
+  useEffect(() => {
+    // Only act on collapsed folders that are receiving a drop hover
+    if (isFolder && isClosed && willReceiveDrop) {
+      setIsPendingExpand(true);
+      timerRef.current = setTimeout(() => {
+        node.open();
+        setIsPendingExpand(false);
+      }, DRAG_OVER_EXPAND_DELAY);
+    } else {
+      // Drag left or folder already open — cancel any pending timer
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      setIsPendingExpand(false);
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [isFolder, isClosed, willReceiveDrop, node]);
+
+  return isPendingExpand;
+}
+
+// ============================================================================
 // Tree Node Renderer
 // ============================================================================
 
@@ -460,6 +510,9 @@ function FileNode({ node, style, dragHandle }: NodeRendererProps<FileTreeNodeDat
   const isRenaming = ctx?.renamingNodeId === node.data.id;
   const isDropTarget = node.willReceiveDrop;
   const isDragging = node.isDragging;
+
+  // Auto-expand collapsed folders when a dragged item hovers over them
+  const isPendingExpand = useDragOverExpand(node);
 
   const Icon = getFileIcon(node.data.name, isFolder, isExpanded);
   const iconColor = getIconColor(node.data.name, isFolder);
@@ -488,7 +541,9 @@ function FileNode({ node, style, dragHandle }: NodeRendererProps<FileTreeNodeDat
           w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-sm
           transition-colors duration-150 ease-in-out
           ${isDropTarget
-            ? 'bg-[var(--color-primary-muted)] ring-1 ring-[var(--color-primary)] text-[var(--color-text)]'
+            ? isPendingExpand
+              ? 'bg-[var(--color-primary-muted)] ring-1 ring-[var(--color-primary)] text-[var(--color-text)] animate-pulse'
+              : 'bg-[var(--color-primary-muted)] ring-1 ring-[var(--color-primary)] text-[var(--color-text)]'
             : isSelected
               ? 'bg-[var(--color-primary)] text-white'
               : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
