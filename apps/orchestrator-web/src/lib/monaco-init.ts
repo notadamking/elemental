@@ -108,13 +108,42 @@ export async function initializeMonaco(): Promise<void> {
     // Register custom elemental-dark theme
     monaco.editor.defineTheme('elemental-dark', ELEMENTAL_DARK_THEME);
 
+    // Disable built-in TS/JS semantic validation unconditionally.
+    // The in-browser TS worker cannot resolve modules (no filesystem access),
+    // so semantic diagnostics always produce false positives.
+    // Syntax validation is kept as a useful baseline.
+    const diagnosticsOptions = { noSemanticValidation: true, noSyntaxValidation: false };
+    monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions(diagnosticsOptions);
+    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions(diagnosticsOptions);
+
+    // Set compiler options on the built-in TS worker to match the project's tsconfig.
+    // This prevents false "unused import" warnings in JSX files even if semantic
+    // validation runs before the diagnosticsOptions take effect.
+    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+      ...monaco.languages.typescript.typescriptDefaults.getCompilerOptions(),
+      jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
+      noUnusedLocals: false,
+      noUnusedParameters: false,
+      allowNonTsExtensions: true,
+      target: monaco.languages.typescript.ScriptTarget.ES2020,
+      module: monaco.languages.typescript.ModuleKind.ESNext,
+      moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+    });
+    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+      ...monaco.languages.typescript.javascriptDefaults.getCompilerOptions(),
+      jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
+      noUnusedLocals: false,
+      noUnusedParameters: false,
+      allowNonTsExtensions: true,
+    });
+
     // Expose monaco on window for E2E testing (marker inspection, etc.)
     if (typeof window !== 'undefined') {
       (window as unknown as { monaco: typeof monaco }).monaco = monaco;
     }
 
     initialized = true;
-    console.log('[monaco-init] Monaco initialized');
+    console.log('[monaco-init] Monaco initialized with TS worker configuration');
   })();
 
   return initPromise;

@@ -335,27 +335,9 @@ function LspMonacoEditorComponent({
     prevValuePropRef.current = value;
   }, [filePath, language, value, error]);
 
-  // Unconditionally disable semantic validation from built-in TS worker.
-  // The in-browser TS worker cannot resolve modules (no filesystem access),
-  // so semantic diagnostics always produce false "Cannot find module" errors.
-  // Syntax validation is kept as a useful baseline.
-  useEffect(() => {
-    if (error) return;
-    if (!TS_JS_LANGUAGES.includes(language)) return;
-
-    const diagnosticsOptions = { noSemanticValidation: true, noSyntaxValidation: false };
-
-    try {
-      if (language === 'typescript' || language === 'typescriptreact') {
-        monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions(diagnosticsOptions);
-      } else if (language === 'javascript' || language === 'javascriptreact') {
-        monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions(diagnosticsOptions);
-      }
-      console.log(`[LspMonacoEditor] Disabled built-in TS semantic validation for ${language}`);
-    } catch (err) {
-      console.warn('[LspMonacoEditor] Failed to set diagnostics options:', err);
-    }
-  }, [error, language]);
+  // NOTE: Semantic validation is disabled globally in monaco-init.ts.
+  // This ensures the settings are in place BEFORE any editor models are created,
+  // preventing false diagnostics from appearing during initial load.
 
   // Disable built-in TS intellisense features when LSP is connected to avoid duplicates
   useEffect(() => {
