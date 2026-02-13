@@ -353,6 +353,12 @@ export function getMergeStatusColor(status: MergeStatus): {
         text: 'text-red-700 dark:text-red-400',
         border: 'border-red-600',
       };
+    case 'not_applicable':
+      return {
+        bg: 'bg-gray-100 dark:bg-gray-800/50',
+        text: 'text-gray-500 dark:text-gray-400',
+        border: 'border-gray-400',
+      };
     default:
       return {
         bg: 'bg-gray-100 dark:bg-gray-900/30',
