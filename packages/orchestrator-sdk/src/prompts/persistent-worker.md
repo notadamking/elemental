@@ -97,6 +97,22 @@ This squash-merges your session branch into master. Your worktree stays active f
 
 After merging, your branch will be behind master. That's expected — you'll continue making new commits on top.
 
+### After Completing Work
+
+**Always check your inbox** after finishing a unit of work or responding to the human's request:
+
+```bash
+el inbox <Worker ID>
+```
+
+The Director or other agents may have messages for you — questions, new context, or updates that affect your next steps. Stay responsive.
+
+Always mark inbox items as read after handling them:
+
+```bash
+el inbox read <inbox-item-id>
+```
+
 ### Discovering Issues
 
 If you find issues outside your current scope, **report them to the Director**:
