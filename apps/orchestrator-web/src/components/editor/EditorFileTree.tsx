@@ -267,7 +267,7 @@ function FileTreeContextMenu({ node, children }: FileTreeContextMenuProps) {
         >
           {/* Open */}
           <ContextMenu.Item
-            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] cursor-pointer outline-none"
+            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] data-[highlighted]:bg-[var(--color-surface-active)] cursor-pointer outline-none"
             onSelect={() => onOpen(node)}
             data-testid="context-menu-open"
           >
@@ -278,7 +278,7 @@ function FileTreeContextMenu({ node, children }: FileTreeContextMenuProps) {
 
           {/* Copy */}
           <ContextMenu.Item
-            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] cursor-pointer outline-none"
+            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] data-[highlighted]:bg-[var(--color-surface-active)] cursor-pointer outline-none"
             onSelect={() => onCopy(node)}
             data-testid="context-menu-copy"
           >
@@ -287,7 +287,7 @@ function FileTreeContextMenu({ node, children }: FileTreeContextMenuProps) {
 
           {/* Cut */}
           <ContextMenu.Item
-            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] cursor-pointer outline-none"
+            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] data-[highlighted]:bg-[var(--color-surface-active)] cursor-pointer outline-none"
             onSelect={() => onCut(node)}
             data-testid="context-menu-cut"
           >
@@ -298,7 +298,7 @@ function FileTreeContextMenu({ node, children }: FileTreeContextMenuProps) {
           <ContextMenu.Item
             className={`flex items-center justify-between px-3 py-1.5 text-sm outline-none ${
               canPaste
-                ? 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] cursor-pointer'
+                ? 'text-[var(--color-text)] data-[highlighted]:bg-[var(--color-surface-active)] cursor-pointer'
                 : 'text-[var(--color-text-muted)] opacity-50 cursor-not-allowed'
             }`}
             disabled={!canPaste}
@@ -323,7 +323,7 @@ function FileTreeContextMenu({ node, children }: FileTreeContextMenuProps) {
 
           {/* Copy Path */}
           <ContextMenu.Item
-            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] cursor-pointer outline-none"
+            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] data-[highlighted]:bg-[var(--color-surface-active)] cursor-pointer outline-none"
             onSelect={() => onCopyPath(node)}
             data-testid="context-menu-copy-path"
           >
@@ -332,7 +332,7 @@ function FileTreeContextMenu({ node, children }: FileTreeContextMenuProps) {
 
           {/* Copy Relative Path */}
           <ContextMenu.Item
-            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] cursor-pointer outline-none"
+            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] data-[highlighted]:bg-[var(--color-surface-active)] cursor-pointer outline-none"
             onSelect={() => onCopyRelativePath(node)}
             data-testid="context-menu-copy-relative-path"
           >
@@ -343,7 +343,7 @@ function FileTreeContextMenu({ node, children }: FileTreeContextMenuProps) {
 
           {/* Rename */}
           <ContextMenu.Item
-            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] cursor-pointer outline-none"
+            className="flex items-center justify-between px-3 py-1.5 text-sm text-[var(--color-text)] data-[highlighted]:bg-[var(--color-surface-active)] cursor-pointer outline-none"
             onSelect={() => onRename(node)}
             data-testid="context-menu-rename"
           >
@@ -353,7 +353,7 @@ function FileTreeContextMenu({ node, children }: FileTreeContextMenuProps) {
 
           {/* Delete */}
           <ContextMenu.Item
-            className="flex items-center justify-between px-3 py-1.5 text-sm text-red-400 hover:bg-[var(--color-surface-hover)] cursor-pointer outline-none"
+            className="flex items-center justify-between px-3 py-1.5 text-sm text-red-400 data-[highlighted]:bg-[var(--color-surface-active)] cursor-pointer outline-none"
             onSelect={() => onDelete(node)}
             data-testid="context-menu-delete"
           >
