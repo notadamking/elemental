@@ -128,6 +128,7 @@ export function useAgentInbox(agentId: string | null, view: InboxViewType = 'all
       ),
     enabled: !!agentId,
     staleTime: 30000, // 30 seconds
+    refetchInterval: 30000, // Poll every 30 seconds as fallback
   });
 }
 

@@ -145,6 +145,12 @@ export function defaultQueryKeyMapper(event: WebSocketEvent): string[][] {
         keys.push(['inbox', recipientId]);
         keys.push(['entities', recipientId, 'inbox']);
         keys.push(['entities', recipientId, 'inbox', 'count']);
+        // Also invalidate agent-specific inbox hooks (used by DirectorPanel/PendingMessagesQueue)
+        keys.push(['agent-inbox', recipientId, 'unread']);
+        keys.push(['agent-inbox', recipientId, 'all']);
+        keys.push(['agent-inbox', recipientId, 'archived']);
+        keys.push(['agent-inbox', recipientId]);
+        keys.push(['agent-inbox-count', recipientId]);
       }
       keys.push(['inbox']);
       break;
