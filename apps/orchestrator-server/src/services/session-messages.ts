@@ -52,6 +52,19 @@ export interface SessionMessageService {
    * Get the count of messages for a session
    */
   getMessageCount(sessionId: string): number;
+
+  /**
+   * Get the latest displayable message for a session.
+   * Returns the most recent message that has content or is a tool_use event
+   * (which can be displayed as "Using <tool>...").
+   */
+  getLatestDisplayableMessage(sessionId: string): SessionMessage | undefined;
+
+  /**
+   * Get the latest displayable messages for multiple sessions (batch).
+   * Returns a map of sessionId -> latest message.
+   */
+  getLatestDisplayableMessages(sessionIds: string[]): Map<string, SessionMessage>;
 }
 
 interface DbSessionMessage {
@@ -159,6 +172,38 @@ export function createSessionMessageService(storage: StorageBackend): SessionMes
         [sessionId]
       );
       return result[0]?.count ?? 0;
+    },
+
+    getLatestDisplayableMessage(sessionId) {
+      // Get the most recent message that has displayable content:
+      // - Has text content, OR
+      // - Is a tool_use event (can display tool name), OR
+      // - Is a tool_result event (can display "Tool completed")
+      // Exclude 'user' type (user prompts are not useful for status display)
+      const rows = storage.query<DbSessionMessage>(
+        `SELECT * FROM session_messages
+         WHERE session_id = ?
+           AND type != 'user'
+           AND (content IS NOT NULL OR type IN ('tool_use', 'tool_result'))
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [sessionId]
+      );
+      return rows.length > 0 ? dbToMessage(rows[0]) : undefined;
+    },
+
+    getLatestDisplayableMessages(sessionIds) {
+      const result = new Map<string, SessionMessage>();
+      if (sessionIds.length === 0) return result;
+
+      // Query each session individually for clarity and to use the index efficiently
+      for (const sessionId of sessionIds) {
+        const msg = this.getLatestDisplayableMessage(sessionId);
+        if (msg) {
+          result.set(sessionId, msg);
+        }
+      }
+      return result;
     },
   };
 }

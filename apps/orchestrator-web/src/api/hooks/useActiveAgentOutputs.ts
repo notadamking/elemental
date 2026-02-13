@@ -4,11 +4,16 @@
  * Subscribes to the activity stream and maintains a Map<agentId, lastOutput>
  * so dashboard cards can show the most recent output line per agent without
  * scanning the flat sessionEvents array on every render.
+ *
+ * On mount, fetches the latest persisted message for each running session
+ * so cards immediately show meaningful status instead of "working...".
  */
 
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { useActivityStream } from './useActivity.js';
 import type { SessionEvent, SessionEventType } from '../types.js';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3457';
 
 export interface AgentOutput {
   content: string;
@@ -43,11 +48,101 @@ function getToolActivityDisplay(event: SessionEvent): string | undefined {
  */
 const ACTIVE_EVENT_TYPES: Set<SessionEventType> = new Set(['tool_use', 'tool_result', 'assistant']);
 
-export function useActiveAgentOutputs() {
+/**
+ * Info about a running session, used to seed initial output state
+ */
+export interface RunningSessionInfo {
+  sessionId: string;
+  agentId: string;
+}
+
+/**
+ * Fetch latest displayable messages for a set of sessions from the REST API.
+ * Returns a map of agentId -> AgentOutput.
+ */
+async function fetchLatestMessages(
+  sessions: RunningSessionInfo[]
+): Promise<Map<string, AgentOutput>> {
+  const result = new Map<string, AgentOutput>();
+  if (sessions.length === 0) return result;
+
+  const sessionIds = sessions.map((s) => s.sessionId).join(',');
+
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/sessions/latest-messages?sessionIds=${encodeURIComponent(sessionIds)}`
+    );
+    if (!response.ok) return result;
+
+    const data = (await response.json()) as {
+      messages: Record<
+        string,
+        {
+          content?: string;
+          type: string;
+          toolName?: string;
+          timestamp: string;
+          agentId: string;
+        }
+      >;
+    };
+
+    for (const [, msg] of Object.entries(data.messages)) {
+      if (msg.content && msg.agentId) {
+        result.set(msg.agentId, {
+          content: msg.content,
+          timestamp: msg.timestamp,
+          eventType: msg.type as SessionEvent['type'],
+        });
+      }
+    }
+  } catch {
+    // Silently fail — SSE will fill in the data shortly
+  }
+
+  return result;
+}
+
+export function useActiveAgentOutputs(runningSessions?: RunningSessionInfo[]) {
   const { isConnected, sessionEvents } = useActivityStream('all');
   const mapRef = useRef<Map<string, AgentOutput>>(new Map());
   const [version, setVersion] = useState(0);
   const lastProcessedRef = useRef(0);
+  const seededSessionsRef = useRef<Set<string>>(new Set());
+
+  // Seed initial output from persisted messages when sessions are provided
+  const seedInitialOutput = useCallback(async (sessions: RunningSessionInfo[]) => {
+    // Only seed sessions we haven't seeded yet
+    const unseeded = sessions.filter((s) => !seededSessionsRef.current.has(s.sessionId));
+    if (unseeded.length === 0) return;
+
+    const initial = await fetchLatestMessages(unseeded);
+
+    let changed = false;
+    for (const [agentId, output] of initial) {
+      // Only set if we don't already have a more recent SSE update
+      if (!mapRef.current.has(agentId)) {
+        mapRef.current.set(agentId, output);
+        changed = true;
+      }
+    }
+
+    // Mark these sessions as seeded
+    for (const s of unseeded) {
+      seededSessionsRef.current.add(s.sessionId);
+    }
+
+    if (changed) {
+      setVersion((v) => v + 1);
+    }
+  }, []);
+
+  // Seed when runningSessions change
+  useEffect(() => {
+    if (runningSessions && runningSessions.length > 0) {
+      seedInitialOutput(runningSessions);
+    }
+  }, [runningSessions, seedInitialOutput]);
 
   useEffect(() => {
     if (sessionEvents.length === 0) {

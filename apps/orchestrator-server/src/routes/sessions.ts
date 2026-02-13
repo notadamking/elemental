@@ -753,6 +753,61 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
     }
   });
 
+  // GET /api/sessions/latest-messages?sessionIds=id1,id2,...
+  // Returns the latest displayable message per session for status display on agent cards
+  app.get('/api/sessions/latest-messages', async (c) => {
+    try {
+      const url = new URL(c.req.url);
+      const sessionIdsParam = url.searchParams.get('sessionIds');
+
+      if (!sessionIdsParam) {
+        return c.json({ error: { code: 'INVALID_INPUT', message: 'sessionIds parameter is required' } }, 400);
+      }
+
+      const sessionIds = sessionIdsParam.split(',').filter(Boolean);
+      if (sessionIds.length === 0) {
+        return c.json({ messages: {} });
+      }
+
+      // Cap at 50 sessions to prevent abuse
+      const cappedIds = sessionIds.slice(0, 50);
+      const latestMessages = sessionMessageService.getLatestDisplayableMessages(cappedIds);
+
+      // Convert map to plain object for JSON serialization
+      const messagesObj: Record<string, {
+        content?: string;
+        type: string;
+        toolName?: string;
+        timestamp: string;
+        agentId: string;
+      }> = {};
+
+      for (const [sid, msg] of latestMessages) {
+        // Generate display content: use content if available, otherwise generate from tool info
+        let displayContent = msg.content;
+        if (!displayContent && msg.type === 'tool_use' && msg.toolName) {
+          const displayName = msg.toolName.charAt(0).toUpperCase() + msg.toolName.slice(1);
+          displayContent = `Using ${displayName}...`;
+        } else if (!displayContent && msg.type === 'tool_result') {
+          displayContent = 'Tool completed';
+        }
+
+        messagesObj[sid] = {
+          content: displayContent,
+          type: msg.type,
+          toolName: msg.toolName,
+          timestamp: msg.createdAt,
+          agentId: msg.agentId,
+        };
+      }
+
+      return c.json({ messages: messagesObj });
+    } catch (error) {
+      console.error('[orchestrator] Failed to get latest messages:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
   // GET /api/sessions/:id
   app.get('/api/sessions/:id', async (c) => {
     try {
