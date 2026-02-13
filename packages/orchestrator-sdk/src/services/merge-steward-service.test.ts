@@ -494,6 +494,10 @@ describe('MergeStewardService', () => {
           }),
         })
       );
+      // Verify assignee is cleared when closing
+      const updateCall = (api.update as MockInstance).mock.calls[0][1];
+      expect(updateCall.assignee).toBeUndefined();
+      expect('assignee' in updateCall).toBe(true);
     });
 
     it('should close task and set closedAt when status is not_applicable', async () => {
@@ -517,6 +521,10 @@ describe('MergeStewardService', () => {
           }),
         })
       );
+      // Verify assignee is cleared when closing
+      const updateCall = (api.update as MockInstance).mock.calls[0][1];
+      expect(updateCall.assignee).toBeUndefined();
+      expect('assignee' in updateCall).toBe(true);
     });
 
     it('should not close task for non-terminal statuses', async () => {

@@ -899,6 +899,7 @@ export class MergeStewardServiceImpl implements MergeStewardService {
     if (status === 'merged' || status === 'not_applicable') {
       taskUpdates.status = TaskStatus.CLOSED;
       taskUpdates.closedAt = createTimestamp();
+      taskUpdates.assignee = undefined;
     }
 
     return this.api.update<Task>(taskId, taskUpdates);
