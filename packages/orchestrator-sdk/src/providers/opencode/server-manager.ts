@@ -39,11 +39,11 @@ export interface TextPartInput {
 /** Model information from OpenCode SDK */
 export interface OpencodeModel {
   id: string;
-  providerID: string;
+  providerID?: string;
   name: string;
 }
 
-/** Provider information from OpenCode SDK */
+/** Provider information from OpenCode SDK (config.providers) */
 export interface OpencodeProvider {
   id: string;
   name: string;
@@ -54,6 +54,20 @@ export interface OpencodeProvider {
 export interface ConfigProvidersResponse {
   providers: OpencodeProvider[];
   default: Record<string, string>;
+}
+
+/** Provider entry from provider.list() — includes all available providers */
+export interface OpencodeProviderListItem {
+  id: string;
+  name: string;
+  models: Record<string, OpencodeModel>;
+}
+
+/** Response from provider.list() */
+export interface ProviderListResponse {
+  all: OpencodeProviderListItem[];
+  default: Record<string, string>;
+  connected: string[];
 }
 
 /** Model specification for promptAsync */
@@ -78,6 +92,9 @@ export interface OpencodeClient {
   };
   config: {
     providers(): Promise<SdkResponse<ConfigProvidersResponse>>;
+  };
+  provider: {
+    list(): Promise<SdkResponse<ProviderListResponse>>;
   };
 }
 
@@ -152,19 +169,21 @@ class OpenCodeServerManager {
 
   /**
    * List all available models from OpenCode providers.
+   * Uses provider.list() to get the full catalog (not just configured providers).
    * Each model ID is formatted as `providerID/modelID`.
    * @returns Flattened array of models with composite IDs
    */
   async listModels(
     config?: ServerManagerConfig
-  ): Promise<Array<{ id: string; displayName: string; description?: string }>> {
+  ): Promise<Array<{ id: string; displayName: string; description?: string; isDefault?: boolean }>> {
     const client = await this.acquire(config);
 
     try {
-      const response = await client.config.providers();
+      const response = await client.provider.list();
 
-      if (!response.data?.providers) {
-        return [];
+      if (!response.data?.all) {
+        // Fallback to config.providers() if provider.list() is not available
+        return this.listModelsFromConfig(client);
       }
 
       const models: Array<{ id: string; displayName: string; description?: string; isDefault?: boolean }> = [];
@@ -173,7 +192,7 @@ class OpenCodeServerManager {
       const defaults = response.data.default ?? {};
       const defaultModelIds = new Set(Object.values(defaults));
 
-      for (const provider of response.data.providers) {
+      for (const provider of response.data.all) {
         if (!provider.models) continue;
 
         // Handle models as either a Record or an Array
@@ -187,7 +206,7 @@ class OpenCodeServerManager {
           models.push({
             id,
             displayName: model.name || modelKey,
-            description: undefined, // OpenCode SDK doesn't provide model descriptions
+            description: undefined,
             ...(defaultModelIds.has(id) ? { isDefault: true } : {}),
           });
         }
@@ -197,6 +216,43 @@ class OpenCodeServerManager {
     } finally {
       this.release();
     }
+  }
+
+  /**
+   * Fallback: list models from config.providers() (only configured providers).
+   */
+  private async listModelsFromConfig(
+    client: OpencodeClient
+  ): Promise<Array<{ id: string; displayName: string; description?: string; isDefault?: boolean }>> {
+    const response = await client.config.providers();
+
+    if (!response.data?.providers) {
+      return [];
+    }
+
+    const models: Array<{ id: string; displayName: string; description?: string; isDefault?: boolean }> = [];
+    const defaults = response.data.default ?? {};
+    const defaultModelIds = new Set(Object.values(defaults));
+
+    for (const provider of response.data.providers) {
+      if (!provider.models) continue;
+
+      const entries: Array<[string, OpencodeModel]> = Array.isArray(provider.models)
+        ? (provider.models as OpencodeModel[]).map((m) => [m.id, m] as [string, OpencodeModel])
+        : Object.entries(provider.models);
+
+      for (const [modelKey, model] of entries) {
+        const id = `${provider.id}/${modelKey}`;
+        models.push({
+          id,
+          displayName: model.name || modelKey,
+          description: undefined,
+          ...(defaultModelIds.has(id) ? { isDefault: true } : {}),
+        });
+      }
+    }
+
+    return models;
   }
 
   private async startServer(config?: ServerManagerConfig): Promise<OpencodeClient> {

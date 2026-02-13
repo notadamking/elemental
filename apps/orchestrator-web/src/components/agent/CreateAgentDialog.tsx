@@ -198,7 +198,15 @@ export function CreateAgentDialog({
 
   // Fetch models for the selected provider (must be after form state declaration)
   const { data: modelsData, isLoading: modelsLoading } = useProviderModels(form.provider);
-  const models = useMemo(() => modelsData?.models ?? [], [modelsData?.models]);
+  const allModels = useMemo(() => modelsData?.models ?? [], [modelsData?.models]);
+  const defaultModel = useMemo(() => allModels.find(m => m.isDefault), [allModels]);
+  // If the default model's name already says "Default", don't duplicate it in the list
+  const models = useMemo(
+    () => defaultModel?.displayName.toLowerCase().includes('default')
+      ? allModels.filter(m => !m.isDefault)
+      : allModels,
+    [allModels, defaultModel]
+  );
   const [showCapabilities, setShowCapabilities] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -737,14 +745,13 @@ export function CreateAgentDialog({
                           "
                           data-testid="agent-model"
                         >
-                          {(() => {
-                            const defaultModel = models.find(m => m.isDefault);
-                            return (
-                              <option value="">
-                                {defaultModel ? `Default (${defaultModel.displayName})` : '(Default)'}
-                              </option>
-                            );
-                          })()}
+                          <option value="">
+                            {defaultModel
+                              ? (defaultModel.displayName.toLowerCase().includes('default')
+                                ? defaultModel.displayName
+                                : `Default (${defaultModel.displayName})`)
+                              : '(Default)'}
+                          </option>
                           {models.map(m => (
                             <option key={m.id} value={m.id}>
                               {m.displayName}
