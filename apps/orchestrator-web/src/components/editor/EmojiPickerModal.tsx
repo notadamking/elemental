@@ -22,8 +22,7 @@ import EmojiPicker, {
   SuggestionMode,
   Categories,
 } from 'emoji-picker-react';
-import { ResponsiveModal } from '../shared/ResponsiveModal';
-import { useIsMobile } from '../../hooks';
+import { ResponsiveModal, useIsMobile } from '@elemental/ui';
 
 interface EmojiPickerModalProps {
   isOpen: boolean;

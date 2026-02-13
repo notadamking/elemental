@@ -22,8 +22,7 @@ import {
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
-import { ResponsiveModal } from '../shared/ResponsiveModal';
-import { useIsMobile } from '../../hooks';
+import { ResponsiveModal, useIsMobile } from '@elemental/ui';
 
 interface Document {
   id: string;

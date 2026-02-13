@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Loader2, Plus, FolderPlus } from 'lucide-react';
-import { TagInput } from '@elemental/ui';
-import { ResponsiveModal } from '../shared/ResponsiveModal';
+import { TagInput, ResponsiveModal } from '@elemental/ui';
 import { useCurrentUser } from '../../contexts';
 
 interface Library {
