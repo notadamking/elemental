@@ -214,6 +214,31 @@ nav,
   color: #fef08a;
 }
 
+/* Link styling in editor */
+.ProseMirror a,
+.ProseMirror a.message-link {
+  color: #2563eb;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.ProseMirror a:hover,
+.ProseMirror a.message-link:hover {
+  color: #1d4ed8;
+}
+
+.dark .ProseMirror a,
+.dark .ProseMirror a.message-link {
+  color: #60a5fa;
+}
+
+.dark .ProseMirror a:hover,
+.dark .ProseMirror a.message-link:hover {
+  color: #93c5fd;
+}
+
 /* Bubble menu animation */
 @keyframes bubble-menu-fade-in {
   from {

@@ -215,6 +215,7 @@ export function isMarkdownContent(content: string): boolean {
     /`[^`]+`/.test(content) || // Inline code
     /```[\s\S]*```/.test(content) || // Code blocks
     /^\s*>/.test(content) || // Blockquotes
+    /\[[^\]]+\]\([^)]+\)/.test(content) || // Links [text](url)
     /!\[\[(?:task|doc):[\w-]+\]\]/.test(content) // Embeds
   );
 }

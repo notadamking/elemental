@@ -6,6 +6,7 @@
  * - Inline code and code blocks
  * - Bullet lists and numbered lists
  * - Block quotes
+ * - Links (create, edit, remove via toolbar button or Cmd/Ctrl+K)
  * - Compact toolbar (toggleable)
  * - Markdown shortcuts (e.g., **bold**, _italic_)
  * - Enter to send, Shift+Enter for newline
@@ -20,12 +21,14 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
+import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import { MessageSlashCommands, type MessageEmbedCallbacks } from './MessageSlashCommands';
 import { HashAutocomplete, createElementFetcher } from './HashAutocomplete';
 import { MentionAutocomplete, MentionNode, type MentionEntity } from './MentionAutocomplete';
+import { LinkPopover } from './LinkPopover';
 import {
   useCallback,
   useEffect,
@@ -48,6 +51,7 @@ import {
   List,
   ListOrdered,
   Quote,
+  Link2,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
@@ -91,6 +95,7 @@ interface ToolbarButtonProps {
   title: string;
   children: React.ReactNode;
   testId?: string;
+  buttonRef?: React.RefObject<HTMLButtonElement | null>;
 }
 
 function ToolbarButton({
@@ -100,9 +105,11 @@ function ToolbarButton({
   title,
   children,
   testId,
+  buttonRef,
 }: ToolbarButtonProps) {
   return (
     <button
+      ref={buttonRef}
       type="button"
       onClick={onClick}
       disabled={disabled}
@@ -141,6 +148,9 @@ export const MessageRichComposer = forwardRef<
   ref
 ) {
   const [showToolbar, setShowToolbar] = useState(false);
+  const [showLinkPopover, setShowLinkPopover] = useState(false);
+  const [linkAnchorRect, setLinkAnchorRect] = useState<DOMRect | null>(null);
+  const linkButtonRef = useRef<HTMLButtonElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Store mentionEntities in a ref to avoid recreation of getEntities callback
@@ -156,6 +166,21 @@ export const MessageRichComposer = forwardRef<
     return prepareContentForEditor(content, 'markdown');
   }, [content]);
 
+  // Open link popover - uses a ref so it can be called from handleKeyDown
+  // before the editor variable is available in closure scope
+  const openLinkPopover = useCallback(() => {
+    if (linkButtonRef.current) {
+      setLinkAnchorRect(linkButtonRef.current.getBoundingClientRect());
+    } else {
+      // Fallback: position near the container
+      if (containerRef.current) {
+        setLinkAnchorRect(containerRef.current.getBoundingClientRect());
+      }
+    }
+    setShowToolbar(true); // Ensure toolbar is visible to show link button state
+    setShowLinkPopover(true);
+  }, []);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -165,6 +190,16 @@ export const MessageRichComposer = forwardRef<
         gapcursor: false,
       }),
       Underline,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        linkOnPaste: true,
+        HTMLAttributes: {
+          class: 'message-link',
+          rel: 'noopener noreferrer',
+          target: '_blank',
+        },
+      }),
       Placeholder.configure({
         placeholder: channelName ? `Message ${channelName}...` : placeholder,
       }),
@@ -201,6 +236,12 @@ export const MessageRichComposer = forwardRef<
         style: `max-height: ${maxHeight - 40}px; overflow-y: auto;`,
       },
       handleKeyDown: (_view: any, event: KeyboardEvent) => {
+        // Cmd/Ctrl+K to toggle link editing
+        if (event.key === 'k' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
+          event.preventDefault();
+          openLinkPopover();
+          return true;
+        }
         // Enter to send, Shift+Enter for newline
         if (event.key === 'Enter' && !event.shiftKey && !event.metaKey && !event.ctrlKey) {
           // Don't send if content is in a list or code block (allow natural enter behavior)
@@ -362,6 +403,15 @@ export const MessageRichComposer = forwardRef<
       action: () => editor.chain().focus().toggleBlockquote().run(),
       isActive: editor.isActive('blockquote'),
     },
+    { id: 'divider4', type: 'divider' },
+    {
+      id: 'link',
+      icon: <Link2 className="w-4 h-4" />,
+      title: `Link (${modKey}K)`,
+      action: () => openLinkPopover(),
+      isActive: editor.isActive('link'),
+      ref: linkButtonRef,
+    },
   ];
 
   return (
@@ -400,6 +450,7 @@ export const MessageRichComposer = forwardRef<
                     disabled={disabled}
                     title={action.title!}
                     testId={`message-toolbar-${action.id}`}
+                    buttonRef={(action as any).ref}
                   >
                     {action.icon}
                   </ToolbarButton>
@@ -455,6 +506,15 @@ export const MessageRichComposer = forwardRef<
           )}
         </button>
       </div>
+
+      {/* Link Popover */}
+      {showLinkPopover && (
+        <LinkPopover
+          editor={editor}
+          onClose={() => setShowLinkPopover(false)}
+          anchorRect={linkAnchorRect}
+        />
+      )}
     </div>
   );
 });
