@@ -1,3 +1,11 @@
+---
+
+<p align="center">
+  <b>This repo has moved to <a href="https://github.com/stoneforge-ai/stoneforge">Stoneforge</a></b>
+</p>
+
+---
+
 <p align="center">
   <h1 align="center">Elemental</h1>
   <p align="center">
